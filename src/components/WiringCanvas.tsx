@@ -68,46 +68,47 @@ export default function WiringCanvas(props: Props) {
   const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
 
-  const motorPdhChannels = useMemo(() => {
+  const motorHubPorts = useMemo(() => {
     const partByUid = new Map(parts.map((part) => [part.uid, part]));
-    const channelSets = new Map<string, Set<number>>();
+    const portSets = new Map<string, Set<string>>();
     wires.forEach((wire) => {
       const orientations = [
-        { motorEnd: wire.a, pdhEnd: wire.b },
-        { motorEnd: wire.b, pdhEnd: wire.a },
+        { motorEnd: wire.a, hubEnd: wire.b },
+        { motorEnd: wire.b, hubEnd: wire.a },
       ];
-      orientations.forEach(({ motorEnd, pdhEnd }) => {
+      orientations.forEach(({ motorEnd, hubEnd }) => {
         const motorPart = partByUid.get(motorEnd.uid);
-        const pdhPart = partByUid.get(pdhEnd.uid);
+        const hubPart = partByUid.get(hubEnd.uid);
         const motorDef = motorPart && partDefs.get(motorPart.partId);
-        const pdhDef = pdhPart && partDefs.get(pdhPart.partId);
+        const hubDef = hubPart && partDefs.get(hubPart.partId);
         if (
           !motorPart ||
-          !pdhPart ||
+          !hubPart ||
           !motorDef ||
-          !pdhDef ||
-          motorDef.category !== '电机' ||
-          pdhPart.partId !== 'pdh'
+          !hubDef ||
+          !['hdHexMotor', 'coreHexMotor'].includes(motorPart.partId) ||
+          !['controlHub', 'expansionHub'].includes(hubPart.partId)
         ) return;
         const motorPort = motorDef.ports.find((port) => port.id === motorEnd.portId);
-        const pdhPort = pdhDef.ports.find((port) => port.id === pdhEnd.portId);
-        const channelMatch = pdhPort?.id.match(/^ch(\d+)([+-])$/);
+        const hubPort = hubDef.ports.find((port) => port.id === hubEnd.portId);
+        const channelMatch = hubPort?.id.match(/^motor(\d+)([+-])$/);
         if (
           !motorPort ||
-          !pdhPort ||
-          motorPort.type !== pdhPort.type ||
+          !hubPort ||
+          motorPort.type !== hubPort.type ||
           (motorPort.type !== 'pwr+' && motorPort.type !== 'pwr-') ||
           !channelMatch
         ) return;
-        const channels = channelSets.get(motorPart.uid) ?? new Set<number>();
-        channels.add(Number(channelMatch[1]));
-        channelSets.set(motorPart.uid, channels);
+        const ports = portSets.get(motorPart.uid) ?? new Set<string>();
+        const hubName = hubPart.partId === 'controlHub' ? 'Control Hub' : 'Expansion Hub';
+        ports.add(`${hubName} M${channelMatch[1]}`);
+        portSets.set(motorPart.uid, ports);
       });
     });
     return new Map(
-      [...channelSets].map(([motorUid, channels]) => [
+      [...portSets].map(([motorUid, labels]) => [
         motorUid,
-        [...channels].sort((left, right) => left - right),
+        [...labels].sort(),
       ]),
     );
   }, [partDefs, parts, wires]);
@@ -330,6 +331,7 @@ export default function WiringCanvas(props: Props) {
             const route = wireRoute(p1, p2, lane, wire.control);
             const d = route.path;
             const sel = selectedWires.has(wire.id);
+            const dashed = getPortType(wire.a) === 'wireless' || getPortType(wire.b) === 'wireless';
             return (
               <g key={wire.id}>
                 {sel && <path d={d} fill="none" stroke="#38bdf8" strokeWidth={10} opacity={0.42} strokeLinecap="round" strokeLinejoin="round" />}
@@ -341,6 +343,7 @@ export default function WiringCanvas(props: Props) {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   opacity={0.92}
+                  strokeDasharray={dashed ? '10 7' : undefined}
                   style={{ pointerEvents: 'none' }}
                 />
                 <path
@@ -350,6 +353,7 @@ export default function WiringCanvas(props: Props) {
                   strokeWidth={3.5}
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  strokeDasharray={dashed ? '10 7' : undefined}
                   style={{ pointerEvents: 'none' }}
                 />
                 <path
@@ -419,9 +423,9 @@ export default function WiringCanvas(props: Props) {
             if (!def) return null;
             const { w, h } = partSize(def);
             const sel = selectedParts.has(part.uid);
-            const pdhChannels = motorPdhChannels.get(part.uid) ?? [];
-            const pdhLabel = pdhChannels.length > 0 ? `PDH CH ${pdhChannels.join(' / ')}` : '';
-            const pdhLabelWidth = Math.max(64, pdhLabel.length * 6 + 16);
+            const hubLabels = motorHubPorts.get(part.uid) ?? [];
+            const hubLabel = hubLabels.join(' / ');
+            const hubLabelWidth = Math.max(76, hubLabel.length * 6 + 16);
             return (
               <g key={part.uid} transform={`translate(${part.x} ${part.y})`}>
                 <g transform={`rotate(${part.rot} ${w / 2} ${h / 2})`}>
@@ -502,32 +506,32 @@ export default function WiringCanvas(props: Props) {
                 >
                   {def.name}
                 </text>
-                {pdhLabel && (
+                {hubLabel && (
                   <g
                     transform={`translate(${w / 2} ${h + 24})`}
                     style={{ pointerEvents: 'none', userSelect: 'none' }}
                   >
                     <rect
-                      x={-pdhLabelWidth / 2}
+                      x={-hubLabelWidth / 2}
                       y={0}
-                      width={pdhLabelWidth}
+                      width={hubLabelWidth}
                       height={18}
                       rx={4}
-                      fill={pdhChannels.length > 1 ? '#fef2f2' : '#e0f2fe'}
-                      stroke={pdhChannels.length > 1 ? '#ef4444' : '#0ea5e9'}
+                      fill={hubLabels.length > 1 ? '#fef2f2' : '#e0f2fe'}
+                      stroke={hubLabels.length > 1 ? '#ef4444' : '#0ea5e9'}
                       strokeWidth={1.2}
                     />
                     <text
                       y={12.5}
                       textAnchor="middle"
                       fontSize={10}
-                      fill={pdhChannels.length > 1 ? '#b91c1c' : '#0369a1'}
+                      fill={hubLabels.length > 1 ? '#b91c1c' : '#0369a1'}
                       fontWeight={700}
                       letterSpacing={0}
                     >
-                      {pdhLabel}
+                      {hubLabel}
                     </text>
-                    <title>{pdhChannels.length > 1 ? '电机正负极连接到了不同的 PDH 通道' : `电机连接到 ${pdhLabel}`}</title>
+                    <title>{hubLabels.length > 1 ? '电机正负极连接到了不同的 Hub 电机端口' : `电机连接到 ${hubLabel}`}</title>
                   </g>
                 )}
               </g>

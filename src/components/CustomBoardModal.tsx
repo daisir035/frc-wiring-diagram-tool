@@ -7,7 +7,21 @@ interface Props {
   onSave: (def: PartDef) => void;
 }
 
-const PORT_TYPES: PortType[] = ['pwr+', 'pwr-', 'canH', 'canL', 'signal', 'data'];
+const PORT_TYPES: PortType[] = [
+  'pwr+',
+  'pwr-',
+  'encoder',
+  'servo',
+  'i2c',
+  'digital',
+  'analog',
+  'usb',
+  'rs485',
+  'uart',
+  'wireless',
+  'signal',
+  'data',
+];
 
 /** 上传图片 → 点击图片标记端口 → 保存为自定义板卡 */
 export default function CustomBoardModal({ onClose, onSave }: Props) {

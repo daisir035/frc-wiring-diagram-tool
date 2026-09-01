@@ -1,4 +1,6 @@
-// FRC 接线图工具 - 类型、端口和内置元件定义
+// FTC 接线图工具 - 通用类型、布线算法和内置元件导出
+
+import { FTC_PARTS, FTC_PART_CATEGORIES } from './ftcParts';
 
 export type PortType =
   | 'pwr+'
@@ -7,6 +9,15 @@ export type PortType =
   | 'canL'
   | 'signal'
   | 'data'
+  | 'encoder'
+  | 'servo'
+  | 'i2c'
+  | 'digital'
+  | 'analog'
+  | 'usb'
+  | 'rs485'
+  | 'uart'
+  | 'wireless'
   | 'phaseA'
   | 'phaseB'
   | 'phaseC';
@@ -96,6 +107,15 @@ export const PORT_TYPE_COLOR: Record<PortType, string> = {
   canL: '#16a34a',
   signal: '#2563eb',
   data: '#7c3aed',
+  encoder: '#9333ea',
+  servo: '#f97316',
+  i2c: '#0891b2',
+  digital: '#2563eb',
+  analog: '#16a34a',
+  usb: '#4f46e5',
+  rs485: '#0f766e',
+  uart: '#be123c',
+  wireless: '#0284c7',
   phaseA: '#f59e0b',
   phaseB: '#0ea5e9',
   phaseC: '#a855f7',
@@ -108,6 +128,15 @@ export const PORT_TYPE_NAME: Record<PortType, string> = {
   canL: 'CAN-L',
   signal: '信号',
   data: '数据',
+  encoder: '编码器',
+  servo: '舵机',
+  i2c: 'I²C',
+  digital: '数字量',
+  analog: '模拟量',
+  usb: 'USB',
+  rs485: 'RS485',
+  uart: 'UART',
+  wireless: '无线',
   phaseA: '三相 A',
   phaseB: '三相 B',
   phaseC: '三相 C',
@@ -611,7 +640,7 @@ const limelight4 = imagePart('Limelight 4 Technical.png', {
   ],
 });
 
-export const BUILTIN_PARTS: PartDef[] = [
+export const FRC_REFERENCE_PARTS: PartDef[] = [
   roboRIO,
   pdp,
   pdh,
@@ -638,7 +667,9 @@ export const BUILTIN_PARTS: PartDef[] = [
   limelight4,
 ];
 
-export const PART_CATEGORIES = ['控制', '配电', '电机', '气动', '传感器', '其他', '自定义'];
+export const BUILTIN_PARTS: PartDef[] = FTC_PARTS;
+
+export const PART_CATEGORIES = FTC_PART_CATEGORIES;
 
 export function partImageSrc(def: PartDef): string {
   if (def.imgData) return def.imgData;
@@ -646,7 +677,8 @@ export function partImageSrc(def: PartDef): string {
 }
 
 export function partAssetSrc(fileName: string): string {
-  return `${import.meta.env.BASE_URL}parts/${encodeURIComponent(fileName)}`;
+  const encodedPath = fileName.split('/').map(encodeURIComponent).join('/');
+  return `${import.meta.env.BASE_URL}parts/${encodedPath}`;
 }
 
 export function partSize(def: PartDef): { w: number; h: number } {

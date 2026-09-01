@@ -22,7 +22,7 @@ import {
   uid,
 } from '../lib/wiring';
 
-const STORAGE_KEY = 'frc-wiresheet-v1';
+const STORAGE_KEY = 'ftc-wiresheet-v1';
 
 interface SavedState {
   parts: PlacedPart[];
@@ -263,29 +263,54 @@ export default function Home() {
       y,
       rot,
     });
-    const battery = mk('battery12v', 40, 120);
-    const breaker = mk('breaker120', 255, 70);
-    const pdp1 = { ...mk('pdh', 430, 55), fuses: { 0: 20, 1: 40, 6: 20 } as Record<number, FuseRating> };
-    const rio = mk('roborio', 720, 60);
-    const vrm1 = mk('vrm', 430, 520);
-    const k60 = mk('krakenX60', 790, 470);
-    const rsl1 = mk('rsl', 1050, 260);
-    const demoParts = [battery, breaker, pdp1, rio, vrm1, k60, rsl1];
+    const gamepad1 = mk('revGamepad', 30, -210);
+    const driver = mk('driverHub', 335, -230);
+    const gamepad2 = mk('revGamepad', 730, -210);
+    const battery = mk('battery12v', 25, 205);
+    const powerSwitch = mk('powerSwitch', 275, 210);
+    const control = mk('controlHub', 505, 155);
+    const expansion = mk('expansionHub', 930, 155);
+    const color = mk('colorSensorV3', 430, 530);
+    const distance = mk('distanceSensor2m', 580, 555);
+    const touch = mk('touchSensor', 710, 545);
+    const servo = mk('smartServo', 835, 500);
+    const hdMotor = mk('hdHexMotor', 1050, 485);
+    const coreMotor = mk('coreHexMotor', 1085, 675);
+    const demoParts = [
+      gamepad1,
+      driver,
+      gamepad2,
+      battery,
+      powerSwitch,
+      control,
+      expansion,
+      color,
+      distance,
+      touch,
+      servo,
+      hdMotor,
+      coreMotor,
+    ];
     setParts(demoParts);
     setWires([
-      { id: uid(), a: { uid: battery.uid, portId: 'positive' }, b: { uid: breaker.uid, portId: 'batt' }, color: '#dc2626' },
-      { id: uid(), a: { uid: breaker.uid, portId: 'aux' }, b: { uid: pdp1.uid, portId: 'batt+' }, color: '#dc2626' },
-      { id: uid(), a: { uid: battery.uid, portId: 'negative' }, b: { uid: pdp1.uid, portId: 'batt-' }, color: '#1f2937' },
-      { id: uid(), a: { uid: pdp1.uid, portId: 'ch0+' }, b: { uid: rio.uid, portId: 'vin+' }, color: '#dc2626' },
-      { id: uid(), a: { uid: pdp1.uid, portId: 'ch0-' }, b: { uid: rio.uid, portId: 'vin-' }, color: '#1f2937' },
-      { id: uid(), a: { uid: rio.uid, portId: 'canH' }, b: { uid: k60.uid, portId: 'canInH' }, color: '#eab308' },
-      { id: uid(), a: { uid: rio.uid, portId: 'canL' }, b: { uid: k60.uid, portId: 'canInL' }, color: '#16a34a' },
-      { id: uid(), a: { uid: pdp1.uid, portId: 'ch1+' }, b: { uid: k60.uid, portId: 'pwr+' }, color: '#dc2626' },
-      { id: uid(), a: { uid: pdp1.uid, portId: 'ch1-' }, b: { uid: k60.uid, portId: 'pwr-' }, color: '#1f2937' },
-      { id: uid(), a: { uid: pdp1.uid, portId: 'ch6+' }, b: { uid: vrm1.uid, portId: 'vin+' }, color: '#dc2626' },
-      { id: uid(), a: { uid: pdp1.uid, portId: 'ch6-' }, b: { uid: vrm1.uid, portId: 'vin-' }, color: '#1f2937' },
-      { id: uid(), a: { uid: rio.uid, portId: 'rslA' }, b: { uid: rsl1.uid, portId: 'la' }, color: '#2563eb' },
-      { id: uid(), a: { uid: rio.uid, portId: 'rslB' }, b: { uid: rsl1.uid, portId: 'lb' }, color: '#2563eb' },
+      { id: uid(), a: { uid: gamepad1.uid, portId: 'usb' }, b: { uid: driver.uid, portId: 'usb1' }, color: '#4f46e5' },
+      { id: uid(), a: { uid: gamepad2.uid, portId: 'usb' }, b: { uid: driver.uid, portId: 'usb2' }, color: '#4f46e5' },
+      { id: uid(), a: { uid: driver.uid, portId: 'wifi' }, b: { uid: control.uid, portId: 'wifi' }, color: '#0284c7' },
+      { id: uid(), a: { uid: battery.uid, portId: 'positive' }, b: { uid: powerSwitch.uid, portId: 'in+' }, color: '#dc2626' },
+      { id: uid(), a: { uid: battery.uid, portId: 'negative' }, b: { uid: powerSwitch.uid, portId: 'in-' }, color: '#1f2937' },
+      { id: uid(), a: { uid: powerSwitch.uid, portId: 'out+' }, b: { uid: control.uid, portId: 'battery+' }, color: '#dc2626' },
+      { id: uid(), a: { uid: powerSwitch.uid, portId: 'out-' }, b: { uid: control.uid, portId: 'battery-' }, color: '#1f2937' },
+      { id: uid(), a: { uid: control.uid, portId: 'rs485' }, b: { uid: expansion.uid, portId: 'rs485' }, color: '#0f766e' },
+      { id: uid(), a: { uid: control.uid, portId: 'motor0+' }, b: { uid: hdMotor.uid, portId: 'motor+' }, color: '#dc2626' },
+      { id: uid(), a: { uid: control.uid, portId: 'motor0-' }, b: { uid: hdMotor.uid, portId: 'motor-' }, color: '#1f2937' },
+      { id: uid(), a: { uid: control.uid, portId: 'encoder0' }, b: { uid: hdMotor.uid, portId: 'encoder' }, color: '#9333ea' },
+      { id: uid(), a: { uid: expansion.uid, portId: 'motor0+' }, b: { uid: coreMotor.uid, portId: 'motor+' }, color: '#dc2626' },
+      { id: uid(), a: { uid: expansion.uid, portId: 'motor0-' }, b: { uid: coreMotor.uid, portId: 'motor-' }, color: '#1f2937' },
+      { id: uid(), a: { uid: expansion.uid, portId: 'encoder0' }, b: { uid: coreMotor.uid, portId: 'encoder' }, color: '#9333ea' },
+      { id: uid(), a: { uid: control.uid, portId: 'servo0' }, b: { uid: servo.uid, portId: 'servo' }, color: '#f97316' },
+      { id: uid(), a: { uid: control.uid, portId: 'i2c0' }, b: { uid: color.uid, portId: 'i2c' }, color: '#0891b2' },
+      { id: uid(), a: { uid: control.uid, portId: 'i2c1' }, b: { uid: distance.uid, portId: 'i2c' }, color: '#0891b2' },
+      { id: uid(), a: { uid: control.uid, portId: 'dio01' }, b: { uid: touch.uid, portId: 'digital' }, color: '#2563eb' },
     ]);
     setSelectedParts(new Set());
     setSelectedWires(new Set());
@@ -419,7 +444,7 @@ export default function Home() {
       URL.revokeObjectURL(url);
       const a = document.createElement('a');
       a.href = canvas.toDataURL('image/png');
-      a.download = 'frc-接线图.png';
+      a.download = 'ftc-接线图.png';
       a.click();
     };
     img.onerror = () => {
@@ -468,7 +493,7 @@ export default function Home() {
           <PanelLeft className="h-4 w-4" aria-hidden="true" />
         </button>
         <div className="font-bold text-slate-800 text-sm whitespace-nowrap">
-          FRC 接线图工具
+          FTC 接线图工具
           <span className="ml-2 hidden text-[10px] font-normal text-slate-400 sm:inline">WireSheet</span>
         </div>
         <div className="w-px h-6 bg-slate-200" />

@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Download, Eraser, Maximize, PanelLeft, Plus, RotateCw, Trash2, Undo2, Zap } from 'lucide-react';
+import { CircuitBoard, Download, Eraser, ImageOff, ImagePlus, Lock, Maximize, PanelLeft, RotateCw, Trash2, Undo2, Unlock, Zap } from 'lucide-react';
 import WiringCanvas from '../components/WiringCanvas';
 import LibraryPanel from '../components/LibraryPanel';
 import CustomBoardModal from '../components/CustomBoardModal';
 import PropertiesPanel from '../components/PropertiesPanel';
+import WirePropertiesPanel from '../components/WirePropertiesPanel';
 import type {
+  CanvasBackground,
   FuseRating,
   PartDef,
   PlacedPart,
@@ -18,6 +20,7 @@ import {
   WIRE_COLORS,
   PORT_TYPE_COLOR,
   pairedPowerPort,
+  wireGaugeRule,
   partSize,
   uid,
 } from '../lib/wiring';
@@ -28,6 +31,7 @@ interface SavedState {
   parts: PlacedPart[];
   wires: Wire[];
   customParts: PartDef[];
+  backgroundImage?: CanvasBackground;
 }
 
 function loadSaved(): SavedState {
@@ -37,6 +41,7 @@ function loadSaved(): SavedState {
       const s = JSON.parse(raw) as SavedState;
       const customParts = s.customParts ?? [];
       const knownPartIds = new Set([...BUILTIN_PARTS, ...customParts].map((part) => part.id));
+      const savedPartDefs = new Map([...BUILTIN_PARTS, ...customParts].map((part) => [part.id, part]));
       const parts = (s.parts ?? []).filter((part) => knownPartIds.has(part.partId));
       const partIdByUid = new Map(parts.map((part) => [part.uid, part.partId]));
       const migrateEnd = (end: WireEnd): WireEnd => {
@@ -62,13 +67,24 @@ function loadSaved(): SavedState {
       const validUids = new Set(parts.map((part) => part.uid));
       const wires = (s.wires ?? [])
         .filter((wire) => validUids.has(wire.a.uid) && validUids.has(wire.b.uid))
-        .map((wire) => ({ ...wire, a: migrateEnd(wire.a), b: migrateEnd(wire.b) }));
-      return { parts, wires, customParts };
+        .map((wire) => {
+          const migrated = { ...wire, a: migrateEnd(wire.a), b: migrateEnd(wire.b) };
+          const rule = wireGaugeRule(migrated, parts, savedPartDefs);
+          return {
+            ...migrated,
+            awg: migrated.awg ?? rule.recommended,
+            assembly: migrated.assembly ?? 'field',
+          };
+        });
+      const backgroundImage = s.backgroundImage
+        ? { ...s.backgroundImage, opacity: s.backgroundImage.opacity ?? 0.38 }
+        : undefined;
+      return { parts, wires, customParts, backgroundImage };
     }
   } catch {
     /* ignore */
   }
-  return { parts: [], wires: [], customParts: [] };
+  return { parts: [], wires: [], customParts: [], backgroundImage: undefined };
 }
 
 export default function Home() {
@@ -76,6 +92,7 @@ export default function Home() {
   const [customParts, setCustomParts] = useState<PartDef[]>(initial.customParts);
   const [parts, setParts] = useState<PlacedPart[]>(initial.parts);
   const [wires, setWires] = useState<Wire[]>(initial.wires);
+  const [backgroundImage, setBackgroundImage] = useState<CanvasBackground | undefined>(initial.backgroundImage);
   const [selectedParts, setSelectedParts] = useState<Set<string>>(new Set());
   const [selectedWires, setSelectedWires] = useState<Set<string>>(new Set());
   const [pendingFrom, setPendingFrom] = useState<WireEnd | null>(null);
@@ -84,6 +101,7 @@ export default function Home() {
   const [showCustom, setShowCustom] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(() => window.innerWidth >= 768);
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const backgroundInputRef = useRef<HTMLInputElement | null>(null);
   const addCountRef = useRef(0);
 
   const partDefs = useMemo(() => {
@@ -97,15 +115,24 @@ export default function Home() {
     return parts.find((part) => selectedParts.has(part.uid)) ?? null;
   }, [parts, selectedParts]);
   const selectedPartDef = selectedPart ? partDefs.get(selectedPart.partId) ?? null : null;
+  const selectedPartItems = parts.filter((part) => selectedParts.has(part.uid));
+  const canRotateSelected = selectedPartItems.some((part) => !part.locked);
+  const shouldLockSelected = selectedPartItems.some((part) => !part.locked);
+  const deletableSelectionCount = selectedWires.size + selectedPartItems.filter((part) => !part.locked).length;
+  const selectedWire = useMemo(() => {
+    if (selectedWires.size !== 1) return null;
+    return wires.find((wire) => selectedWires.has(wire.id)) ?? null;
+  }, [selectedWires, wires]);
+  const selectedWireRule = selectedWire ? wireGaugeRule(selectedWire, parts, partDefs) : null;
 
   // 本地存档（仅当前浏览器）
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ parts, wires, customParts }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ parts, wires, customParts, backgroundImage }));
     } catch {
       /* ignore */
     }
-  }, [parts, wires, customParts]);
+  }, [parts, wires, customParts, backgroundImage]);
 
   /* ---------- 元件操作 ---------- */
 
@@ -133,34 +160,109 @@ export default function Home() {
   const rotateSelected = () => {
     setParts((ps) =>
       ps.map((p) =>
-        selectedParts.has(p.uid) ? { ...p, rot: (((p.rot + 90) % 360) as PlacedPart['rot']) } : p,
+        selectedParts.has(p.uid) && !p.locked ? { ...p, rot: (((p.rot + 90) % 360) as PlacedPart['rot']) } : p,
       ),
     );
+  };
+
+  const toggleLockSelected = () => {
+    if (selectedParts.size === 0) return;
+    const locked = shouldLockSelected;
+    setParts((current) => current.map((part) =>
+      selectedParts.has(part.uid) ? { ...part, locked } : part,
+    ));
   };
 
   const deleteSelection = () => {
     if (selectedParts.size === 0 && selectedWires.size === 0) return;
-    setParts((ps) => ps.filter((p) => !selectedParts.has(p.uid)));
+    const deletablePartUids = new Set(
+      parts.filter((part) => selectedParts.has(part.uid) && !part.locked).map((part) => part.uid),
+    );
+    if (deletablePartUids.size === 0 && selectedWires.size === 0) return;
+    setParts((ps) => ps.filter((p) => !deletablePartUids.has(p.uid)));
     setWires((ws) =>
       ws.filter(
         (w) =>
           !selectedWires.has(w.id) &&
-          !selectedParts.has(w.a.uid) &&
-          !selectedParts.has(w.b.uid),
+          !deletablePartUids.has(w.a.uid) &&
+          !deletablePartUids.has(w.b.uid),
       ),
     );
-    setSelectedParts(new Set());
+    setSelectedParts(new Set(selectedPartItems.filter((part) => part.locked).map((part) => part.uid)));
     setSelectedWires(new Set());
   };
 
   const clearAll = () => {
-    if (parts.length === 0 && wires.length === 0) return;
-    if (!window.confirm('清空画布上的所有元件和导线？')) return;
+    if (parts.length === 0 && wires.length === 0 && !backgroundImage) return;
+    if (!window.confirm('清空画布上的底盘图、所有元件和导线？')) return;
     setParts([]);
     setWires([]);
+    setBackgroundImage(undefined);
     setSelectedParts(new Set());
     setSelectedWires(new Set());
     setPendingFrom(null);
+  };
+
+  const importBackgroundImage = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      window.alert('请选择 PNG、JPG 或 WEBP 图片');
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      window.alert('底盘图片请小于 15 MB');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const source = reader.result as string;
+      const image = new window.Image();
+      image.onload = () => {
+        const maxDimension = 1800;
+        const rasterScale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
+        const rasterWidth = Math.max(1, Math.round(image.naturalWidth * rasterScale));
+        const rasterHeight = Math.max(1, Math.round(image.naturalHeight * rasterScale));
+        const canvas = document.createElement('canvas');
+        canvas.width = rasterWidth;
+        canvas.height = rasterHeight;
+        const context = canvas.getContext('2d');
+        if (!context) return;
+        context.drawImage(image, 0, 0, rasterWidth, rasterHeight);
+        const imageData = canvas.toDataURL('image/webp', 0.86);
+        const width = 1000;
+        const height = width * (rasterHeight / rasterWidth);
+        const rect = svgRef.current?.getBoundingClientRect();
+        const centerX = rect ? (rect.width / 2 - view.x) / view.k : width / 2;
+        const centerY = rect ? (rect.height / 2 - view.y) / view.k : height / 2;
+        const nextBackground: CanvasBackground = {
+          name: file.name.replace(/\.[^.]+$/, '') || '底盘俯视图',
+          imageData,
+          x: centerX - width / 2,
+          y: centerY - height / 2,
+          width,
+          height,
+          opacity: 0.38,
+        };
+        setBackgroundImage(nextBackground);
+        setSelectedParts(new Set());
+        setSelectedWires(new Set());
+        setPendingFrom(null);
+        if (rect) {
+          const pad = 50;
+          const k = Math.min(2, Math.max(0.15, Math.min(
+            (rect.width - pad * 2) / width,
+            (rect.height - pad * 2) / height,
+          )));
+          setView({
+            k,
+            x: rect.width / 2 - (nextBackground.x + width / 2) * k,
+            y: rect.height / 2 - (nextBackground.y + height / 2) * k,
+          });
+        }
+      };
+      image.onerror = () => window.alert('无法读取这张图片，请换一张重试');
+      image.src = source;
+    };
+    reader.readAsDataURL(file);
   };
 
   /* ---------- 接线 ---------- */
@@ -186,7 +288,11 @@ export default function Home() {
     const tA = defA?.ports.find((port) => port.id === pendingFrom.portId)?.type;
     const tB = defB?.ports.find((port) => port.id === end.portId)?.type;
     const color = tA && tA === tB ? PORT_TYPE_COLOR[tA] : wireColor;
-    const mainWire: Wire = { id: uid(), a: pendingFrom, b: end, color };
+    const mainWireBase: Wire = { id: uid(), a: pendingFrom, b: end, color, assembly: 'field' };
+    const mainWire: Wire = {
+      ...mainWireBase,
+      awg: wireGaugeRule(mainWireBase, parts, partDefs).recommended,
+    };
     const canAutoPair =
       partA?.partId !== 'battery12v' &&
       partB?.partId !== 'battery12v' &&
@@ -210,11 +316,16 @@ export default function Home() {
         isSameEnd(wire.b, autoB),
       );
       if (counterpartOccupied) return [...current, mainWire];
-      const pairedWire: Wire = {
+      const pairedWireBase: Wire = {
         id: uid(),
         a: autoA,
         b: autoB,
         color: PORT_TYPE_COLOR[pairedA.type],
+        assembly: 'field',
+      };
+      const pairedWire: Wire = {
+        ...pairedWireBase,
+        awg: wireGaugeRule(pairedWireBase, parts, partDefs).recommended,
       };
       return [...current, mainWire, pairedWire];
     });
@@ -273,19 +384,19 @@ export default function Home() {
     const demoParts = [battery, breaker, pdp1, rio, vrm1, k60, rsl1];
     setParts(demoParts);
     setWires([
-      { id: uid(), a: { uid: battery.uid, portId: 'positive' }, b: { uid: breaker.uid, portId: 'batt' }, color: '#dc2626' },
-      { id: uid(), a: { uid: breaker.uid, portId: 'aux' }, b: { uid: pdp1.uid, portId: 'batt+' }, color: '#dc2626' },
-      { id: uid(), a: { uid: battery.uid, portId: 'negative' }, b: { uid: pdp1.uid, portId: 'batt-' }, color: '#1f2937' },
-      { id: uid(), a: { uid: pdp1.uid, portId: 'ch0+' }, b: { uid: rio.uid, portId: 'vin+' }, color: '#dc2626' },
-      { id: uid(), a: { uid: pdp1.uid, portId: 'ch0-' }, b: { uid: rio.uid, portId: 'vin-' }, color: '#1f2937' },
-      { id: uid(), a: { uid: rio.uid, portId: 'canH' }, b: { uid: k60.uid, portId: 'canInH' }, color: '#eab308' },
-      { id: uid(), a: { uid: rio.uid, portId: 'canL' }, b: { uid: k60.uid, portId: 'canInL' }, color: '#16a34a' },
-      { id: uid(), a: { uid: pdp1.uid, portId: 'ch1+' }, b: { uid: k60.uid, portId: 'pwr+' }, color: '#dc2626' },
-      { id: uid(), a: { uid: pdp1.uid, portId: 'ch1-' }, b: { uid: k60.uid, portId: 'pwr-' }, color: '#1f2937' },
-      { id: uid(), a: { uid: pdp1.uid, portId: 'ch6+' }, b: { uid: vrm1.uid, portId: 'vin+' }, color: '#dc2626' },
-      { id: uid(), a: { uid: pdp1.uid, portId: 'ch6-' }, b: { uid: vrm1.uid, portId: 'vin-' }, color: '#1f2937' },
-      { id: uid(), a: { uid: rio.uid, portId: 'rslA' }, b: { uid: rsl1.uid, portId: 'la' }, color: '#2563eb' },
-      { id: uid(), a: { uid: rio.uid, portId: 'rslB' }, b: { uid: rsl1.uid, portId: 'lb' }, color: '#2563eb' },
+      { id: uid(), a: { uid: battery.uid, portId: 'positive' }, b: { uid: breaker.uid, portId: 'batt' }, color: '#dc2626', awg: 4, assembly: 'field' },
+      { id: uid(), a: { uid: breaker.uid, portId: 'aux' }, b: { uid: pdp1.uid, portId: 'batt+' }, color: '#dc2626', awg: 4, assembly: 'field' },
+      { id: uid(), a: { uid: battery.uid, portId: 'negative' }, b: { uid: pdp1.uid, portId: 'batt-' }, color: '#1f2937', awg: 4, assembly: 'field' },
+      { id: uid(), a: { uid: pdp1.uid, portId: 'ch0+' }, b: { uid: rio.uid, portId: 'vin+' }, color: '#dc2626', awg: 18, assembly: 'field' },
+      { id: uid(), a: { uid: pdp1.uid, portId: 'ch0-' }, b: { uid: rio.uid, portId: 'vin-' }, color: '#1f2937', awg: 18, assembly: 'field' },
+      { id: uid(), a: { uid: rio.uid, portId: 'canH' }, b: { uid: k60.uid, portId: 'canInH' }, color: '#eab308', awg: 22, assembly: 'field' },
+      { id: uid(), a: { uid: rio.uid, portId: 'canL' }, b: { uid: k60.uid, portId: 'canInL' }, color: '#16a34a', awg: 22, assembly: 'field' },
+      { id: uid(), a: { uid: pdp1.uid, portId: 'ch1+' }, b: { uid: k60.uid, portId: 'pwr+' }, color: '#dc2626', awg: 10, assembly: 'field' },
+      { id: uid(), a: { uid: pdp1.uid, portId: 'ch1-' }, b: { uid: k60.uid, portId: 'pwr-' }, color: '#1f2937', awg: 10, assembly: 'field' },
+      { id: uid(), a: { uid: pdp1.uid, portId: 'ch6+' }, b: { uid: vrm1.uid, portId: 'vin+' }, color: '#dc2626', awg: 18, assembly: 'field' },
+      { id: uid(), a: { uid: pdp1.uid, portId: 'ch6-' }, b: { uid: vrm1.uid, portId: 'vin-' }, color: '#1f2937', awg: 18, assembly: 'field' },
+      { id: uid(), a: { uid: rio.uid, portId: 'rslA' }, b: { uid: rsl1.uid, portId: 'la' }, color: '#2563eb', awg: 22, assembly: 'field' },
+      { id: uid(), a: { uid: rio.uid, portId: 'rslB' }, b: { uid: rsl1.uid, portId: 'lb' }, color: '#2563eb', awg: 22, assembly: 'field' },
     ]);
     setSelectedParts(new Set());
     setSelectedWires(new Set());
@@ -305,11 +416,17 @@ export default function Home() {
   /* ---------- 视图 ---------- */
 
   const fitView = (targetParts: PlacedPart[] = parts) => {
-    if (!svgRef.current || targetParts.length === 0) return;
+    if (!svgRef.current || (targetParts.length === 0 && !backgroundImage)) return;
     let minX = Infinity,
       minY = Infinity,
       maxX = -Infinity,
       maxY = -Infinity;
+    if (backgroundImage) {
+      minX = backgroundImage.x;
+      minY = backgroundImage.y;
+      maxX = backgroundImage.x + backgroundImage.width;
+      maxY = backgroundImage.y + backgroundImage.height;
+    }
     targetParts.forEach((p) => {
       const def = partDefs.get(p.partId);
       if (!def) return;
@@ -342,8 +459,8 @@ export default function Home() {
 
   const exportPNG = async () => {
     const svg = svgRef.current;
-    if (!svg || parts.length === 0) {
-      window.alert('画布上还没有元件');
+    if (!svg || (parts.length === 0 && !backgroundImage)) {
+      window.alert('画布上还没有底盘图或元件');
       return;
     }
     // 计算内容包围盒（世界坐标）
@@ -351,6 +468,12 @@ export default function Home() {
       minY = Infinity,
       maxX = -Infinity,
       maxY = -Infinity;
+    if (backgroundImage) {
+      minX = backgroundImage.x;
+      minY = backgroundImage.y;
+      maxX = backgroundImage.x + backgroundImage.width;
+      maxY = backgroundImage.y + backgroundImage.height;
+    }
     parts.forEach((p) => {
       const def = partDefs.get(p.partId);
       if (!def) return;
@@ -487,9 +610,13 @@ export default function Home() {
           ))}
         </div>
         <div className="w-px h-6 bg-slate-200" />
-        <ToolBtn onClick={rotateSelected} disabled={selectedParts.size === 0} title="旋转选中元件 (R)">
+        <ToolBtn onClick={rotateSelected} disabled={!canRotateSelected} title="将未锁定的选中器件顺时针旋转 90° (R)">
           <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
-          旋转
+          旋转 90°
+        </ToolBtn>
+        <ToolBtn onClick={toggleLockSelected} disabled={selectedParts.size === 0} title={shouldLockSelected ? '固定选中器件' : '解除选中器件锁定'}>
+          {shouldLockSelected ? <Lock className="h-3.5 w-3.5" aria-hidden="true" /> : <Unlock className="h-3.5 w-3.5" aria-hidden="true" />}
+          {shouldLockSelected ? '锁定' : '解锁'}
         </ToolBtn>
         <ToolBtn
           onClick={() => setWires((current) => current.map((wire) => selectedWires.has(wire.id) ? { ...wire, control: undefined } : wire))}
@@ -499,7 +626,7 @@ export default function Home() {
           <Undo2 className="h-3.5 w-3.5" aria-hidden="true" />
           恢复布线
         </ToolBtn>
-        <ToolBtn onClick={deleteSelection} disabled={selCount === 0} title="删除选中 (Delete)">
+        <ToolBtn onClick={deleteSelection} disabled={deletableSelectionCount === 0} title="删除未锁定的选中内容 (Delete)">
           <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
           删除
         </ToolBtn>
@@ -512,11 +639,35 @@ export default function Home() {
           <Zap className="h-3.5 w-3.5" aria-hidden="true" />
           示例
         </ToolBtn>
-        <ToolBtn onClick={() => setShowCustom(true)} title="上传图片自制板卡并标记端口">
-          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-          自制板卡
+        <input
+          ref={backgroundInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) importBackgroundImage(file);
+            event.currentTarget.value = '';
+          }}
+        />
+        <ToolBtn
+          onClick={() => backgroundInputRef.current?.click()}
+          title="导入机器人底盘俯视图，作为不可接线的画布背景"
+        >
+          <ImagePlus className="h-3.5 w-3.5" aria-hidden="true" />
+          {backgroundImage ? '更换底盘图' : '导入底盘图'}
         </ToolBtn>
-        <ToolBtn onClick={clearAll} disabled={parts.length === 0 && wires.length === 0}>
+        {backgroundImage && (
+          <ToolBtn onClick={() => setBackgroundImage(undefined)} title="移除底盘背景图，不影响元件和导线">
+            <ImageOff className="h-3.5 w-3.5" aria-hidden="true" />
+            移除底盘图
+          </ToolBtn>
+        )}
+        <ToolBtn onClick={() => setShowCustom(true)} title="导入器件图片、标记接线端口并保存到自定义元件库">
+          <CircuitBoard className="h-3.5 w-3.5" aria-hidden="true" />
+          导入器件
+        </ToolBtn>
+        <ToolBtn onClick={clearAll} disabled={parts.length === 0 && wires.length === 0 && !backgroundImage}>
           <Eraser className="h-3.5 w-3.5" aria-hidden="true" />
           清空
         </ToolBtn>
@@ -550,6 +701,7 @@ export default function Home() {
         </div>
         <div className="flex-1 relative min-w-0">
           <WiringCanvas
+            backgroundImage={backgroundImage}
             parts={parts}
             wires={wires}
             partDefs={partDefs}
@@ -560,7 +712,7 @@ export default function Home() {
             svgRef={svgRef}
             onViewChange={setView}
             onMoveSelectedBy={(dx, dy, uids) =>
-              setParts((ps) => ps.map((p) => (uids.includes(p.uid) ? { ...p, x: p.x + dx, y: p.y + dy } : p)))
+              setParts((ps) => ps.map((p) => (uids.includes(p.uid) && !p.locked ? { ...p, x: p.x + dx, y: p.y + dy } : p)))
             }
             onPartClick={(uid2, additive) => {
               setSelectedWires(new Set());
@@ -600,10 +752,25 @@ export default function Home() {
             }}
           />
         </div>
-        {selectedPart && selectedPartDef?.fuseChannels && (
+        {selectedWire && selectedWireRule && (
+          <WirePropertiesPanel
+            wire={selectedWire}
+            parts={parts}
+            partDefs={partDefs}
+            rule={selectedWireRule}
+            onChange={(changes) => setWires((current) => current.map((wire) =>
+              wire.id === selectedWire.id ? { ...wire, ...changes } : wire,
+            ))}
+            onClose={() => setSelectedWires(new Set())}
+          />
+        )}
+        {!selectedWire && selectedPart && selectedPartDef && (
           <PropertiesPanel
             part={selectedPart}
             def={selectedPartDef}
+            onPartChange={(changes) => setParts((current) => current.map((part) =>
+              part.uid === selectedPart.uid ? { ...part, ...changes } : part,
+            ))}
             onFuseChange={(channel, rating) => setPartFuse(selectedPart.uid, channel, rating)}
             onClose={() => setSelectedParts(new Set())}
           />

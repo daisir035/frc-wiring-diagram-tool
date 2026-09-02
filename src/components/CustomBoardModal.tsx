@@ -9,13 +9,15 @@ interface Props {
 
 const PORT_TYPES: PortType[] = ['pwr+', 'pwr-', 'canH', 'canL', 'signal', 'data'];
 
-/** 上传图片 → 点击图片标记端口 → 保存为自定义板卡 */
+/** 上传器件图片 → 点击图片标记端口 → 保存为自定义板卡 */
 export default function CustomBoardModal({ onClose, onSave }: Props) {
   const [name, setName] = useState('自定义板卡');
   const [imgData, setImgData] = useState<string | null>(null);
   const [imgSize, setImgSize] = useState<{ w: number; h: number } | null>(null);
   const [ports, setPorts] = useState<PortDef[]>([]);
   const [nextType, setNextType] = useState<PortType>('signal');
+  const [productUrl, setProductUrl] = useState('');
+  const [docsUrl, setDocsUrl] = useState('');
   const imgRef = useRef<HTMLImageElement>(null);
 
   const onFile = (file: File) => {
@@ -47,7 +49,7 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
   };
 
   const save = () => {
-    if (!imgData || !imgSize || ports.length === 0) return;
+    if (!imgData || !imgSize) return;
     onSave({
       id: uid(),
       name: name.trim() || '自定义板卡',
@@ -58,6 +60,8 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
       displayWidth: 200,
       ports,
       custom: true,
+      productUrl: productUrl.trim() || undefined,
+      docsUrl: docsUrl.trim() || undefined,
     });
     onClose();
   };
@@ -69,14 +73,15 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200">
-          <div className="font-semibold text-slate-800">自制板卡</div>
+          <div className="font-semibold text-slate-800">导入自定义器件</div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-lg leading-none">✕</button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           {!imgData ? (
             <label className="block border-2 border-dashed border-slate-300 rounded-xl py-14 text-center cursor-pointer hover:border-sky-400 transition-colors">
-              <div className="text-slate-500 text-sm">点击上传板卡俯视图（PNG / JPG / WEBP）</div>
+              <div className="text-slate-500 text-sm">点击导入器件图片（PNG / JPG / WEBP）</div>
+              <div className="mt-1 text-xs text-slate-400">导入后可选地标记接线点，并保存到自定义元件库</div>
               <input
                 type="file"
                 accept="image/*"
@@ -112,7 +117,23 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
                   ))}
                 </div>
               </div>
-              <div className="text-xs text-slate-400">在图片上点击即可放置端口；下方列表可改名、改类型或删除。</div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <input
+                  value={productUrl}
+                  onChange={(event) => setProductUrl(event.target.value)}
+                  className="rounded border border-slate-300 px-2 py-1 text-xs"
+                  placeholder="商店/产品页链接（可选）"
+                  type="url"
+                />
+                <input
+                  value={docsUrl}
+                  onChange={(event) => setDocsUrl(event.target.value)}
+                  className="rounded border border-slate-300 px-2 py-1 text-xs"
+                  placeholder="供应商文档链接（可选）"
+                  type="url"
+                />
+              </div>
+              <div className="text-xs text-slate-400">在图片上点击即可放置端口；端口不是必填，下方列表可改名、改类型或删除。</div>
               <div className="border border-slate-200 rounded-lg bg-slate-50 overflow-auto max-h-72 flex justify-center">
                 <div className="relative inline-block">
                   <img
@@ -182,7 +203,7 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
           </button>
           <button
             onClick={save}
-            disabled={!imgData || ports.length === 0}
+            disabled={!imgData}
             className="px-4 py-1.5 text-sm rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             保存到元件库

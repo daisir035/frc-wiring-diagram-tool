@@ -1,14 +1,19 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import type {
+  CanvasBackground,
   PartDef,
   PlacedPart,
   Wire,
   WireEnd,
+  WireTerminalType,
   ViewTransform,
+  WorldPort,
 } from '../lib/wiring';
 import {
+  defaultTerminalForPort,
   partSize,
   portWorld,
+  wireGaugeRule,
   wirePath,
   wireRoute,
   PORT_TYPE_COLOR,
@@ -16,6 +21,7 @@ import {
 import PartArtwork from './PartArtwork';
 
 interface Props {
+  backgroundImage?: CanvasBackground;
   parts: PlacedPart[];
   wires: Wire[];
   partDefs: Map<string, PartDef>;
@@ -42,8 +48,92 @@ type DragMode =
   | { kind: 'parts'; uids: string[]; lastWx: number; lastWy: number; moved: boolean; additive: boolean; clickUid: string }
   | { kind: 'wire-control'; wireId: string };
 
+const TERMINAL_NAMES: Record<WireTerminalType, string> = {
+  none: '无端子',
+  ferrule: '管型冷压端子',
+  ring: '环形端子',
+  fork: '叉形端子',
+  anderson: 'Anderson 连接器',
+  wago: 'WAGO 接线端子',
+  pwm: 'PWM 3-pin 端子',
+  jst: 'JST / Molex 端子',
+  rj45: 'RJ45 水晶头',
+  usb: 'USB 接头',
+};
+
+function WireTerminalMarker({ port, type, color }: { port: WorldPort; type: WireTerminalType; color: string }) {
+  if (type === 'none') return null;
+  const angle = (Math.atan2(port.ny, port.nx) * 180) / Math.PI;
+  const x = port.x + port.nx * 7;
+  const y = port.y + port.ny * 7;
+  return (
+    <g transform={`translate(${x} ${y}) rotate(${angle})`} style={{ pointerEvents: 'none' }}>
+      {type === 'ferrule' && (
+        <>
+          <rect x={-1} y={-3.5} width={13} height={7} rx={2} fill="#d7dde5" stroke="#64748b" strokeWidth={1} />
+          <rect x={7} y={-4.5} width={6} height={9} rx={2} fill={color} stroke="#ffffff" strokeWidth={0.8} />
+        </>
+      )}
+      {type === 'ring' && (
+        <>
+          <path d="M -1 0 H 6" stroke="#94a3b8" strokeWidth={5} strokeLinecap="round" />
+          <circle cx={11} cy={0} r={6} fill="#d7dde5" stroke="#64748b" strokeWidth={1.2} />
+          <circle cx={11} cy={0} r={2.5} fill="#f1f5f9" stroke="#64748b" strokeWidth={0.8} />
+        </>
+      )}
+      {type === 'fork' && (
+        <path d="M -1 -3 H 7 L 13 -7 L 16 -4 L 11 0 L 16 4 L 13 7 L 7 3 H -1 Z" fill="#d7dde5" stroke="#64748b" strokeWidth={1} />
+      )}
+      {type === 'anderson' && (
+        <>
+          <rect x={-1} y={-8} width={17} height={7} rx={2} fill="#dc2626" stroke="#7f1d1d" strokeWidth={1} />
+          <rect x={-1} y={1} width={17} height={7} rx={2} fill="#1f2937" stroke="#020617" strokeWidth={1} />
+          <rect x={11} y={-5.5} width={6} height={11} rx={1} fill="#cbd5e1" opacity={0.8} />
+        </>
+      )}
+      {type === 'wago' && (
+        <>
+          <rect x={-1} y={-7} width={18} height={14} rx={3} fill="#f97316" stroke="#9a3412" strokeWidth={1.2} />
+          <rect x={3} y={-4} width={10} height={8} rx={2} fill="#f8fafc" opacity={0.78} />
+          <circle cx={7} cy={0} r={2} fill="#94a3b8" />
+        </>
+      )}
+      {type === 'pwm' && (
+        <>
+          <rect x={-1} y={-7} width={17} height={14} rx={2} fill="#1f2937" stroke="#020617" strokeWidth={1} />
+          {[-4, 0, 4].map((offset) => <circle key={offset} cx={11} cy={offset} r={1.5} fill="#d6a630" />)}
+        </>
+      )}
+      {type === 'jst' && (
+        <>
+          <path d="M -1 -7 H 13 L 17 -4 V 4 L 13 7 H -1 Z" fill="#f8fafc" stroke="#64748b" strokeWidth={1.2} />
+          <rect x={9} y={-4} width={5} height={8} rx={1} fill="#cbd5e1" />
+          <circle cx={11.5} cy={-2} r={1} fill="#d6a630" />
+          <circle cx={11.5} cy={2} r={1} fill="#d6a630" />
+        </>
+      )}
+      {type === 'rj45' && (
+        <>
+          <rect x={-1} y={-8} width={18} height={16} rx={2} fill="#dbeafe" stroke="#475569" strokeWidth={1.1} />
+          <path d="M 4 -8 V -11 H 12 V -8" fill="#bfdbfe" stroke="#475569" strokeWidth={1} />
+          {[-5, -3, -1, 1, 3, 5].map((offset) => <line key={offset} x1={12} y1={offset} x2={16} y2={offset} stroke="#d6a630" strokeWidth={0.8} />)}
+        </>
+      )}
+      {type === 'usb' && (
+        <>
+          <rect x={-1} y={-6} width={18} height={12} rx={2} fill="#cbd5e1" stroke="#475569" strokeWidth={1.1} />
+          <rect x={10} y={-3.5} width={6} height={7} rx={1} fill="#334155" />
+          <rect x={11.5} y={-2} width={3} height={4} fill="#94a3b8" />
+        </>
+      )}
+      <title>{TERMINAL_NAMES[type]}</title>
+    </g>
+  );
+}
+
 export default function WiringCanvas(props: Props) {
   const {
+    backgroundImage,
     parts,
     wires,
     partDefs,
@@ -186,11 +276,12 @@ export default function WiringCanvas(props: Props) {
       : e.shiftKey
         ? [...Array.from(selectedParts), part.uid]
         : [part.uid];
+    const movableUids = uids.filter((uid) => !parts.find((item) => item.uid === uid)?.locked);
     // 普通点击立即选中；Shift 追加留到 pointerup 的点击处理里做切换
     if (!already && !e.shiftKey) onPartClick(part.uid, false);
     dragRef.current = {
       kind: 'parts',
-      uids,
+      uids: movableUids,
       lastWx: w.x,
       lastWy: w.y,
       moved: false,
@@ -217,6 +308,7 @@ export default function WiringCanvas(props: Props) {
         h: Math.abs(w.y - d.startWy),
       });
     } else if (d.kind === 'parts') {
+      if (d.uids.length === 0) return;
       const w = toWorld(e.clientX, e.clientY);
       const dx = w.x - d.lastWx;
       const dy = w.y - d.lastWy;
@@ -276,10 +368,14 @@ export default function WiringCanvas(props: Props) {
     return portWorld(part, def, port);
   };
 
-  const getPortType = (end: WireEnd) => {
+  const getPortDef = (end: WireEnd) => {
     const part = parts.find((item) => item.uid === end.uid);
     const def = part && partDefs.get(part.partId);
-    return def?.ports.find((port) => port.id === end.portId)?.type;
+    return def?.ports.find((port) => port.id === end.portId);
+  };
+
+  const getPortType = (end: WireEnd) => {
+    return getPortDef(end)?.type;
   };
 
   const wireLane = (wire: Wire) => {
@@ -321,6 +417,21 @@ export default function WiringCanvas(props: Props) {
         onPointerUp={onPointerUp}
       >
         <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
+          {backgroundImage && (
+            <image
+              href={backgroundImage.imageData}
+              x={backgroundImage.x}
+              y={backgroundImage.y}
+              width={backgroundImage.width}
+              height={backgroundImage.height}
+              opacity={backgroundImage.opacity}
+              preserveAspectRatio="xMidYMid meet"
+              style={{ pointerEvents: 'none' }}
+            >
+              <title>{`底盘俯视图：${backgroundImage.name}`}</title>
+            </image>
+          )}
+
           {/* 导线 */}
           {wires.map((wire) => {
             const p1 = getPort(wire.a);
@@ -330,6 +441,29 @@ export default function WiringCanvas(props: Props) {
             const route = wireRoute(p1, p2, lane, wire.control);
             const d = route.path;
             const sel = selectedWires.has(wire.id);
+            const portA = getPortDef(wire.a);
+            const portB = getPortDef(wire.b);
+            const rule = wireGaugeRule(wire, parts, partDefs);
+            const gaugeApplies = rule.allowed.length > 0;
+            const gaugeCompliant = !gaugeApplies || (wire.awg !== undefined && rule.allowed.includes(wire.awg));
+            const gaugeText = sel && gaugeApplies ? (wire.awg ? `${wire.awg} AWG` : '未选 AWG') : null;
+            const commonType = portA?.type === portB?.type ? portA?.type : undefined;
+            const labelOffset = commonType === 'pwr+'
+              ? -15
+              : commonType === 'pwr-'
+                ? 15
+                : commonType === 'canH'
+                  ? -13
+                  : commonType === 'canL'
+                    ? 13
+                    : lane < 0
+                      ? -12
+                      : lane > 0
+                        ? 12
+                        : -12;
+            const labelWidth = gaugeText ? Math.max(48, gaugeText.length * 6.4 + 14) : 0;
+            const terminalA = wire.terminalA ?? defaultTerminalForPort(portA);
+            const terminalB = wire.terminalB ?? defaultTerminalForPort(portB);
             return (
               <g key={wire.id}>
                 {sel && <path d={d} fill="none" stroke="#38bdf8" strokeWidth={10} opacity={0.42} strokeLinecap="round" strokeLinejoin="round" />}
@@ -366,6 +500,43 @@ export default function WiringCanvas(props: Props) {
                     onWireClick(wire.id, e.shiftKey);
                   }}
                 />
+                {wire.assembly === 'jumper' && (
+                  <>
+                    <WireTerminalMarker port={p1} type={terminalA} color={wire.color} />
+                    <WireTerminalMarker port={p2} type={terminalB} color={wire.color} />
+                  </>
+                )}
+                {gaugeText && (
+                  <g
+                    transform={`translate(${route.control.x} ${route.control.y + labelOffset})`}
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    <rect
+                      x={-labelWidth / 2}
+                      y={-9}
+                      width={labelWidth}
+                      height={18}
+                      rx={6}
+                      fill="#ffffff"
+                      fillOpacity={0.96}
+                      stroke={gaugeCompliant ? '#94a3b8' : '#ef4444'}
+                      strokeWidth={gaugeCompliant ? 1 : 1.5}
+                    />
+                    <circle cx={-labelWidth / 2 + 7} cy={0} r={2.5} fill={wire.color} />
+                    <text
+                      x={2}
+                      y={0.5}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fontSize={10}
+                      fontWeight={700}
+                      fill={gaugeCompliant ? '#334155' : '#dc2626'}
+                    >
+                      {gaugeText}
+                    </text>
+                    <title>{gaugeCompliant ? rule.label : `${rule.label}：当前线规不符合允许范围`}</title>
+                  </g>
+                )}
                 {sel && (
                   <g
                     transform={`translate(${route.control.x} ${route.control.y})`}
@@ -419,6 +590,7 @@ export default function WiringCanvas(props: Props) {
             if (!def) return null;
             const { w, h } = partSize(def);
             const sel = selectedParts.has(part.uid);
+            const displayLabel = [part.customName?.trim() || def.name, part.deviceId?.trim()].filter(Boolean).join(' · ');
             const pdhChannels = motorPdhChannels.get(part.uid) ?? [];
             const pdhLabel = pdhChannels.length > 0 ? `PDH CH ${pdhChannels.join(' / ')}` : '';
             const pdhLabelWidth = Math.max(64, pdhLabel.length * 6 + 16);
@@ -433,12 +605,12 @@ export default function WiringCanvas(props: Props) {
                       height={h + 10}
                       rx={8}
                       fill="none"
-                      stroke="#38bdf8"
+                      stroke={part.locked ? '#f59e0b' : '#38bdf8'}
                       strokeWidth={2.5}
                       strokeDasharray="7 5"
                     />
                   )}
-                  <g style={{ cursor: 'grab' }} onPointerDown={(e) => onPartPointerDown(e, part)}>
+                  <g style={{ cursor: part.locked ? 'default' : 'grab' }} onPointerDown={(e) => onPartPointerDown(e, part)}>
                     <rect width={w} height={h} fill="transparent" />
                     <PartArtwork
                       def={def}
@@ -472,7 +644,7 @@ export default function WiringCanvas(props: Props) {
                             onPortClick({ uid: part.uid, portId: port.id });
                           }}
                         >
-                          <title>{`${def.name} · ${port.label}`}</title>
+                          <title>{`${displayLabel} · ${port.label}`}</title>
                         </circle>
                         {isPending && (
                           <circle
@@ -491,16 +663,25 @@ export default function WiringCanvas(props: Props) {
                     );
                   })}
                 </g>
+                {part.locked && (
+                  <g transform={`translate(${w - 12} 9)`} style={{ pointerEvents: 'none' }}>
+                    <circle r={10} fill="#fffbeb" stroke="#f59e0b" strokeWidth={1.5} />
+                    <rect x={-5} y={-1} width={10} height={8} rx={2} fill="#f59e0b" />
+                    <path d="M -3 -1 V -4 A 3 3 0 0 1 3 -4 V -1" fill="none" stroke="#b45309" strokeWidth={1.6} strokeLinecap="round" />
+                    <circle cy={3} r={1.2} fill="#78350f" />
+                    <title>器件已锁定</title>
+                  </g>
+                )}
                 <text
                   x={w / 2}
                   y={h + 16}
                   textAnchor="middle"
                   fontSize={12}
-                  fill="#475569"
+                  fill={part.locked ? '#92400e' : '#475569'}
                   fontWeight={500}
                   style={{ pointerEvents: 'none', userSelect: 'none' }}
                 >
-                  {def.name}
+                  {displayLabel}
                 </text>
                 {pdhLabel && (
                   <g

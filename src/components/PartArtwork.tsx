@@ -380,6 +380,41 @@ function ThroughBore({ def }: { def: PartDef }) {
   );
 }
 
+function CANcoder({ def }: { def: PartDef }) {
+  const wireStarts = [47, 60, 76, 90, 106, 119];
+  const wireEnds = def.ports.map((port) => port.x * def.w);
+  const wireColors = ['#dc2626', '#1f2937', '#eab308', '#16a34a', '#eab308', '#16a34a'];
+  return (
+    <>
+      <path d="M 21 51 H 4 V 81 H 21" fill="#2b3037" stroke="#111318" strokeWidth={2} />
+      <path d="M 159 51 H 176 V 81 H 159" fill="#2b3037" stroke="#111318" strokeWidth={2} />
+      <circle cx={10} cy={66} r={5.5} fill="#0f1217" stroke="#727b87" strokeWidth={1.5} />
+      <circle cx={170} cy={66} r={5.5} fill="#0f1217" stroke="#727b87" strokeWidth={1.5} />
+      <circle cx={90} cy={66} r={55} fill="#242930" stroke="#0f1217" strokeWidth={3} />
+      <circle cx={90} cy={66} r={45} fill="#30363f" stroke="#5d6672" strokeWidth={1.5} />
+      <circle cx={90} cy={66} r={25} fill="#161a20" stroke="#737e8c" strokeWidth={2} />
+      <circle cx={90} cy={66} r={11} fill="#cbd5e1" stroke="#64748b" strokeWidth={2} />
+      <path d="M 90 55 V 77 M 79 66 H 101" stroke="#475569" strokeWidth={2} />
+      <circle cx={126} cy={40} r={4} fill="#22c55e" stroke="#86efac" strokeWidth={1.2} />
+      <text x={90} y={31} textAnchor="middle" fill="#f8fafc" fontFamily="Arial, sans-serif" fontSize={10} fontWeight={700} letterSpacing={0}>CTRE</text>
+      <text x={90} y={105} textAnchor="middle" fill="#e2e8f0" fontFamily="Arial, sans-serif" fontSize={11} fontWeight={700} letterSpacing={0}>CANcoder</text>
+      <text x={90} y={116} textAnchor="middle" fill="#94a3b8" fontFamily="Arial, sans-serif" fontSize={5.5} letterSpacing={0}>ABSOLUTE MAGNETIC ENCODER</text>
+      <rect x={38} y={116} width={104} height={18} rx={6} fill="#171a1f" stroke="#4b5563" />
+      {wireStarts.map((start, index) => (
+        <path
+          key={start}
+          d={`M ${start} 128 C ${start} 137 ${wireEnds[index]} 140 ${wireEnds[index]} 155`}
+          fill="none"
+          stroke={wireColors[index]}
+          strokeWidth={5}
+          strokeLinecap="round"
+        />
+      ))}
+      <VectorPortPads def={def} />
+    </>
+  );
+}
+
 function LedStrip({ def }: { def: PartDef }) {
   const colors = ['#ef4444', '#22c55e', '#3b82f6', '#f59e0b', '#a855f7', '#06b6d4', '#f43f5e', '#84cc16'];
   return (
@@ -505,6 +540,7 @@ function renderVector(def: PartDef) {
     case 'lmSwitch': return <LimitSwitch def={def} />;
     case 'pot': return <Potentiometer def={def} />;
     case 'ttb': return <ThroughBore def={def} />;
+    case 'cancoder': return <CANcoder def={def} />;
     case 'ws2812': return <LedStrip def={def} />;
     case 'c270': return <Camera def={def} />;
     case 'battery12v': return <Battery def={def} />;

@@ -13,6 +13,27 @@ export type PortType =
 
 export type PortSide = 'left' | 'right' | 'top' | 'bottom';
 export type FuseRating = 10 | 20 | 30 | 40;
+export type WireGauge = 4 | 6 | 8 | 10 | 12 | 14 | 16 | 18 | 20 | 22 | 24 | 26 | 28;
+export type WireAssembly = 'field' | 'jumper';
+export type WireTerminalType =
+  | 'none'
+  | 'ferrule'
+  | 'ring'
+  | 'fork'
+  | 'anderson'
+  | 'wago'
+  | 'pwm'
+  | 'jst'
+  | 'rj45'
+  | 'usb';
+
+export interface WireGaugeRule {
+  id: string;
+  label: string;
+  recommended?: WireGauge;
+  allowed: WireGauge[];
+  note: string;
+}
 
 export interface PortDef {
   id: string;
@@ -29,6 +50,10 @@ export interface PartDef {
   id: string;
   name: string;
   category: string;
+  /** 供应商商店或产品介绍页 */
+  productUrl?: string;
+  /** 供应商硬件/软件文档页 */
+  docsUrl?: string;
   /** public/parts 下的文件名；自定义板卡用 imgData */
   img?: string;
   imgData?: string;
@@ -58,8 +83,25 @@ export interface PlacedPart {
   x: number;
   y: number;
   rot: 0 | 90 | 180 | 270;
+  /** 图纸上显示的自定义名称，如“左前驱动电机” */
+  customName?: string;
+  /** CAN ID、电机编号或队内器件编号 */
+  deviceId?: string;
+  /** 锁定后禁止移动、旋转和普通删除 */
+  locked?: boolean;
   /** 可配置保险丝槽；key 是通道号 */
   fuses?: Record<number, FuseRating>;
+}
+
+/** 作为画布底层参考使用的底盘俯视图 */
+export interface CanvasBackground {
+  name: string;
+  imageData: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  opacity: number;
 }
 
 export interface WireEnd {
@@ -72,6 +114,12 @@ export interface Wire {
   a: WireEnd;
   b: WireEnd;
   color: string;
+  /** 导线线规；数据成品线可以不设置 */
+  awg?: WireGauge;
+  /** 现场压接导线或带连接器的成品跳线 */
+  assembly?: WireAssembly;
+  terminalA?: WireTerminalType;
+  terminalB?: WireTerminalType;
   /** 用户拖动后的正交布线路径控制点（世界坐标） */
   control?: { x: number; y: number };
 }
@@ -125,6 +173,20 @@ export const WIRE_COLORS = [
 ];
 
 export const FUSE_RATINGS: FuseRating[] = [10, 20, 30, 40];
+export const WIRE_GAUGES: WireGauge[] = [4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28];
+
+export const WIRE_TERMINAL_OPTIONS: Array<{ value: WireTerminalType; label: string }> = [
+  { value: 'none', label: '不显示端子' },
+  { value: 'ferrule', label: '管型冷压端子' },
+  { value: 'ring', label: '环形端子' },
+  { value: 'fork', label: '叉形端子' },
+  { value: 'anderson', label: 'Anderson 连接器' },
+  { value: 'wago', label: 'WAGO 接线端子' },
+  { value: 'pwm', label: 'PWM 3-pin 端子' },
+  { value: 'jst', label: 'JST / Molex 端子' },
+  { value: 'rj45', label: 'RJ45 水晶头' },
+  { value: 'usb', label: 'USB 接头' },
+];
 
 export function allowedFuseRatings(def: PartDef, channel: number): FuseRating[] {
   let ratings = def.fuseRatings ?? FUSE_RATINGS;
@@ -147,6 +209,182 @@ export function pairedPowerPort(def: PartDef, portId: string): PortDef | undefin
     const closestDistance = Math.hypot(closest.x - source.x, closest.y - source.y);
     return candidateDistance < closestDistance ? candidate : closest;
   }, undefined);
+}
+
+function wireEndContext(
+  end: WireEnd,
+  parts: PlacedPart[],
+  partDefs: ReadonlyMap<string, PartDef>,
+) {
+  const part = parts.find((item) => item.uid === end.uid);
+  const def = part && partDefs.get(part.partId);
+  const port = def?.ports.find((item) => item.id === end.portId);
+  return { part, def, port };
+}
+
+export function wireGaugeRule(
+  wire: Pick<Wire, 'a' | 'b'>,
+  parts: PlacedPart[],
+  partDefs: ReadonlyMap<string, PartDef>,
+): WireGaugeRule {
+  const a = wireEndContext(wire.a, parts, partDefs);
+  const b = wireEndContext(wire.b, parts, partDefs);
+  const contexts = [a, b];
+  const partIds = contexts.map((context) => context.part?.partId ?? '');
+  const portTypes = contexts.map((context) => context.port?.type);
+
+  const mainPower = contexts.some((context) =>
+    context.part?.partId === 'battery12v' ||
+    context.part?.partId === 'breaker120' ||
+    ((context.part?.partId === 'pdh' || context.part?.partId === 'pdp') && context.port?.id.startsWith('batt')),
+  );
+  if (mainPower && portTypes.every((type) => type === 'pwr+' || type === 'pwr-')) {
+    return {
+      id: 'main-120a',
+      label: '主电源回路 · 120A',
+      recommended: 4,
+      allowed: [4, 6],
+      note: 'Team 3255 推荐 4 AWG；2026 FRC 手册允许的最低线径为 6 AWG。',
+    };
+  }
+
+  const distribution = contexts.find((context) =>
+    (context.part?.partId === 'pdh' || context.part?.partId === 'pdp') && /^ch\d+[+-]$/.test(context.port?.id ?? ''),
+  );
+  if (distribution?.part && distribution.port) {
+    const channel = Number(distribution.port.id.match(/^ch(\d+)/)?.[1]);
+    const rating = distribution.part.fuses?.[channel];
+    const rules: Record<FuseRating, Omit<WireGaugeRule, 'id' | 'label'>> = {
+      40: { recommended: 10, allowed: [10, 12], note: 'Team 3255 对 Kraken/Falcon 推荐 10 AWG；2026 FRC 手册最低为 12 AWG。' },
+      30: { recommended: 14, allowed: [10, 12, 14], note: '30A 支路推荐 14 AWG，这也是 2026 FRC 手册的最低线径。' },
+      20: { recommended: 18, allowed: [10, 12, 14, 16, 18], note: '20A 断路器或 11–20A 保险丝支路最低为 18 AWG。' },
+      10: { recommended: 18, allowed: [10, 12, 14, 16, 18], note: '10A 断路器支路推荐 18 AWG；若使用 PDH 小保险丝端口，可使用更细线径。' },
+    };
+    if (rating) {
+      const smallPdhFuse = distribution.part.partId === 'pdh' && channel >= 20;
+      if (smallPdhFuse && rating === 10 && partIds.includes('cancoder')) {
+        return {
+          id: 'cancoder-10a-fuse',
+          label: `${distribution.def?.name ?? '配电'} CH ${channel} · CANcoder`,
+          recommended: 22,
+          allowed: [18, 20, 22],
+          note: 'CANcoder 原厂电源引线为 22 AWG，适合由 PDH 10A 小保险丝端口供电。',
+        };
+      }
+      if (smallPdhFuse && rating === 10) {
+        return {
+          id: 'distribution-10a-fuse',
+          label: `${distribution.def?.name ?? '配电'} CH ${channel} · 10A 保险丝`,
+          recommended: 18,
+          allowed: [10, 12, 14, 16, 18, 20, 22],
+          note: 'Team 3255 对 roboRIO 等控制设备推荐 18 AWG；2026 FRC 手册允许 10A 保险丝支路最低 22 AWG。',
+        };
+      }
+      return {
+        id: `distribution-${rating}a`,
+        label: `${distribution.def?.name ?? '配电'} CH ${channel} · ${rating}A`,
+        ...rules[rating],
+      };
+    }
+    return {
+      id: 'distribution-unfused',
+      label: `${distribution.def?.name ?? '配电'} CH ${channel} · 未设置保险丝`,
+      recommended: 12,
+      allowed: [10, 12, 14, 16, 18],
+      note: '请先设置通道保险丝；当前暂按常见支路提供候选线规。',
+    };
+  }
+
+  if (portTypes.every((type) => type === 'canH' || type === 'canL')) {
+    return {
+      id: 'can',
+      label: 'CAN 总线',
+      recommended: 22,
+      allowed: [20, 22, 24, 26, 28],
+      note: 'CAN-H/CAN-L 推荐 22 AWG 双绞线；信号级回路可按 2026 FRC 手册使用至 28 AWG。',
+    };
+  }
+
+  if (portTypes.some((type) => type === 'data')) {
+    return {
+      id: 'data-cable',
+      label: '成品数据线',
+      allowed: [],
+      note: 'Ethernet/USB 等成品数据线不使用本工具的单芯 AWG 规则。',
+    };
+  }
+
+  if (portTypes.every((type) => type === 'signal')) {
+    const pwmCircuit = contexts.some((context) =>
+      `${context.port?.id ?? ''} ${context.port?.label ?? ''}`.toLocaleLowerCase().includes('pwm'),
+    );
+    return {
+      id: pwmCircuit ? 'pwm' : 'signal',
+      label: pwmCircuit ? 'PWM 信号线' : 'DIO / 低电流信号线',
+      recommended: 22,
+      allowed: pwmCircuit ? [20, 22, 24, 26] : [20, 22, 24, 26, 28],
+      note: pwmCircuit
+        ? '常用 PWM 成品跳线推荐 22 AWG；2026 FRC 手册规定 roboRIO PWM 输出最低 26 AWG。'
+        : '常用信号线推荐 22 AWG；2026 FRC 手册允许信号级回路最低 28 AWG。',
+    };
+  }
+
+  if (portTypes.some((type) => type === 'phaseA' || type === 'phaseB' || type === 'phaseC')) {
+    return {
+      id: 'motor-phase',
+      label: '电机相线',
+      recommended: 12,
+      allowed: [10, 12, 14],
+      note: '电机大电流相线推荐 12 AWG。',
+    };
+  }
+
+  if (portTypes.every((type) => type === 'pwr+' || type === 'pwr-')) {
+    if (partIds.includes('cancoder')) {
+      return {
+        id: 'cancoder-power',
+        label: 'CANcoder 电源线',
+        recommended: 22,
+        allowed: [18, 20, 22],
+        note: 'CTRE 有线版 CANcoder 的红黑电源引线为 22 AWG；接入配电时仍需匹配上游保护规格。',
+      };
+    }
+    const controlPower = partIds.some((id) => ['roborio', 'vrm', 'vh109', 'limelight3', 'limelight4', 'rsl'].includes(id));
+    return controlPower
+      ? {
+          id: 'control-power',
+          label: '控制器电源',
+          recommended: 18,
+          allowed: [16, 18],
+          note: 'roboRIO、Radio、VRM 与视觉设备电源推荐 18 AWG。',
+        }
+      : {
+          id: 'aux-power',
+          label: '辅助电源线',
+          recommended: 18,
+          allowed: [14, 16, 18],
+          note: '未识别到断路器容量，默认按辅助电源线提供选择。',
+        };
+  }
+
+  return {
+    id: 'general',
+    label: '通用低电流导线',
+    recommended: 22,
+    allowed: [20, 22, 24, 26, 28],
+    note: '无法自动识别回路，默认推荐 22 AWG。',
+  };
+}
+
+export function defaultTerminalForPort(port?: PortDef): WireTerminalType {
+  if (!port) return 'none';
+  const name = `${port.id} ${port.label}`.toLocaleLowerCase();
+  if (name.includes('ethernet') || name.includes('eth')) return 'rj45';
+  if (name.includes('usb')) return 'usb';
+  if (port.type === 'canH' || port.type === 'canL') return 'jst';
+  if (port.type === 'signal') return 'pwm';
+  if (port.type === 'pwr+' || port.type === 'pwr-' || port.type.startsWith('phase')) return 'ferrule';
+  return 'jst';
 }
 
 let counter = 0;
@@ -179,6 +417,7 @@ const roboRIO = imagePart('RoboRIO 2.0.png', {
   id: 'roborio',
   name: 'roboRIO 2.0',
   category: '控制',
+  docsUrl: 'https://docs.wpilib.org/en/stable/docs/software/roborio-info/roborio-introduction.html',
   w: 1009,
   h: 994,
   displayWidth: 260,
@@ -229,6 +468,7 @@ const pdp = imagePart('CTRE PDP 2.0 Cropped.png', {
   id: 'pdp',
   name: 'CTRE PDP 2.0',
   category: '配电',
+  productUrl: 'https://store.ctr-electronics.com/products/pdp-2',
   w: 600,
   h: 820,
   displayWidth: 220,
@@ -280,6 +520,8 @@ const pdh = imagePart('REV PDH.png', {
   id: 'pdh',
   name: 'REV Power Distribution Hub',
   category: '配电',
+  productUrl: 'https://www.revrobotics.com/rev-11-1850/',
+  docsUrl: 'https://docs.revrobotics.com/ion-control/pdh/gs',
   w: 928,
   h: 1842,
   displayWidth: 205,
@@ -349,6 +591,7 @@ const vrm = imagePart('VRM.png', {
   id: 'vrm',
   name: 'VRM 稳压模块',
   category: '配电',
+  productUrl: 'https://store.ctr-electronics.com/products/voltage-regulator-module',
   w: 359,
   h: 389,
   displayWidth: 150,
@@ -424,6 +667,10 @@ function canMotor(id: string, name: string): PartDef {
     id,
     name,
     category: '电机',
+    productUrl: id === 'falcon500'
+      ? 'https://store.ctr-electronics.com/products/falcon-500-powered-by-talon-fx'
+      : 'https://wcproducts.com/products/kraken',
+    docsUrl: 'https://pro.docs.ctr-electronics.com/en/stable/docs/hardware-reference/talonfx/index.html',
     ...size,
     displayWidth: 175,
     ports: [
@@ -509,6 +756,25 @@ const ttbEncoder = imagePart('TTB Analog Encoder.png', {
   ],
 });
 
+const cancoder = vector({
+  id: 'cancoder',
+  name: 'CTRE CANcoder',
+  category: '传感器',
+  productUrl: 'https://store.ctr-electronics.com/products/cancoder',
+  docsUrl: 'https://pro.docs.ctr-electronics.com/en/stable/docs/hardware-reference/cancoder/index.html',
+  w: 180,
+  h: 155,
+  displayWidth: 135,
+  ports: [
+    p('vin+', '电源 V+（红，22 AWG）', 0.14, 1, 'pwr+', 'bottom'),
+    p('vin-', '电源 GND（黑，22 AWG）', 0.27, 1, 'pwr-', 'bottom'),
+    p('canInH', 'CAN 1 H（黄，22 AWG）', 0.43, 1, 'canH', 'bottom'),
+    p('canInL', 'CAN 1 L（绿，22 AWG）', 0.55, 1, 'canL', 'bottom'),
+    p('canOutH', 'CAN 2 H（黄，22 AWG）', 0.71, 1, 'canH', 'bottom'),
+    p('canOutL', 'CAN 2 L（绿，22 AWG）', 0.83, 1, 'canL', 'bottom'),
+  ],
+});
+
 const ws2812 = imagePart('WS2812B Strip.png', {
   id: 'ws2812',
   name: 'WS2812B 灯带',
@@ -585,6 +851,8 @@ const limelight3 = imagePart('Limelight 3 Technical.png', {
   id: 'limelight3',
   name: 'Limelight 3',
   category: '传感器',
+  productUrl: 'https://limelightvision.io/products/limelight-3',
+  docsUrl: 'https://docs.limelightvision.io/',
   w: 950,
   h: 760,
   displayWidth: 190,
@@ -600,6 +868,8 @@ const limelight4 = imagePart('Limelight 4 Technical.png', {
   id: 'limelight4',
   name: 'Limelight 4',
   category: '传感器',
+  productUrl: 'https://limelightvision.io/products/limelight-4',
+  docsUrl: 'https://docs.limelightvision.io/',
   w: 620,
   h: 660,
   displayWidth: 180,
@@ -632,6 +902,7 @@ export const BUILTIN_PARTS: PartDef[] = [
   lmSwitch,
   potentiometer,
   ttbEncoder,
+  cancoder,
   ws2812,
   c270,
   limelight3,

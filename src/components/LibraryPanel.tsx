@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Plus, Search, X } from 'lucide-react';
+import { BookOpen, ImagePlus, Search, ShoppingBag, X } from 'lucide-react';
 import type { PartDef } from '../lib/wiring';
 import { PART_CATEGORIES } from '../lib/wiring';
 import PartArtwork from './PartArtwork';
@@ -52,8 +52,8 @@ export default function LibraryPanel({ defs, onAdd, onDeleteCustom, onOpenCustom
                   onClick={onOpenCustomModal}
                   className="flex w-full items-center justify-center gap-1.5 mt-1 border border-dashed border-slate-300 rounded-md py-2 text-xs text-slate-500 hover:border-sky-400 hover:text-sky-600 transition-colors"
                 >
-                  <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                  自制板卡
+                  <ImagePlus className="h-3.5 w-3.5" aria-hidden="true" />
+                  导入自定义器件
                 </button>
               </div>
             );
@@ -96,7 +96,37 @@ function PartCard({
       <div className="w-12 h-10 flex items-center justify-center bg-slate-100 rounded overflow-hidden shrink-0 p-1">
         <PartArtwork def={def} width="100%" height="100%" className="max-h-full max-w-full" />
       </div>
-      <div className="min-w-0 text-xs text-slate-700 leading-tight">{def.name}</div>
+      <div className="min-w-0 flex-1 pr-11 text-xs text-slate-700 leading-tight">{def.name}</div>
+      {(def.productUrl || def.docsUrl) && (
+        <div className="absolute bottom-1 right-1 flex items-center gap-0.5 opacity-70 transition-opacity group-hover:opacity-100">
+          {def.productUrl && (
+            <a
+              href={def.productUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex h-6 w-6 items-center justify-center rounded text-slate-400 hover:bg-white hover:text-sky-600"
+              onClick={(event) => event.stopPropagation()}
+              title={`${def.name} 商店/产品页`}
+              aria-label={`${def.name} 商店/产品页`}
+            >
+              <ShoppingBag className="h-3.5 w-3.5" aria-hidden="true" />
+            </a>
+          )}
+          {def.docsUrl && (
+            <a
+              href={def.docsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex h-6 w-6 items-center justify-center rounded text-slate-400 hover:bg-white hover:text-violet-600"
+              onClick={(event) => event.stopPropagation()}
+              title={`${def.name} 供应商文档`}
+              aria-label={`${def.name} 供应商文档`}
+            >
+              <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
+            </a>
+          )}
+        </div>
+      )}
       {onDelete && (
         <button
           className="absolute right-1 top-1 hidden h-6 w-6 items-center justify-center rounded group-hover:flex text-slate-400 hover:bg-red-50 hover:text-red-500"

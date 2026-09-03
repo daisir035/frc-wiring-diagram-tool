@@ -1,4 +1,4 @@
-import { AlertTriangle, Cable, CheckCircle2, Plug, Ruler, X } from 'lucide-react';
+import { AlertTriangle, Cable, CheckCircle2, Plug, Ruler, Shield, X } from 'lucide-react';
 import type {
   PartDef,
   PlacedPart,
@@ -6,19 +6,23 @@ import type {
   WireAssembly,
   WireGauge,
   WireGaugeRule,
+  WireRoutingStyle,
   WireTerminalType,
 } from '../lib/wiring';
 import {
   defaultTerminalForPort,
   WIRE_TERMINAL_OPTIONS,
 } from '../lib/wiring';
+import { WireRoutingStylePicker } from './WireBundlePanel';
 
 interface Props {
   wire: Wire;
   parts: PlacedPart[];
   partDefs: ReadonlyMap<string, PartDef>;
   rule: WireGaugeRule;
+  bundleSize: number;
   onChange: (changes: Partial<Wire>) => void;
+  onRoutingStyleChange: (style: WireRoutingStyle) => void;
   onClose: () => void;
 }
 
@@ -64,7 +68,7 @@ function TerminalSelect({
   );
 }
 
-export default function WirePropertiesPanel({ wire, parts, partDefs, rule, onChange, onClose }: Props) {
+export default function WirePropertiesPanel({ wire, parts, partDefs, rule, bundleSize, onChange, onRoutingStyleChange, onClose }: Props) {
   const a = endInfo(wire, 'a', parts, partDefs);
   const b = endInfo(wire, 'b', parts, partDefs);
   const assembly = wire.assembly ?? 'field';
@@ -144,6 +148,19 @@ export default function WirePropertiesPanel({ wire, parts, partDefs, rule, onCha
             <div className="mt-3 rounded bg-violet-50 px-2.5 py-2 text-[10px] leading-4 text-violet-700">该连接属于成品数据线，不显示单芯 AWG。</div>
           )}
           <div className="mt-2 text-[9px] leading-4 text-slate-400">参考 Team 3255 Wiring Cheat Sheet 与 2026 FRC 手册 R622；仍需核对器件端子可接受线径。</div>
+        </section>
+
+        <section className="border-b border-slate-100 py-3">
+          <div className="mb-2 flex items-center gap-2">
+            <Shield className="h-4 w-4 text-violet-600" aria-hidden="true" />
+            <span className="text-xs font-semibold text-slate-700">线路保护与线束</span>
+          </div>
+          <WireRoutingStylePicker value={wire.routingStyle ?? 'standard'} onChange={onRoutingStyleChange} />
+          {bundleSize > 1 ? (
+            <div className="mt-2 rounded bg-violet-50 px-2.5 py-2 text-[10px] leading-4 text-violet-700">当前导线与另外 {bundleSize - 1} 根导线处于同一线束，调整样式或路径会同步应用到整组。</div>
+          ) : (
+            <div className="mt-2 text-[9px] leading-4 text-slate-400">打开顶部“线束多选”或按住 Shift 多选导线，可以将多根线合并到同一拖链或束线管中。</div>
+          )}
         </section>
 
         <section className="py-3">

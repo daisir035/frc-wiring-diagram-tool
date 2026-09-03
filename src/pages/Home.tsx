@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CircuitBoard, Download, Eraser, ImageOff, ImagePlus, Lock, Maximize, PanelLeft, RotateCw, Trash2, Undo2, Unlock, Zap } from 'lucide-react';
+import { CircuitBoard, Download, Eraser, GitMerge, ImageOff, ImagePlus, Lock, Maximize, PanelLeft, RotateCw, Trash2, Undo2, Unlock, Zap } from 'lucide-react';
 import WiringCanvas from '../components/WiringCanvas';
 import LibraryPanel from '../components/LibraryPanel';
 import CustomBoardModal from '../components/CustomBoardModal';
 import PropertiesPanel from '../components/PropertiesPanel';
 import WirePropertiesPanel from '../components/WirePropertiesPanel';
+import WireBundlePanel from '../components/WireBundlePanel';
 import type {
   CanvasBackground,
   FuseRating,
@@ -12,6 +13,7 @@ import type {
   PlacedPart,
   Wire,
   WireEnd,
+  WireRoutingStyle,
   ViewTransform,
 } from '../lib/wiring';
 import {
@@ -20,6 +22,7 @@ import {
   WIRE_COLORS,
   PORT_TYPE_COLOR,
   pairedPowerPort,
+  portWorld,
   wireGaugeRule,
   partSize,
   uid,
@@ -98,6 +101,7 @@ export default function Home() {
   const [pendingFrom, setPendingFrom] = useState<WireEnd | null>(null);
   const [view, setView] = useState<ViewTransform>({ x: 40, y: 30, k: 1 });
   const [wireColor, setWireColor] = useState('#2563eb');
+  const [bundleSelectionMode, setBundleSelectionMode] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(() => window.innerWidth >= 768);
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -124,6 +128,19 @@ export default function Home() {
     return wires.find((wire) => selectedWires.has(wire.id)) ?? null;
   }, [selectedWires, wires]);
   const selectedWireRule = selectedWire ? wireGaugeRule(selectedWire, parts, partDefs) : null;
+  const selectedWireItems = wires.filter((wire) => selectedWires.has(wire.id));
+  const selectedWireRoutingStyle = selectedWireItems.length > 0 && selectedWireItems.every(
+    (wire) => (wire.routingStyle ?? 'standard') === (selectedWireItems[0].routingStyle ?? 'standard'),
+  )
+    ? (selectedWireItems[0].routingStyle ?? 'standard')
+    : undefined;
+  const selectedWireBundleSize = selectedWire?.bundleId
+    ? wires.filter((wire) => wire.bundleId === selectedWire.bundleId).length
+    : 1;
+  const selectedBundleIds = new Set(selectedWireItems.map((wire) => wire.bundleId).filter((id): id is string => Boolean(id)));
+  const canRestoreSelectedWiring = wires.some((wire) =>
+    Boolean(wire.control) && (selectedWires.has(wire.id) || Boolean(wire.bundleId && selectedBundleIds.has(wire.bundleId))),
+  );
 
   // 本地存档（仅当前浏览器）
   useEffect(() => {
@@ -266,6 +283,67 @@ export default function Home() {
   };
 
   /* ---------- 接线 ---------- */
+
+  const resolveWorldPort = (end: WireEnd) => {
+    const part = parts.find((item) => item.uid === end.uid);
+    const def = part && partDefs.get(part.partId);
+    const port = def?.ports.find((item) => item.id === end.portId);
+    return part && def && port ? portWorld(part, def, port) : null;
+  };
+
+  const applyWireRoutingStyle = (style: WireRoutingStyle) => {
+    const selected = wires.filter((wire) => selectedWires.has(wire.id));
+    if (selected.length === 0) return;
+    const existingBundleId = selected.length === 1 ? selected[0].bundleId : undefined;
+    const affectedIds = new Set(
+      existingBundleId
+        ? wires.filter((wire) => wire.bundleId === existingBundleId).map((wire) => wire.id)
+        : selected.map((wire) => wire.id),
+    );
+    const affectedWires = wires.filter((wire) => affectedIds.has(wire.id));
+
+    if (style === 'standard') {
+      setWires((current) => current.map((wire) => affectedIds.has(wire.id)
+        ? { ...wire, routingStyle: undefined, bundleId: undefined, control: undefined }
+        : wire));
+      setBundleSelectionMode(false);
+      return;
+    }
+
+    const nextBundleId = affectedWires.length > 1 ? (existingBundleId ?? uid()) : undefined;
+    let sharedControl: { x: number; y: number } | undefined;
+    if (affectedWires.length > 1 && !existingBundleId) {
+      const centers = affectedWires.flatMap((wire) => {
+        const a = resolveWorldPort(wire.a);
+        const b = resolveWorldPort(wire.b);
+        return a && b ? [{ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }] : [];
+      });
+      if (centers.length > 0) {
+        sharedControl = {
+          x: Math.round((centers.reduce((sum, point) => sum + point.x, 0) / centers.length) / 4) * 4,
+          y: Math.round((centers.reduce((sum, point) => sum + point.y, 0) / centers.length) / 4) * 4,
+        };
+      }
+    }
+
+    setWires((current) => current.map((wire) => affectedIds.has(wire.id)
+      ? {
+          ...wire,
+          routingStyle: style,
+          bundleId: nextBundleId,
+          control: sharedControl ?? wire.control,
+        }
+      : wire));
+    setBundleSelectionMode(false);
+  };
+
+  const restoreSelectedWiring = () => {
+    setWires((current) => current.map((wire) =>
+      selectedWires.has(wire.id) || Boolean(wire.bundleId && selectedBundleIds.has(wire.bundleId))
+        ? { ...wire, control: undefined }
+        : wire,
+    ));
+  };
 
   const onPortClick = (end: WireEnd) => {
     if (!pendingFrom) {
@@ -619,12 +697,20 @@ export default function Home() {
           {shouldLockSelected ? '锁定' : '解锁'}
         </ToolBtn>
         <ToolBtn
-          onClick={() => setWires((current) => current.map((wire) => selectedWires.has(wire.id) ? { ...wire, control: undefined } : wire))}
-          disabled={!wires.some((wire) => selectedWires.has(wire.id) && wire.control)}
-          title="恢复选中导线的自动布线"
+          onClick={restoreSelectedWiring}
+          disabled={!canRestoreSelectedWiring}
+          title="恢复选中导线或整组线束的自动布线"
         >
           <Undo2 className="h-3.5 w-3.5" aria-hidden="true" />
           恢复布线
+        </ToolBtn>
+        <ToolBtn
+          onClick={() => setBundleSelectionMode((active) => !active)}
+          active={bundleSelectionMode}
+          title="打开后可直接逐根点击导线，选择要合并到拖链或束线管中的成员"
+        >
+          <GitMerge className="h-3.5 w-3.5" aria-hidden="true" />
+          线束多选
         </ToolBtn>
         <ToolBtn onClick={deleteSelection} disabled={deletableSelectionCount === 0} title="删除未锁定的选中内容 (Delete)">
           <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
@@ -731,7 +817,7 @@ export default function Home() {
             onWireClick={(id, additive) => {
               setSelectedParts(new Set());
               setSelectedWires((prev) => {
-                if (!additive) return new Set([id]);
+                if (!additive && !bundleSelectionMode) return new Set([id]);
                 const next = new Set(prev);
                 if (next.has(id)) next.delete(id);
                 else next.add(id);
@@ -739,7 +825,14 @@ export default function Home() {
               });
             }}
             onWireControlChange={(id, control) => {
-              setWires((current) => current.map((wire) => wire.id === id ? { ...wire, control } : wire));
+              setWires((current) => {
+                const target = current.find((wire) => wire.id === id);
+                return current.map((wire) =>
+                  wire.id === id || Boolean(target?.bundleId && wire.bundleId === target.bundleId)
+                    ? { ...wire, control }
+                    : wire,
+                );
+              });
             }}
             onPortClick={onPortClick}
             onFuseClick={cyclePartFuse}
@@ -752,15 +845,25 @@ export default function Home() {
             }}
           />
         </div>
+        {selectedWires.size > 1 && (
+          <WireBundlePanel
+            wireCount={selectedWires.size}
+            value={selectedWireRoutingStyle}
+            onChange={applyWireRoutingStyle}
+            onClose={() => setSelectedWires(new Set())}
+          />
+        )}
         {selectedWire && selectedWireRule && (
           <WirePropertiesPanel
             wire={selectedWire}
             parts={parts}
             partDefs={partDefs}
             rule={selectedWireRule}
+            bundleSize={selectedWireBundleSize}
             onChange={(changes) => setWires((current) => current.map((wire) =>
               wire.id === selectedWire.id ? { ...wire, ...changes } : wire,
             ))}
+            onRoutingStyleChange={applyWireRoutingStyle}
             onClose={() => setSelectedWires(new Set())}
           />
         )}
@@ -805,18 +908,22 @@ function ToolBtn({
   onClick,
   disabled,
   title,
+  active,
 }: {
   children: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
   title?: string;
+  active?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md text-slate-600 hover:bg-slate-100 disabled:opacity-35 disabled:cursor-not-allowed whitespace-nowrap"
+      className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md disabled:opacity-35 disabled:cursor-not-allowed whitespace-nowrap ${
+        active ? 'bg-sky-100 text-sky-700 ring-1 ring-inset ring-sky-300' : 'text-slate-600 hover:bg-slate-100'
+      }`}
     >
       {children}
     </button>

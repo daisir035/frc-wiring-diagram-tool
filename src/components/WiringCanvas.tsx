@@ -5,6 +5,7 @@ import type {
   PlacedPart,
   Wire,
   WireEnd,
+  WireRoutingStyle,
   WireTerminalType,
   ViewTransform,
   WorldPort,
@@ -395,6 +396,24 @@ export default function WiringCanvas(props: Props) {
     return ((Math.abs(hash) % 5) - 2) * 2;
   };
 
+  const routingGroups = new Map<string, {
+    style: Exclude<WireRoutingStyle, 'standard'>;
+    items: Array<{ wire: Wire; path: string; control: { x: number; y: number } }>;
+  }>();
+  wires.forEach((wire) => {
+    const style = wire.routingStyle;
+    if (!style || style === 'standard') return;
+    const p1 = getPort(wire.a);
+    const p2 = getPort(wire.b);
+    if (!p1 || !p2) return;
+    const route = wireRoute(p1, p2, wireLane(wire), wire.control);
+    const key = wire.bundleId ?? `wire:${wire.id}`;
+    const group = routingGroups.get(key) ?? { style, items: [] };
+    group.style = style;
+    group.items.push({ wire, path: route.path, control: route.control });
+    routingGroups.set(key, group);
+  });
+
   /* ---------- 渲染 ---------- */
 
   return (
@@ -432,6 +451,41 @@ export default function WiringCanvas(props: Props) {
             </image>
           )}
 
+          {/* 拖链 / 束线管外套，绘制在彩色导线下方 */}
+          {[...routingGroups.entries()].map(([key, group]) => {
+            const jacketWidth = Math.min(30, 15 + group.items.length * 2.5);
+            const label = group.style === 'drag-chain' ? '拖链' : '束线管';
+            const labelText = group.items.length > 1 ? `${label} · ${group.items.length} 根` : label;
+            const labelWidth = Math.max(54, labelText.length * 11 + 18);
+            const control = {
+              x: group.items.reduce((sum, item) => sum + item.control.x, 0) / group.items.length,
+              y: group.items.reduce((sum, item) => sum + item.control.y, 0) / group.items.length,
+            };
+            return (
+              <g key={`routing:${key}`} style={{ pointerEvents: 'none' }}>
+                {group.items.map(({ wire, path }) => (
+                  group.style === 'drag-chain' ? (
+                    <g key={wire.id}>
+                      <path d={path} fill="none" stroke="#1e293b" strokeWidth={jacketWidth + 3} strokeLinecap="round" strokeLinejoin="round" opacity={0.9} />
+                      <path d={path} fill="none" stroke="#94a3b8" strokeWidth={jacketWidth - 3} strokeDasharray="11 6" strokeLinecap="butt" strokeLinejoin="round" opacity={0.92} />
+                    </g>
+                  ) : (
+                    <g key={wire.id}>
+                      <path d={path} fill="none" stroke="#475569" strokeWidth={jacketWidth + 3} strokeLinecap="round" strokeLinejoin="round" opacity={0.72} />
+                      <path d={path} fill="none" stroke="#cbd5e1" strokeWidth={jacketWidth - 2} strokeLinecap="round" strokeLinejoin="round" opacity={0.88} />
+                      <path d={path} fill="none" stroke="#f8fafc" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" opacity={0.72} />
+                    </g>
+                  )
+                ))}
+                <g transform={`translate(${control.x} ${control.y - jacketWidth / 2 - 18})`}>
+                  <rect x={-labelWidth / 2} y={-10} width={labelWidth} height={20} rx={7} fill="#ffffff" fillOpacity={0.96} stroke={group.style === 'drag-chain' ? '#334155' : '#64748b'} />
+                  <text x={0} y={0.5} textAnchor="middle" dominantBaseline="middle" fontSize={10} fontWeight={700} fill="#334155">{labelText}</text>
+                  <title>{group.style === 'drag-chain' ? '拖链保护的运动线缆' : '套入束线管的合并线束'}</title>
+                </g>
+              </g>
+            );
+          })}
+
           {/* 导线 */}
           {wires.map((wire) => {
             const p1 = getPort(wire.a);
@@ -446,7 +500,9 @@ export default function WiringCanvas(props: Props) {
             const rule = wireGaugeRule(wire, parts, partDefs);
             const gaugeApplies = rule.allowed.length > 0;
             const gaugeCompliant = !gaugeApplies || (wire.awg !== undefined && rule.allowed.includes(wire.awg));
-            const gaugeText = sel && gaugeApplies ? (wire.awg ? `${wire.awg} AWG` : '未选 AWG') : null;
+            const gaugeText = sel && selectedWires.size === 1 && gaugeApplies
+              ? (wire.awg ? `${wire.awg} AWG` : '未选 AWG')
+              : null;
             const commonType = portA?.type === portB?.type ? portA?.type : undefined;
             const labelOffset = commonType === 'pwr+'
               ? -15

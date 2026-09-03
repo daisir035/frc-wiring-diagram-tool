@@ -15,6 +15,7 @@ export type PortSide = 'left' | 'right' | 'top' | 'bottom';
 export type FuseRating = 10 | 20 | 30 | 40;
 export type WireGauge = 4 | 6 | 8 | 10 | 12 | 14 | 16 | 18 | 20 | 22 | 24 | 26 | 28;
 export type WireAssembly = 'field' | 'jumper';
+export type WireRoutingStyle = 'standard' | 'drag-chain' | 'conduit';
 export type WireTerminalType =
   | 'none'
   | 'ferrule'
@@ -120,6 +121,10 @@ export interface Wire {
   assembly?: WireAssembly;
   terminalA?: WireTerminalType;
   terminalB?: WireTerminalType;
+  /** 特殊布线显示：拖链或束线管；不设置时为普通导线 */
+  routingStyle?: WireRoutingStyle;
+  /** 多根导线共享同一个 ID 时，作为一组线束共同显示与调整 */
+  bundleId?: string;
   /** 用户拖动后的正交布线路径控制点（世界坐标） */
   control?: { x: number; y: number };
 }

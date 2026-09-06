@@ -1,4 +1,4 @@
-import { AlertTriangle, Cable, CheckCircle2, Plug, Ruler, Shield, X } from 'lucide-react';
+import { AlertTriangle, Cable, CheckCircle2, MapPinPlus, Plug, Ruler, Shield, Trash2, X } from 'lucide-react';
 import type {
   PartDef,
   PlacedPart,
@@ -13,7 +13,7 @@ import {
   defaultTerminalForPort,
   WIRE_TERMINAL_OPTIONS,
 } from '../lib/wiring';
-import { WireRoutingStylePicker } from './WireBundlePanel';
+import { WireBundleRangeEditor, WireRoutingStylePicker } from './WireBundlePanel';
 
 interface Props {
   wire: Wire;
@@ -23,7 +23,29 @@ interface Props {
   bundleSize: number;
   onChange: (changes: Partial<Wire>) => void;
   onRoutingStyleChange: (style: WireRoutingStyle) => void;
+  onBundleRangeChange: (start: number, end: number) => void;
+  onAddWaypoint: () => void;
+  onWaypointTerminalChange: (waypointId: string, terminal: WireTerminalType) => void;
+  onRemoveWaypoint: (waypointId: string) => void;
+  onClearWaypoints: () => void;
   onClose: () => void;
+}
+
+function TerminalPreview({ type }: { type: WireTerminalType }) {
+  return (
+    <svg viewBox="0 0 42 24" className="h-6 w-10 shrink-0" aria-hidden="true">
+      {type === 'none' && <path d="M 6 12 H 36" stroke="#94a3b8" strokeWidth="2" strokeDasharray="4 3" />}
+      {type === 'ferrule' && <><rect x="6" y="8" width="23" height="8" rx="3" fill="#cbd5e1" stroke="#64748b" /><rect x="26" y="6" width="10" height="12" rx="3" fill="#8b5cf6" /></>}
+      {type === 'ring' && <><path d="M 5 12 H 22" stroke="#94a3b8" strokeWidth="5" /><circle cx="30" cy="12" r="7" fill="#e2e8f0" stroke="#64748b" strokeWidth="2" /><circle cx="30" cy="12" r="3" fill="white" /></>}
+      {type === 'fork' && <path d="M 5 9 H 22 L 32 4 L 36 8 L 29 12 L 36 16 L 32 20 L 22 15 H 5 Z" fill="#dbe2ea" stroke="#64748b" />}
+      {type === 'anderson' && <><rect x="5" y="3" width="30" height="8" rx="2" fill="#dc2626" /><rect x="5" y="13" width="30" height="8" rx="2" fill="#1f2937" /><rect x="29" y="7" width="8" height="10" rx="1" fill="#cbd5e1" /></>}
+      {type === 'wago' && <><rect x="6" y="4" width="30" height="16" rx="4" fill="#f97316" stroke="#9a3412" /><rect x="13" y="8" width="16" height="8" rx="2" fill="#fff7ed" /></>}
+      {type === 'pwm' && <><rect x="7" y="4" width="28" height="16" rx="3" fill="#1f2937" />{[8, 12, 16].map((y) => <circle key={y} cx="28" cy={y} r="1.6" fill="#eab308" />)}</>}
+      {type === 'jst' && <><path d="M 6 5 H 29 L 36 9 V 15 L 29 19 H 6 Z" fill="white" stroke="#64748b" /><circle cx="28" cy="9" r="1.4" fill="#d6a630" /><circle cx="28" cy="15" r="1.4" fill="#d6a630" /></>}
+      {type === 'rj45' && <><rect x="7" y="4" width="28" height="16" rx="3" fill="#dbeafe" stroke="#475569" /><path d="M 14 4 V 1 H 28 V 4" fill="#bfdbfe" stroke="#475569" />{[15, 18, 21, 24, 27, 30].map((x) => <line key={x} x1={x} y1="14" x2={x} y2="19" stroke="#d6a630" />)}</>}
+      {type === 'usb' && <><rect x="6" y="6" width="30" height="12" rx="2" fill="#cbd5e1" stroke="#475569" /><rect x="26" y="9" width="8" height="6" rx="1" fill="#334155" /></>}
+    </svg>
+  );
 }
 
 function endInfo(
@@ -53,22 +75,25 @@ function TerminalSelect({
   onChange: (value: WireTerminalType) => void;
 }) {
   return (
-    <label className="block">
+    <label className="relative block">
       <span className="mb-1 block truncate text-[10px] font-medium text-slate-500" title={label}>{label}</span>
       <select
         value={value}
         onChange={(event) => onChange(event.target.value as WireTerminalType)}
-        className="h-8 w-full rounded border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-sky-400"
+        className="h-8 w-full rounded border border-slate-200 bg-white py-1 pl-2 pr-16 text-xs text-slate-700 outline-none focus:border-sky-400"
       >
         {WIRE_TERMINAL_OPTIONS.map((option) => (
           <option key={option.value} value={option.value}>{option.label}</option>
         ))}
       </select>
+      <span className="pointer-events-none absolute right-6 top-5 rounded bg-white/90 px-0.5">
+        <TerminalPreview type={value} />
+      </span>
     </label>
   );
 }
 
-export default function WirePropertiesPanel({ wire, parts, partDefs, rule, bundleSize, onChange, onRoutingStyleChange, onClose }: Props) {
+export default function WirePropertiesPanel({ wire, parts, partDefs, rule, bundleSize, onChange, onRoutingStyleChange, onBundleRangeChange, onAddWaypoint, onWaypointTerminalChange, onRemoveWaypoint, onClearWaypoints, onClose }: Props) {
   const a = endInfo(wire, 'a', parts, partDefs);
   const b = endInfo(wire, 'b', parts, partDefs);
   const assembly = wire.assembly ?? 'field';
@@ -156,11 +181,69 @@ export default function WirePropertiesPanel({ wire, parts, partDefs, rule, bundl
             <span className="text-xs font-semibold text-slate-700">线路保护与线束</span>
           </div>
           <WireRoutingStylePicker value={wire.routingStyle ?? 'standard'} onChange={onRoutingStyleChange} />
+          {wire.routingStyle && wire.routingStyle !== 'standard' && (
+            <WireBundleRangeEditor
+              start={wire.bundleStart ?? 0.18}
+              end={wire.bundleEnd ?? 0.82}
+              onChange={onBundleRangeChange}
+            />
+          )}
           {bundleSize > 1 ? (
             <div className="mt-2 rounded bg-violet-50 px-2.5 py-2 text-[10px] leading-4 text-violet-700">当前导线与另外 {bundleSize - 1} 根导线处于同一线束，调整样式或路径会同步应用到整组。</div>
           ) : (
             <div className="mt-2 text-[9px] leading-4 text-slate-400">打开顶部“线束多选”或按住 Shift 多选导线，可以将多根线合并到同一拖链或束线管中。</div>
           )}
+          <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[10px] font-semibold text-slate-700">中间端子</div>
+                <div className="text-[9px] text-slate-400">当前 {wire.waypoints?.length ?? 0} 个</div>
+              </div>
+              <div className="flex gap-1">
+                <button
+                  onClick={onAddWaypoint}
+                  className="flex h-7 items-center gap-1 rounded border border-violet-200 bg-white px-2 text-[10px] font-medium text-violet-700 hover:bg-violet-50"
+                  title="在当前线路中部增加一个端子"
+                >
+                  <MapPinPlus className="h-3.5 w-3.5" aria-hidden="true" />
+                  添加端子
+                </button>
+                <button
+                  onClick={onClearWaypoints}
+                  disabled={!wire.waypoints?.length}
+                  className="flex h-7 items-center gap-1 rounded border border-slate-200 bg-white px-2 text-[10px] text-slate-600 hover:bg-slate-100 disabled:opacity-35"
+                  title="删除当前导线的全部中间端子"
+                >
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  清除
+                </button>
+              </div>
+            </div>
+            {wire.waypoints && wire.waypoints.length > 0 && (
+              <div className="mt-2 space-y-2">
+                {wire.waypoints.map((waypoint, index) => (
+                  <div key={waypoint.id} className="rounded border border-violet-100 bg-white p-2">
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-semibold text-violet-700">中间端子 {index + 1}</span>
+                      <button
+                        onClick={() => onRemoveWaypoint(waypoint.id)}
+                        className="flex h-6 w-6 items-center justify-center rounded text-slate-400 hover:bg-red-50 hover:text-red-600"
+                        title={`删除中间端子 ${index + 1}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                      </button>
+                    </div>
+                    <TerminalSelect
+                      label="端子类型"
+                      value={waypoint.terminal ?? 'wago'}
+                      onChange={(terminal) => onWaypointTerminalChange(waypoint.id, terminal)}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="mt-2 text-[9px] leading-4 text-slate-500">双击导线可在指定位置插入端子；拖动紫色虚线圈调整位置，双击端子或点击垃圾桶可删除。</div>
+          </div>
         </section>
 
         <section className="py-3">

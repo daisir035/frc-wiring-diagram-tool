@@ -7,6 +7,7 @@ import type {
   WireEnd,
   WireRoutingStyle,
   WireTerminalType,
+  WireWaypoint,
   ViewTransform,
   WorldPort,
 } from '../lib/wiring';
@@ -34,9 +35,11 @@ interface Props {
   onViewChange: (v: ViewTransform) => void;
   onMoveSelectedBy: (dx: number, dy: number, uids: string[]) => void;
   onPartClick: (uid: string, additive: boolean) => void;
-  onMarqueeSelect: (uids: string[], additive: boolean) => void;
+  onMarqueeSelect: (selection: { partUids: string[]; wireIds: string[] }, additive: boolean) => void;
   onWireClick: (id: string, additive: boolean) => void;
   onWireControlChange: (id: string, control?: { x: number; y: number }) => void;
+  onWireWaypointAdd: (id: string, waypoint: WireWaypoint, index: number) => void;
+  onWireWaypointChange: (id: string, waypointId: string, point?: { x: number; y: number }) => void;
   onPortClick: (end: WireEnd) => void;
   onFuseClick: (uid: string, channel: number) => void;
   onBackgroundClick: () => void;
@@ -47,7 +50,121 @@ type DragMode =
   | { kind: 'pan'; startX: number; startY: number; view: ViewTransform }
   | { kind: 'marquee'; startWx: number; startWy: number; additive: boolean }
   | { kind: 'parts'; uids: string[]; lastWx: number; lastWy: number; moved: boolean; additive: boolean; clickUid: string }
-  | { kind: 'wire-control'; wireId: string };
+  | { kind: 'wire-control'; wireId: string }
+  | { kind: 'wire-waypoint'; wireId: string; waypointId: string };
+
+interface SelectionRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+function pointInRect(point: { x: number; y: number }, rect: SelectionRect) {
+  return point.x >= rect.x && point.x <= rect.x + rect.w && point.y >= rect.y && point.y <= rect.y + rect.h;
+}
+
+function segmentsIntersect(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  c: { x: number; y: number },
+  d: { x: number; y: number },
+) {
+  const epsilon = 0.0001;
+  const cross = (p: { x: number; y: number }, q: { x: number; y: number }, r: { x: number; y: number }) =>
+    (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+  const onSegment = (p: { x: number; y: number }, q: { x: number; y: number }, r: { x: number; y: number }) =>
+    q.x >= Math.min(p.x, r.x) - epsilon &&
+    q.x <= Math.max(p.x, r.x) + epsilon &&
+    q.y >= Math.min(p.y, r.y) - epsilon &&
+    q.y <= Math.max(p.y, r.y) + epsilon;
+  const abC = cross(a, b, c);
+  const abD = cross(a, b, d);
+  const cdA = cross(c, d, a);
+  const cdB = cross(c, d, b);
+  if (
+    ((abC > epsilon && abD < -epsilon) || (abC < -epsilon && abD > epsilon)) &&
+    ((cdA > epsilon && cdB < -epsilon) || (cdA < -epsilon && cdB > epsilon))
+  ) return true;
+  if (Math.abs(abC) <= epsilon && onSegment(a, c, b)) return true;
+  if (Math.abs(abD) <= epsilon && onSegment(a, d, b)) return true;
+  if (Math.abs(cdA) <= epsilon && onSegment(c, a, d)) return true;
+  return Math.abs(cdB) <= epsilon && onSegment(c, b, d);
+}
+
+function segmentIntersectsRect(a: { x: number; y: number }, b: { x: number; y: number }, rect: SelectionRect) {
+  if (pointInRect(a, rect) || pointInRect(b, rect)) return true;
+  const topLeft = { x: rect.x, y: rect.y };
+  const topRight = { x: rect.x + rect.w, y: rect.y };
+  const bottomRight = { x: rect.x + rect.w, y: rect.y + rect.h };
+  const bottomLeft = { x: rect.x, y: rect.y + rect.h };
+  return (
+    segmentsIntersect(a, b, topLeft, topRight) ||
+    segmentsIntersect(a, b, topRight, bottomRight) ||
+    segmentsIntersect(a, b, bottomRight, bottomLeft) ||
+    segmentsIntersect(a, b, bottomLeft, topLeft)
+  );
+}
+
+function pathIntersectsRect(path: string, rect: SelectionRect, padding: number) {
+  const hitRect = {
+    x: rect.x - padding,
+    y: rect.y - padding,
+    w: rect.w + padding * 2,
+    h: rect.h + padding * 2,
+  };
+  const pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  pathElement.setAttribute('d', path);
+  const length = pathElement.getTotalLength();
+  const sampleStep = 8;
+  let previous = pathElement.getPointAtLength(0);
+  if (pointInRect(previous, hitRect)) return true;
+  for (let distance = sampleStep; distance < length; distance += sampleStep) {
+    const current = pathElement.getPointAtLength(distance);
+    if (segmentIntersectsRect(previous, current, hitRect)) return true;
+    previous = current;
+  }
+  return segmentIntersectsRect(previous, pathElement.getPointAtLength(length), hitRect);
+}
+
+function distanceToSegment(point: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared === 0) return Math.hypot(point.x - a.x, point.y - a.y);
+  const t = Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / lengthSquared));
+  return Math.hypot(point.x - (a.x + t * dx), point.y - (a.y + t * dy));
+}
+
+function wireBundleRange(wire: Wire) {
+  const rawStart = Number.isFinite(wire.bundleStart) ? wire.bundleStart! : 0.18;
+  const rawEnd = Number.isFinite(wire.bundleEnd) ? wire.bundleEnd! : 0.82;
+  const start = Math.max(0, Math.min(rawStart, 0.9));
+  const end = Math.min(1, Math.max(rawEnd, start + 0.1));
+  return { start, end };
+}
+
+function segmentStroke(start: number, end: number) {
+  if (start <= 0 && end >= 1) return {};
+  const length = Math.max(0.0001, end - start);
+  return {
+    pathLength: 1,
+    strokeDasharray: length + ' ' + Math.max(0.0001, 1 - length),
+    strokeDashoffset: -start,
+  };
+}
+
+function pointAtPathRatio(path: string, ratio: number) {
+  const pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  pathElement.setAttribute('d', path);
+  const length = pathElement.getTotalLength();
+  const point = pathElement.getPointAtLength(length * Math.max(0, Math.min(1, ratio)));
+  return { x: point.x, y: point.y };
+}
+
+function straightPath(a: { x: number; y: number }, b: { x: number; y: number }) {
+  return 'M ' + a.x + ' ' + a.y + ' L ' + b.x + ' ' + b.y;
+}
 
 const TERMINAL_NAMES: Record<WireTerminalType, string> = {
   none: '无端子',
@@ -62,14 +179,15 @@ const TERMINAL_NAMES: Record<WireTerminalType, string> = {
   usb: 'USB 接头',
 };
 
-function WireTerminalMarker({ port, type, color }: { port: WorldPort; type: WireTerminalType; color: string }) {
+function WireTerminalMarker({ port, type, color, centered = false }: { port: WorldPort; type: WireTerminalType; color: string; centered?: boolean }) {
   if (type === 'none') return null;
   const angle = (Math.atan2(port.ny, port.nx) * 180) / Math.PI;
-  const x = port.x + port.nx * 7;
-  const y = port.y + port.ny * 7;
+  const x = centered ? port.x : port.x + port.nx * 7;
+  const y = centered ? port.y : port.y + port.ny * 7;
   return (
     <g transform={`translate(${x} ${y}) rotate(${angle})`} style={{ pointerEvents: 'none' }}>
-      {type === 'ferrule' && (
+      <g transform={centered ? 'translate(-8 0)' : undefined}>
+        {type === 'ferrule' && (
         <>
           <rect x={-1} y={-3.5} width={13} height={7} rx={2} fill="#d7dde5" stroke="#64748b" strokeWidth={1} />
           <rect x={7} y={-4.5} width={6} height={9} rx={2} fill={color} stroke="#ffffff" strokeWidth={0.8} />
@@ -126,8 +244,9 @@ function WireTerminalMarker({ port, type, color }: { port: WorldPort; type: Wire
           <rect x={10} y={-3.5} width={6} height={7} rx={1} fill="#334155" />
           <rect x={11.5} y={-2} width={3} height={4} fill="#94a3b8" />
         </>
-      )}
-      <title>{TERMINAL_NAMES[type]}</title>
+        )}
+        <title>{TERMINAL_NAMES[type]}</title>
+      </g>
     </g>
   );
 }
@@ -149,6 +268,8 @@ export default function WiringCanvas(props: Props) {
     onMarqueeSelect,
     onWireClick,
     onWireControlChange,
+    onWireWaypointAdd,
+    onWireWaypointChange,
     onPortClick,
     onFuseClick,
     onBackgroundClick,
@@ -324,6 +445,12 @@ export default function WiringCanvas(props: Props) {
         x: Math.round(point.x / 4) * 4,
         y: Math.round(point.y / 4) * 4,
       });
+    } else if (d.kind === 'wire-waypoint') {
+      const point = toWorld(e.clientX, e.clientY);
+      onWireWaypointChange(d.wireId, d.waypointId, {
+        x: Math.round(point.x / 4) * 4,
+        y: Math.round(point.y / 4) * 4,
+      });
     }
   };
 
@@ -341,7 +468,7 @@ export default function WiringCanvas(props: Props) {
         onBackgroundClick();
         return;
       }
-      const hit = parts.filter((pt) => {
+      const hitParts = parts.filter((pt) => {
         const def = partDefs.get(pt.partId);
         if (!def) return false;
         const { w: pw, h: ph } = partSize(def);
@@ -355,7 +482,25 @@ export default function WiringCanvas(props: Props) {
         const cy = pt.y + ph / 2;
         return cx + bw / 2 > rx && cx - bw / 2 < rx + rw && cy + bh / 2 > ry && cy - bh / 2 < ry + rh;
       });
-      onMarqueeSelect(hit.map((p2) => p2.uid), d.additive);
+      const selectionRect = { x: rx, y: ry, w: rw, h: rh };
+      const directlyHitWireIds = new Set(
+        wires.filter((wire) => {
+          const p1 = getPort(wire.a);
+          const p2 = getPort(wire.b);
+          if (!p1 || !p2) return false;
+          const route = wireRoute(p1, p2, wireLane(wire), wire.control, wire.waypoints);
+          return pathIntersectsRect(route.path, selectionRect, 6 / view.k);
+        }).map((wire) => wire.id),
+      );
+      const hitBundleIds = new Set(
+        wires
+          .filter((wire) => directlyHitWireIds.has(wire.id) && wire.bundleId)
+          .map((wire) => wire.bundleId as string),
+      );
+      const hitWireIds = wires
+        .filter((wire) => directlyHitWireIds.has(wire.id) || Boolean(wire.bundleId && hitBundleIds.has(wire.bundleId)))
+        .map((wire) => wire.id);
+      onMarqueeSelect({ partUids: hitParts.map((part) => part.uid), wireIds: hitWireIds }, d.additive);
     } else if (d.kind === 'parts' && !d.moved) {
       onPartClick(d.clickUid, d.additive);
     }
@@ -406,12 +551,45 @@ export default function WiringCanvas(props: Props) {
     const p1 = getPort(wire.a);
     const p2 = getPort(wire.b);
     if (!p1 || !p2) return;
-    const route = wireRoute(p1, p2, wireLane(wire), wire.control);
+    const route = wireRoute(p1, p2, wireLane(wire), wire.control, wire.waypoints);
     const key = wire.bundleId ?? `wire:${wire.id}`;
     const group = routingGroups.get(key) ?? { style, items: [] };
     group.style = style;
     group.items.push({ wire, path: route.path, control: route.control });
     routingGroups.set(key, group);
+  });
+
+  const bundledWireGeometry = new Map<string, {
+    range: { start: number; end: number };
+    fanPaths: string[];
+  }>();
+  const routingVisuals = [...routingGroups.entries()].map(([key, group]) => {
+    const representative = group.items[0];
+    const range = wireBundleRange(representative.wire);
+    const startPoint = pointAtPathRatio(representative.path, range.start);
+    const endPoint = pointAtPathRatio(representative.path, range.end);
+    group.items.forEach((item) => {
+      const ownStart = pointAtPathRatio(item.path, range.start);
+      const ownEnd = pointAtPathRatio(item.path, range.end);
+      const fanPaths: string[] = [];
+      if (Math.hypot(ownStart.x - startPoint.x, ownStart.y - startPoint.y) > 0.5) {
+        fanPaths.push(straightPath(ownStart, startPoint));
+      }
+      if (Math.hypot(ownEnd.x - endPoint.x, ownEnd.y - endPoint.y) > 0.5) {
+        fanPaths.push(straightPath(ownEnd, endPoint));
+      }
+      bundledWireGeometry.set(item.wire.id, { range, fanPaths });
+    });
+    return {
+      key,
+      style: group.style,
+      count: group.items.length,
+      path: representative.path,
+      range,
+      startPoint,
+      endPoint,
+      labelPoint: pointAtPathRatio(representative.path, (range.start + range.end) / 2),
+    };
   });
 
   /* ---------- 渲染 ---------- */
@@ -451,36 +629,48 @@ export default function WiringCanvas(props: Props) {
             </image>
           )}
 
-          {/* 拖链 / 束线管外套，绘制在彩色导线下方 */}
-          {[...routingGroups.entries()].map(([key, group]) => {
-            const jacketWidth = Math.min(30, 15 + group.items.length * 2.5);
-            const label = group.style === 'drag-chain' ? '拖链' : '束线管';
-            const labelText = group.items.length > 1 ? `${label} · ${group.items.length} 根` : label;
+          {/* 拖链 / 束线管外套：每组只绘制一条细主干，彩色线在两端汇聚与散开 */}
+          {routingVisuals.map((visual) => {
+            const jacketWidth = Math.min(18, 9 + visual.count * 1.2);
+            const label = visual.style === 'drag-chain' ? '拖链' : '束线管';
+            const labelText = visual.count > 1 ? `${label} · ${visual.count} 根` : label;
             const labelWidth = Math.max(54, labelText.length * 11 + 18);
-            const control = {
-              x: group.items.reduce((sum, item) => sum + item.control.x, 0) / group.items.length,
-              y: group.items.reduce((sum, item) => sum + item.control.y, 0) / group.items.length,
-            };
+            const maskId = 'bundle-range-' + visual.key.replace(/[^a-zA-Z0-9_-]/g, '_');
             return (
-              <g key={`routing:${key}`} style={{ pointerEvents: 'none' }}>
-                {group.items.map(({ wire, path }) => (
-                  group.style === 'drag-chain' ? (
-                    <g key={wire.id}>
-                      <path d={path} fill="none" stroke="#1e293b" strokeWidth={jacketWidth + 3} strokeLinecap="round" strokeLinejoin="round" opacity={0.9} />
-                      <path d={path} fill="none" stroke="#94a3b8" strokeWidth={jacketWidth - 3} strokeDasharray="11 6" strokeLinecap="butt" strokeLinejoin="round" opacity={0.92} />
-                    </g>
+              <g key={'routing:' + visual.key} style={{ pointerEvents: 'none' }}>
+                <defs>
+                  <mask id={maskId} maskUnits="userSpaceOnUse" x={-100000} y={-100000} width={200000} height={200000}>
+                    <path
+                      d={visual.path}
+                      fill="none"
+                      stroke="#ffffff"
+                      strokeWidth={jacketWidth + 8}
+                      strokeLinecap="butt"
+                      strokeLinejoin="round"
+                      {...segmentStroke(visual.range.start, visual.range.end)}
+                    />
+                  </mask>
+                </defs>
+                <g mask={'url(#' + maskId + ')'}>
+                  {visual.style === 'drag-chain' ? (
+                    <>
+                      <path d={visual.path} fill="none" stroke="#1e293b" strokeWidth={jacketWidth + 2} strokeLinecap="round" strokeLinejoin="round" opacity={0.94} />
+                      <path d={visual.path} fill="none" stroke="#94a3b8" strokeWidth={Math.max(4, jacketWidth - 4)} strokeDasharray="9 5" strokeLinecap="butt" strokeLinejoin="round" opacity={0.95} />
+                    </>
                   ) : (
-                    <g key={wire.id}>
-                      <path d={path} fill="none" stroke="#475569" strokeWidth={jacketWidth + 3} strokeLinecap="round" strokeLinejoin="round" opacity={0.72} />
-                      <path d={path} fill="none" stroke="#cbd5e1" strokeWidth={jacketWidth - 2} strokeLinecap="round" strokeLinejoin="round" opacity={0.88} />
-                      <path d={path} fill="none" stroke="#f8fafc" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" opacity={0.72} />
-                    </g>
-                  )
-                ))}
-                <g transform={`translate(${control.x} ${control.y - jacketWidth / 2 - 18})`}>
-                  <rect x={-labelWidth / 2} y={-10} width={labelWidth} height={20} rx={7} fill="#ffffff" fillOpacity={0.96} stroke={group.style === 'drag-chain' ? '#334155' : '#64748b'} />
+                    <>
+                      <path d={visual.path} fill="none" stroke="#475569" strokeWidth={jacketWidth + 2} strokeLinecap="round" strokeLinejoin="round" opacity={0.78} />
+                      <path d={visual.path} fill="none" stroke="#cbd5e1" strokeWidth={Math.max(5, jacketWidth - 2)} strokeLinecap="round" strokeLinejoin="round" opacity={0.94} />
+                      <path d={visual.path} fill="none" stroke="#f8fafc" strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" opacity={0.75} />
+                    </>
+                  )}
+                </g>
+                <circle cx={visual.startPoint.x} cy={visual.startPoint.y} r={Math.max(3.5, jacketWidth / 2)} fill={visual.style === 'drag-chain' ? '#334155' : '#94a3b8'} stroke="#ffffff" strokeWidth={1.5} />
+                <circle cx={visual.endPoint.x} cy={visual.endPoint.y} r={Math.max(3.5, jacketWidth / 2)} fill={visual.style === 'drag-chain' ? '#334155' : '#94a3b8'} stroke="#ffffff" strokeWidth={1.5} />
+                <g transform={'translate(' + visual.labelPoint.x + ' ' + (visual.labelPoint.y - jacketWidth / 2 - 18) + ')'}>
+                  <rect x={-labelWidth / 2} y={-10} width={labelWidth} height={20} rx={7} fill="#ffffff" fillOpacity={0.96} stroke={visual.style === 'drag-chain' ? '#334155' : '#64748b'} />
                   <text x={0} y={0.5} textAnchor="middle" dominantBaseline="middle" fontSize={10} fontWeight={700} fill="#334155">{labelText}</text>
-                  <title>{group.style === 'drag-chain' ? '拖链保护的运动线缆' : '套入束线管的合并线束'}</title>
+                  <title>{visual.style === 'drag-chain' ? '拖链保护的运动线缆' : '套入束线管的合并线束'}</title>
                 </g>
               </g>
             );
@@ -492,7 +682,7 @@ export default function WiringCanvas(props: Props) {
             const p2 = getPort(wire.b);
             if (!p1 || !p2) return null;
             const lane = wireLane(wire);
-            const route = wireRoute(p1, p2, lane, wire.control);
+            const route = wireRoute(p1, p2, lane, wire.control, wire.waypoints);
             const d = route.path;
             const sel = selectedWires.has(wire.id);
             const portA = getPortDef(wire.a);
@@ -520,28 +710,42 @@ export default function WiringCanvas(props: Props) {
             const labelWidth = gaugeText ? Math.max(48, gaugeText.length * 6.4 + 14) : 0;
             const terminalA = wire.terminalA ?? defaultTerminalForPort(portA);
             const terminalB = wire.terminalB ?? defaultTerminalForPort(portB);
+            const bundleGeometry = bundledWireGeometry.get(wire.id);
+            const visiblePaths = bundleGeometry
+              ? [
+                  { path: d, start: 0, end: bundleGeometry.range.start },
+                  { path: d, start: bundleGeometry.range.end, end: 1 },
+                  ...bundleGeometry.fanPaths.map((path) => ({ path, start: 0, end: 1 })),
+                ].filter((segment) => segment.end - segment.start > 0.0001)
+              : [{ path: d, start: 0, end: 1 }];
             return (
               <g key={wire.id}>
-                {sel && <path d={d} fill="none" stroke="#38bdf8" strokeWidth={10} opacity={0.42} strokeLinecap="round" strokeLinejoin="round" />}
-                <path
-                  d={d}
-                  fill="none"
-                  stroke="#ffffff"
-                  strokeWidth={7}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  opacity={0.92}
-                  style={{ pointerEvents: 'none' }}
-                />
-                <path
-                  d={d}
-                  fill="none"
-                  stroke={wire.color}
-                  strokeWidth={3.5}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{ pointerEvents: 'none' }}
-                />
+                {sel && visiblePaths.map((segment, index) => (
+                  <path key={'selection-' + index} d={segment.path} fill="none" stroke="#38bdf8" strokeWidth={10} opacity={0.42} strokeLinecap="round" strokeLinejoin="round" {...segmentStroke(segment.start, segment.end)} />
+                ))}
+                {visiblePaths.map((segment, index) => (
+                  <g key={'wire-segment-' + index} style={{ pointerEvents: 'none' }}>
+                    <path
+                      d={segment.path}
+                      fill="none"
+                      stroke="#ffffff"
+                      strokeWidth={7}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      opacity={0.92}
+                      {...segmentStroke(segment.start, segment.end)}
+                    />
+                    <path
+                      d={segment.path}
+                      fill="none"
+                      stroke={wire.color}
+                      strokeWidth={3.5}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      {...segmentStroke(segment.start, segment.end)}
+                    />
+                  </g>
+                ))}
                 <path
                   d={d}
                   fill="none"
@@ -555,6 +759,27 @@ export default function WiringCanvas(props: Props) {
                     e.stopPropagation();
                     onWireClick(wire.id, e.shiftKey);
                   }}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    const point = toWorld(e.clientX, e.clientY);
+                    const snapped = {
+                      id: `wp_${Date.now().toString(36)}`,
+                      x: Math.round(point.x / 4) * 4,
+                      y: Math.round(point.y / 4) * 4,
+                      terminal: 'wago' as const,
+                    };
+                    const anchors = [p1, ...(wire.waypoints ?? []), p2];
+                    let insertIndex = 0;
+                    let nearest = Infinity;
+                    for (let index = 0; index < anchors.length - 1; index += 1) {
+                      const distance = distanceToSegment(point, anchors[index], anchors[index + 1]);
+                      if (distance < nearest) {
+                        nearest = distance;
+                        insertIndex = index;
+                      }
+                    }
+                    onWireWaypointAdd(wire.id, snapped, insertIndex);
+                  }}
                 />
                 {wire.assembly === 'jumper' && (
                   <>
@@ -562,6 +787,22 @@ export default function WiringCanvas(props: Props) {
                     <WireTerminalMarker port={p2} type={terminalB} color={wire.color} />
                   </>
                 )}
+                {wire.waypoints?.map((waypoint, index) => {
+                  const previous = index === 0 ? p1 : wire.waypoints![index - 1];
+                  const next = index === wire.waypoints!.length - 1 ? p2 : wire.waypoints![index + 1];
+                  const dx = next.x - previous.x;
+                  const dy = next.y - previous.y;
+                  const length = Math.hypot(dx, dy) || 1;
+                  return (
+                    <WireTerminalMarker
+                      key={`terminal-${waypoint.id}`}
+                      port={{ x: waypoint.x, y: waypoint.y, nx: dx / length, ny: dy / length }}
+                      type={waypoint.terminal ?? 'wago'}
+                      color={wire.color}
+                      centered
+                    />
+                  );
+                })}
                 {gaugeText && (
                   <g
                     transform={`translate(${route.control.x} ${route.control.y + labelOffset})`}
@@ -593,7 +834,7 @@ export default function WiringCanvas(props: Props) {
                     <title>{gaugeCompliant ? rule.label : `${rule.label}：当前线规不符合允许范围`}</title>
                   </g>
                 )}
-                {sel && (
+                {sel && (!wire.waypoints || wire.waypoints.length === 0) && (
                   <g
                     transform={`translate(${route.control.x} ${route.control.y})`}
                     style={{ cursor: 'move' }}
@@ -614,6 +855,28 @@ export default function WiringCanvas(props: Props) {
                     <title>拖动调整路径，双击恢复自动布线</title>
                   </g>
                 )}
+                {sel && wire.waypoints?.map((waypoint, index) => (
+                  <g
+                    key={waypoint.id}
+                    transform={`translate(${waypoint.x} ${waypoint.y})`}
+                    style={{ cursor: 'move' }}
+                    onPointerDown={(e) => {
+                      if (e.button !== 0) return;
+                      e.stopPropagation();
+                      ((e.currentTarget as SVGElement).ownerSVGElement as Element | null)?.setPointerCapture?.(e.pointerId);
+                      dragRef.current = { kind: 'wire-waypoint', wireId: wire.id, waypointId: waypoint.id };
+                    }}
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      onWireWaypointChange(wire.id, waypoint.id, undefined);
+                    }}
+                  >
+                    <circle r={13} fill="transparent" stroke="#7c3aed" strokeWidth={1.8} strokeDasharray="4 3" />
+                    <circle r={16} fill="transparent" />
+                    <text x={14} y={-10} fontSize={9} fontWeight={700} fill="#6d28d9" pointerEvents="none">{index + 1}</text>
+                    <title>拖动调整中间端子；双击删除</title>
+                  </g>
+                ))}
               </g>
             );
           })}
@@ -672,6 +935,7 @@ export default function WiringCanvas(props: Props) {
                       def={def}
                       width={w}
                       height={h}
+                      stretchToFit
                       fuses={part.fuses}
                       onFuseClick={
                         def.fuseChannels

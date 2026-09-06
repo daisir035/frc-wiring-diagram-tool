@@ -110,6 +110,14 @@ export interface WireEnd {
   portId: string;
 }
 
+export interface WireWaypoint {
+  id: string;
+  x: number;
+  y: number;
+  /** 线路中间插入的可见端子/接插件 */
+  terminal?: WireTerminalType;
+}
+
 export interface Wire {
   id: string;
   a: WireEnd;
@@ -125,8 +133,14 @@ export interface Wire {
   routingStyle?: WireRoutingStyle;
   /** 多根导线共享同一个 ID 时，作为一组线束共同显示与调整 */
   bundleId?: string;
+  /** 拖链或束线管在线路总长度上的包覆起点比例，范围 0~1 */
+  bundleStart?: number;
+  /** 拖链或束线管在线路总长度上的包覆终点比例，范围 0~1 */
+  bundleEnd?: number;
   /** 用户拖动后的正交布线路径控制点（世界坐标） */
   control?: { x: number; y: number };
+  /** 用户在线路中间添加的可拖动端子，按从 A 端到 B 端的顺序排列 */
+  waypoints?: WireWaypoint[];
 }
 
 export interface ViewTransform {
@@ -925,7 +939,46 @@ export function partAssetSrc(fileName: string): string {
   return `${import.meta.env.BASE_URL}parts/${encodeURIComponent(fileName)}`;
 }
 
+/**
+ * 常用 FRC 器件的俯视安装外形（毫米）。统一比例用于表达器件之间的真实相对大小；
+ * 通用传感器和接线端子没有唯一型号，因此采用元件库图片所代表型号的近似外形。
+ */
+const PART_FOOTPRINTS_MM: Record<string, { w: number; h: number }> = {
+  roborio: { w: 191, h: 148 },
+  pdp: { w: 108, h: 180 },
+  pdh: { w: 108, h: 229 },
+  miniPdp: { w: 85, h: 80 },
+  battery12v: { w: 181, h: 76 },
+  terminalPair: { w: 60, h: 32 },
+  terminal2To4: { w: 85, h: 45 },
+  breaker120: { w: 51, h: 76 },
+  vrm: { w: 89, h: 96 },
+  vh109: { w: 145, h: 67 },
+  rsl: { w: 59, h: 35 },
+  fuseAuto10: { w: 19, h: 5 },
+  falcon500: { w: 139, h: 64 },
+  krakenX60: { w: 139, h: 64 },
+  krakenX44: { w: 112, h: 44 },
+  beamBreak: { w: 70, h: 45 },
+  npnPhoto: { w: 18, h: 50 },
+  lmSwitch: { w: 28, h: 50 },
+  pot: { w: 24, h: 34 },
+  ttb: { w: 38, h: 43 },
+  cancoder: { w: 44, h: 38 },
+  c270: { w: 70, h: 31 },
+  limelight3: { w: 86, h: 69 },
+  limelight4: { w: 76, h: 81 },
+};
+
 export function partSize(def: PartDef): { w: number; h: number } {
+  const physical = PART_FOOTPRINTS_MM[def.id];
+  if (physical) {
+    const worldUnitsPerMillimeter = 1.05;
+    return {
+      w: physical.w * worldUnitsPerMillimeter,
+      h: physical.h * worldUnitsPerMillimeter,
+    };
+  }
   const w = def.displayWidth;
   return { w, h: (w * def.h) / def.w };
 }
@@ -1006,12 +1059,35 @@ export function wireRoute(
   p2: WorldPort,
   lane = 0,
   manualControl?: { x: number; y: number },
+  waypoints?: WireWaypoint[],
 ): { path: string; control: { x: number; y: number } } {
   const stub = 18;
   const a = { x: p1.x + p1.nx * stub, y: p1.y + p1.ny * stub };
   const b = { x: p2.x + p2.nx * stub, y: p2.y + p2.ny * stub };
   const p1Horizontal = Math.abs(p1.nx) > Math.abs(p1.ny);
   const p2Horizontal = Math.abs(p2.nx) > Math.abs(p2.ny);
+  if (waypoints && waypoints.length > 0) {
+    const points: Array<{ x: number; y: number }> = [{ x: p1.x, y: p1.y }, a];
+    let current = a;
+    const horizontalFirst = p1Horizontal;
+    waypoints.forEach((waypoint) => {
+      if (Math.abs(current.x - waypoint.x) > 0.1 && Math.abs(current.y - waypoint.y) > 0.1) {
+        points.push(horizontalFirst
+          ? { x: waypoint.x, y: current.y }
+          : { x: current.x, y: waypoint.y });
+      }
+      points.push({ x: waypoint.x, y: waypoint.y });
+      current = waypoint;
+    });
+    if (Math.abs(current.x - b.x) > 0.1 && Math.abs(current.y - b.y) > 0.1) {
+      points.push(p2Horizontal
+        ? { x: current.x, y: b.y }
+        : { x: b.x, y: current.y });
+    }
+    points.push(b, { x: p2.x, y: p2.y });
+    const control = waypoints[Math.floor(waypoints.length / 2)];
+    return { path: roundedOrthogonalPath(points), control: { x: control.x, y: control.y } };
+  }
   let control: { x: number; y: number };
 
   if (p1Horizontal && p2Horizontal) {

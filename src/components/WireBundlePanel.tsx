@@ -6,6 +6,75 @@ interface PickerProps {
   onChange: (value: WireRoutingStyle) => void;
 }
 
+interface RangeEditorProps {
+  start: number;
+  end: number;
+  onChange: (start: number, end: number) => void;
+}
+
+export function WireBundleRangeEditor({ start, end, onChange }: RangeEditorProps) {
+  const startPercent = Math.round(start * 100);
+  const endPercent = Math.round(end * 100);
+
+  return (
+    <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2.5">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div>
+          <div className="text-[10px] font-semibold text-slate-700">包覆线路区间</div>
+          <div className="text-[9px] text-slate-400">两端导线保持露出，可随时再次调整</div>
+        </div>
+        <button
+          type="button"
+          onClick={() => onChange(0.18, 0.82)}
+          className="rounded border border-slate-200 bg-white px-2 py-1 text-[9px] text-slate-500 hover:bg-slate-100"
+        >
+          重置
+        </button>
+      </div>
+      <label className="block">
+        <span className="mb-1 flex text-[10px] font-medium text-slate-500">
+          包覆起点
+          <span className="ml-auto font-semibold text-slate-700">{startPercent}%</span>
+        </span>
+        <input
+          type="range"
+          min={0}
+          max={Math.max(0, endPercent - 10)}
+          step={1}
+          value={startPercent}
+          onChange={(event) => onChange(Number(event.target.value) / 100, end)}
+          className="h-1.5 w-full cursor-pointer accent-violet-600"
+        />
+      </label>
+      <label className="mt-2 block">
+        <span className="mb-1 flex text-[10px] font-medium text-slate-500">
+          包覆终点
+          <span className="ml-auto font-semibold text-slate-700">{endPercent}%</span>
+        </span>
+        <input
+          type="range"
+          min={Math.min(100, startPercent + 10)}
+          max={100}
+          step={1}
+          value={endPercent}
+          onChange={(event) => onChange(start, Number(event.target.value) / 100)}
+          className="h-1.5 w-full cursor-pointer accent-violet-600"
+        />
+      </label>
+      <div className="mt-2 flex h-3 overflow-hidden rounded-full border border-slate-200 bg-white" aria-hidden="true">
+        <span className="bg-rose-300" style={{ width: startPercent + '%' }} />
+        <span className="bg-slate-500" style={{ width: (endPercent - startPercent) + '%' }} />
+        <span className="bg-rose-300" style={{ width: (100 - endPercent) + '%' }} />
+      </div>
+      <div className="mt-1 flex justify-between text-[8px] text-slate-400">
+        <span>露线</span>
+        <span>拖链 / 束线管</span>
+        <span>露线</span>
+      </div>
+    </div>
+  );
+}
+
 const ROUTING_OPTIONS: Array<{
   value: WireRoutingStyle;
   label: string;
@@ -66,10 +135,13 @@ interface Props {
   wireCount: number;
   value?: WireRoutingStyle;
   onChange: (value: WireRoutingStyle) => void;
+  bundleStart: number;
+  bundleEnd: number;
+  onBundleRangeChange: (start: number, end: number) => void;
   onClose: () => void;
 }
 
-export default function WireBundlePanel({ wireCount, value, onChange, onClose }: Props) {
+export default function WireBundlePanel({ wireCount, value, onChange, bundleStart, bundleEnd, onBundleRangeChange, onClose }: Props) {
   return (
     <aside className="absolute inset-y-0 right-0 z-30 flex h-full w-72 shrink-0 flex-col border-l border-slate-200 bg-white shadow-xl lg:static lg:z-auto lg:shadow-none">
       <div className="flex h-12 items-center gap-2 border-b border-slate-200 px-3">
@@ -99,7 +171,10 @@ export default function WireBundlePanel({ wireCount, value, onChange, onClose }:
           <span className="text-xs font-semibold text-slate-700">线路保护方式</span>
         </div>
         <WireRoutingStylePicker value={value} onChange={onChange} />
-        <div className="mt-3 text-[9px] leading-4 text-slate-400">可打开顶部“线束多选”，或按住 Shift 点击导线，继续增加或移除线束成员。</div>
+        {value && value !== 'standard' && (
+          <WireBundleRangeEditor start={bundleStart} end={bundleEnd} onChange={onBundleRangeChange} />
+        )}
+        <div className="mt-3 text-[9px] leading-4 text-slate-400">在画布空白处按住左键拉框可一次选择多条线束；按住 Shift 拉框或点击导线可继续追加成员。</div>
       </div>
     </aside>
   );

@@ -8,6 +8,7 @@ interface Props {
   height: number | string;
   fuses?: Record<number, FuseRating>;
   onFuseClick?: (channel: number) => void;
+  stretchToFit?: boolean;
   className?: string;
   style?: CSSProperties;
 }
@@ -557,13 +558,13 @@ function renderVector(def: PartDef) {
   }
 }
 
-export default function PartArtwork({ def, width, height, fuses, onFuseClick, className, style }: Props) {
+export default function PartArtwork({ def, width, height, fuses, onFuseClick, stretchToFit = false, className, style }: Props) {
   return (
     <svg
       width={width}
       height={height}
       viewBox={`0 0 ${def.w} ${def.h}`}
-      preserveAspectRatio="xMidYMid meet"
+      preserveAspectRatio={stretchToFit ? 'none' : 'xMidYMid meet'}
       className={className}
       style={style}
       aria-label={def.name}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CircuitBoard, Download, Eraser, GitMerge, ImageOff, ImagePlus, Lock, Maximize, PanelLeft, RotateCw, Trash2, Undo2, Unlock, Zap } from 'lucide-react';
+import type { SetStateAction } from 'react';
+import { CircuitBoard, ClipboardPaste, Copy, Download, Eraser, FolderOpen, GitMerge, ImageOff, ImagePlus, Lock, Maximize, Pencil, Plus, PanelLeft, RotateCw, Save, Trash2, Undo2, Unlock, Zap } from 'lucide-react';
 import WiringCanvas from '../components/WiringCanvas';
 import LibraryPanel from '../components/LibraryPanel';
 import CustomBoardModal from '../components/CustomBoardModal';
@@ -14,99 +15,419 @@ import type {
   Wire,
   WireEnd,
   WireRoutingStyle,
+  WireTerminalType,
+  WireWaypoint,
   ViewTransform,
 } from '../lib/wiring';
 import {
   BUILTIN_PARTS,
   allowedFuseRatings,
+  defaultTerminalForPort,
   WIRE_COLORS,
   PORT_TYPE_COLOR,
   pairedPowerPort,
   portWorld,
   wireGaugeRule,
+  wireRoute,
   partSize,
   uid,
 } from '../lib/wiring';
 
 const STORAGE_KEY = 'frc-wiresheet-v1';
+const DEFAULT_VIEW: ViewTransform = { x: 40, y: 30, k: 1 };
+const SOURCE_FILE_FORMAT = 'frc-wiresheet-source';
+const SOURCE_FILE_VERSION = 2;
+const SOURCE_FILE_MAX_BYTES = 50 * 1024 * 1024;
 
-interface SavedState {
+/** 工程中的一个接线图页面。 */
+interface ProjectState {
+  id: string;
+  name: string;
   parts: PlacedPart[];
   wires: Wire[];
-  customParts: PartDef[];
   backgroundImage?: CanvasBackground;
+  view: ViewTransform;
+}
+
+interface EngineeringProjectState {
+  id: string;
+  name: string;
+  pages: ProjectState[];
+  activePageId: string;
+}
+
+interface SavedState {
+  version: 3;
+  engineeringProjects: EngineeringProjectState[];
+  activeEngineeringProjectId: string;
+  customParts: PartDef[];
+}
+
+interface LegacySavedState {
+  version?: number;
+  projects?: ProjectState[];
+  activeProjectId?: string;
+  parts?: PlacedPart[];
+  wires?: Wire[];
+  customParts?: PartDef[];
+  backgroundImage?: CanvasBackground;
+}
+
+interface WorkspaceClipboard {
+  sourceEngineeringProjectId: string;
+  sourcePageId: string;
+  parts: PlacedPart[];
+  wires: Wire[];
+}
+
+interface SourceFile {
+  format: typeof SOURCE_FILE_FORMAT;
+  version: typeof SOURCE_FILE_VERSION;
+  savedAt: string;
+  project: EngineeringProjectState;
+  customParts: PartDef[];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isPartDef(value: unknown): value is PartDef {
+  if (!isRecord(value)) return false;
+  return typeof value.id === 'string'
+    && typeof value.name === 'string'
+    && typeof value.category === 'string'
+    && isFiniteNumber(value.w)
+    && isFiniteNumber(value.h)
+    && isFiniteNumber(value.displayWidth)
+    && Array.isArray(value.ports)
+    && value.ports.every((port) => isRecord(port)
+      && typeof port.id === 'string'
+      && typeof port.label === 'string'
+      && isFiniteNumber(port.x)
+      && isFiniteNumber(port.y)
+      && typeof port.type === 'string'
+      && port.type in PORT_TYPE_COLOR);
+}
+
+function isPlacedPart(value: unknown): value is PlacedPart {
+  if (!isRecord(value)) return false;
+  return typeof value.uid === 'string'
+    && typeof value.partId === 'string'
+    && isFiniteNumber(value.x)
+    && isFiniteNumber(value.y)
+    && (value.rot === 0 || value.rot === 90 || value.rot === 180 || value.rot === 270);
+}
+
+function isWireEnd(value: unknown): value is WireEnd {
+  return isRecord(value) && typeof value.uid === 'string' && typeof value.portId === 'string';
+}
+
+function isWire(value: unknown): value is Wire {
+  if (!isRecord(value)) return false;
+  return typeof value.id === 'string'
+    && isWireEnd(value.a)
+    && isWireEnd(value.b)
+    && typeof value.color === 'string';
+}
+
+function isCanvasBackground(value: unknown): value is CanvasBackground {
+  if (!isRecord(value)) return false;
+  return typeof value.name === 'string'
+    && typeof value.imageData === 'string'
+    && isFiniteNumber(value.x)
+    && isFiniteNumber(value.y)
+    && isFiniteNumber(value.width)
+    && isFiniteNumber(value.height)
+    && isFiniteNumber(value.opacity);
+}
+
+function isViewTransform(value: unknown): value is ViewTransform {
+  return isRecord(value)
+    && isFiniteNumber(value.x)
+    && isFiniteNumber(value.y)
+    && isFiniteNumber(value.k)
+    && value.k > 0;
+}
+
+function normalizeSavedState(value: unknown): SavedState | null {
+  if (!isRecord(value)) return null;
+  const s = value as Partial<SavedState> & LegacySavedState;
+  const rawCustomParts = Array.isArray(s.customParts) ? s.customParts : [];
+  if (!rawCustomParts.every(isPartDef)) return null;
+  const customParts = rawCustomParts;
+  const knownPartIds = new Set([...BUILTIN_PARTS, ...customParts].map((part) => part.id));
+  const savedPartDefs = new Map([...BUILTIN_PARTS, ...customParts].map((part) => [part.id, part]));
+  const seenPageIds = new Set<string>();
+  const normalizePage = (source: Partial<ProjectState>, index: number): ProjectState => {
+    const rawParts = Array.isArray(source.parts) ? source.parts : [];
+    const parts = rawParts.filter(isPlacedPart).filter((part) => knownPartIds.has(part.partId));
+    const partIdByUid = new Map(parts.map((part) => [part.uid, part.partId]));
+    const migrateEnd = (end: WireEnd): WireEnd => {
+      const partId = partIdByUid.get(end.uid);
+      if (partId === 'roborio' && end.portId === 'rsl') return { ...end, portId: 'rslA' };
+      if (['falcon500', 'krakenX60', 'krakenX44'].includes(partId ?? '')) {
+        if (end.portId === 'canIn') return { ...end, portId: 'canInH' };
+        if (end.portId === 'canOut') return { ...end, portId: 'canOutH' };
+      }
+      const vrmLegacy: Record<string, string> = {
+        '12V2A0': 'top0+',
+        '12V2A1': 'top1+',
+        '12V05A0': 'top2+',
+        '12V05A1': 'top3+',
+        '5V2A0': 'bottom0+',
+        '5V2A1': 'bottom1+',
+        '5V05A0': 'bottom2+',
+        '5V05A1': 'bottom3+',
+      };
+      if (partId === 'vrm' && vrmLegacy[end.portId]) return { ...end, portId: vrmLegacy[end.portId] };
+      return end;
+    };
+    const validUids = new Set(parts.map((part) => part.uid));
+    const rawWires = Array.isArray(source.wires) ? source.wires : [];
+    const wires = rawWires
+      .filter(isWire)
+      .filter((wire) => validUids.has(wire.a.uid) && validUids.has(wire.b.uid))
+      .map((wire) => {
+        const migrated = { ...wire, a: migrateEnd(wire.a), b: migrateEnd(wire.b) };
+        const rule = wireGaugeRule(migrated, parts, savedPartDefs);
+        return {
+          ...migrated,
+          awg: migrated.awg ?? rule.recommended,
+          assembly: migrated.assembly ?? 'field',
+        };
+      });
+    const requestedId = typeof source.id === 'string' && source.id ? source.id : uid();
+    const id = seenPageIds.has(requestedId) ? uid() : requestedId;
+    seenPageIds.add(id);
+    return {
+      id,
+      name: typeof source.name === 'string' && source.name.trim() ? source.name.trim() : `页面 ${index + 1}`,
+      parts,
+      wires,
+      backgroundImage: isCanvasBackground(source.backgroundImage) ? source.backgroundImage : undefined,
+      view: isViewTransform(source.view) ? source.view : DEFAULT_VIEW,
+    };
+  };
+  const seenEngineeringProjectIds = new Set<string>();
+  const normalizeEngineeringProject = (
+    source: Partial<EngineeringProjectState>,
+    index: number,
+  ): EngineeringProjectState | null => {
+    const rawPages = Array.isArray(source.pages) ? source.pages.filter(isRecord) as unknown as Partial<ProjectState>[] : [];
+    if (rawPages.length === 0) return null;
+    const pages = rawPages.map(normalizePage);
+    const requestedId = typeof source.id === 'string' && source.id ? source.id : uid();
+    const id = seenEngineeringProjectIds.has(requestedId) ? uid() : requestedId;
+    seenEngineeringProjectIds.add(id);
+    const requestedActivePageId = typeof source.activePageId === 'string' ? source.activePageId : '';
+    return {
+      id,
+      name: typeof source.name === 'string' && source.name.trim() ? source.name.trim() : `工程 ${index + 1}`,
+      pages,
+      activePageId: pages.some((page) => page.id === requestedActivePageId) ? requestedActivePageId : pages[0].id,
+    };
+  };
+
+  let engineeringProjects: EngineeringProjectState[] = [];
+  if (Array.isArray(s.engineeringProjects)) {
+    engineeringProjects = s.engineeringProjects
+      .filter(isRecord)
+      .map((source, index) => normalizeEngineeringProject(source as Partial<EngineeringProjectState>, index))
+      .filter((project): project is EngineeringProjectState => Boolean(project));
+  } else {
+    const legacyPages = Array.isArray(s.projects) && s.projects.length > 0
+      ? s.projects.filter(isRecord) as unknown as Partial<ProjectState>[]
+      : (Array.isArray(s.parts) || Array.isArray(s.wires))
+        ? [{
+            id: uid(),
+            name: '页面 1',
+            parts: Array.isArray(s.parts) ? s.parts : [],
+            wires: Array.isArray(s.wires) ? s.wires : [],
+            backgroundImage: s.backgroundImage,
+            view: DEFAULT_VIEW,
+          }]
+        : [];
+    if (legacyPages.length > 0) {
+      const pages = legacyPages.map(normalizePage);
+      const requestedActivePageId = typeof s.activeProjectId === 'string' ? s.activeProjectId : '';
+      engineeringProjects = [{
+        id: uid(),
+        name: '工程 1',
+        pages,
+        activePageId: pages.some((page) => page.id === requestedActivePageId) ? requestedActivePageId : pages[0].id,
+      }];
+    }
+  }
+  if (engineeringProjects.length === 0) return null;
+  const requestedActiveEngineeringProjectId = typeof s.activeEngineeringProjectId === 'string'
+    ? s.activeEngineeringProjectId
+    : '';
+  const activeEngineeringProjectId = engineeringProjects.some(
+    (project) => project.id === requestedActiveEngineeringProjectId,
+  )
+    ? requestedActiveEngineeringProjectId
+    : engineeringProjects[0].id;
+  return { version: 3, engineeringProjects, activeEngineeringProjectId, customParts };
+}
+
+function createEmptyPage(name = '页面 1'): ProjectState {
+  return {
+    id: uid(),
+    name,
+    parts: [],
+    wires: [],
+    backgroundImage: undefined,
+    view: DEFAULT_VIEW,
+  };
+}
+
+function createEmptyEngineeringProject(name = '工程 1'): EngineeringProjectState {
+  const page = createEmptyPage();
+  return { id: uid(), name, pages: [page], activePageId: page.id };
+}
+
+function createEmptySavedState(): SavedState {
+  const project = createEmptyEngineeringProject();
+  return {
+    version: 3,
+    engineeringProjects: [project],
+    activeEngineeringProjectId: project.id,
+    customParts: [],
+  };
 }
 
 function loadSaved(): SavedState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const s = JSON.parse(raw) as SavedState;
-      const customParts = s.customParts ?? [];
-      const knownPartIds = new Set([...BUILTIN_PARTS, ...customParts].map((part) => part.id));
-      const savedPartDefs = new Map([...BUILTIN_PARTS, ...customParts].map((part) => [part.id, part]));
-      const parts = (s.parts ?? []).filter((part) => knownPartIds.has(part.partId));
-      const partIdByUid = new Map(parts.map((part) => [part.uid, part.partId]));
-      const migrateEnd = (end: WireEnd): WireEnd => {
-        const partId = partIdByUid.get(end.uid);
-        if (partId === 'roborio' && end.portId === 'rsl') return { ...end, portId: 'rslA' };
-        if (['falcon500', 'krakenX60', 'krakenX44'].includes(partId ?? '')) {
-          if (end.portId === 'canIn') return { ...end, portId: 'canInH' };
-          if (end.portId === 'canOut') return { ...end, portId: 'canOutH' };
-        }
-        const vrmLegacy: Record<string, string> = {
-          '12V2A0': 'top0+',
-          '12V2A1': 'top1+',
-          '12V05A0': 'top2+',
-          '12V05A1': 'top3+',
-          '5V2A0': 'bottom0+',
-          '5V2A1': 'bottom1+',
-          '5V05A0': 'bottom2+',
-          '5V05A1': 'bottom3+',
-        };
-        if (partId === 'vrm' && vrmLegacy[end.portId]) return { ...end, portId: vrmLegacy[end.portId] };
-        return end;
-      };
-      const validUids = new Set(parts.map((part) => part.uid));
-      const wires = (s.wires ?? [])
-        .filter((wire) => validUids.has(wire.a.uid) && validUids.has(wire.b.uid))
-        .map((wire) => {
-          const migrated = { ...wire, a: migrateEnd(wire.a), b: migrateEnd(wire.b) };
-          const rule = wireGaugeRule(migrated, parts, savedPartDefs);
-          return {
-            ...migrated,
-            awg: migrated.awg ?? rule.recommended,
-            assembly: migrated.assembly ?? 'field',
-          };
-        });
-      const backgroundImage = s.backgroundImage
-        ? { ...s.backgroundImage, opacity: s.backgroundImage.opacity ?? 0.38 }
-        : undefined;
-      return { parts, wires, customParts, backgroundImage };
-    }
+    if (raw) return normalizeSavedState(JSON.parse(raw)) ?? createEmptySavedState();
   } catch {
     /* ignore */
   }
-  return { parts: [], wires: [], customParts: [], backgroundImage: undefined };
+  return createEmptySavedState();
+}
+
+function cloneProjectContent(parts: PlacedPart[], wires: Wire[], offsetX = 0, offsetY = 0) {
+  const partUidMap = new Map(parts.map((part) => [part.uid, uid()]));
+  const bundleIdMap = new Map<string, string>();
+  const clonedParts = parts.map((part) => ({
+    ...part,
+    uid: partUidMap.get(part.uid) as string,
+    x: part.x + offsetX,
+    y: part.y + offsetY,
+    fuses: part.fuses ? { ...part.fuses } : undefined,
+  }));
+  const clonedWires = wires.flatMap((wire) => {
+    const aUid = partUidMap.get(wire.a.uid);
+    const bUid = partUidMap.get(wire.b.uid);
+    if (!aUid || !bUid) return [];
+    let bundleId: string | undefined;
+    if (wire.bundleId) {
+      bundleId = bundleIdMap.get(wire.bundleId);
+      if (!bundleId) {
+        bundleId = uid();
+        bundleIdMap.set(wire.bundleId, bundleId);
+      }
+    }
+    return [{
+      ...wire,
+      id: uid(),
+      a: { ...wire.a, uid: aUid },
+      b: { ...wire.b, uid: bUid },
+      bundleId,
+      control: wire.control ? { x: wire.control.x + offsetX, y: wire.control.y + offsetY } : undefined,
+      waypoints: wire.waypoints?.map((waypoint) => ({
+        ...waypoint,
+        id: uid(),
+        x: waypoint.x + offsetX,
+        y: waypoint.y + offsetY,
+      })),
+    }];
+  });
+  return { parts: clonedParts, wires: clonedWires };
+}
+
+function sourceFilename(name: string) {
+  const safeName = name
+    .replace(/[<>:"/\\|?*]/g, '_')
+    .split('')
+    .map((character) => character.charCodeAt(0) < 32 ? '_' : character)
+    .join('')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80) || 'FRC 接线工程';
+  return `${safeName}.frcwire`;
 }
 
 export default function Home() {
   const [initial] = useState(loadSaved);
   const [customParts, setCustomParts] = useState<PartDef[]>(initial.customParts);
-  const [parts, setParts] = useState<PlacedPart[]>(initial.parts);
-  const [wires, setWires] = useState<Wire[]>(initial.wires);
-  const [backgroundImage, setBackgroundImage] = useState<CanvasBackground | undefined>(initial.backgroundImage);
+  const [engineeringProjects, setEngineeringProjects] = useState<EngineeringProjectState[]>(initial.engineeringProjects);
+  const [activeEngineeringProjectId, setActiveEngineeringProjectId] = useState(initial.activeEngineeringProjectId);
+  const activeEngineeringProject = engineeringProjects.find(
+    (project) => project.id === activeEngineeringProjectId,
+  ) ?? engineeringProjects[0];
+  const projects = activeEngineeringProject.pages;
+  const activeProjectId = activeEngineeringProject.activePageId;
+  const activeProject = projects.find((project) => project.id === activeProjectId) ?? projects[0];
+  const parts = activeProject.parts;
+  const wires = activeProject.wires;
+  const backgroundImage = activeProject.backgroundImage;
+  const view = activeProject.view;
+  const setProjects = (action: SetStateAction<ProjectState[]>) => {
+    setEngineeringProjects((current) => current.map((project) => {
+      if (project.id !== activeEngineeringProjectId) return project;
+      const pages = typeof action === 'function' ? action(project.pages) : action;
+      return { ...project, pages };
+    }));
+  };
+  const setActiveProjectId = (pageId: string) => {
+    setEngineeringProjects((current) => current.map((project) =>
+      project.id === activeEngineeringProjectId ? { ...project, activePageId: pageId } : project,
+    ));
+  };
+  const updateActiveProject = (update: (project: ProjectState) => ProjectState) => {
+    setProjects((current) => current.map((project) => project.id === activeProjectId ? update(project) : project));
+  };
+  const setParts = (action: SetStateAction<PlacedPart[]>) => updateActiveProject((project) => ({
+    ...project,
+    parts: typeof action === 'function' ? action(project.parts) : action,
+  }));
+  const setWires = (action: SetStateAction<Wire[]>) => updateActiveProject((project) => ({
+    ...project,
+    wires: typeof action === 'function' ? action(project.wires) : action,
+  }));
+  const setBackgroundImage = (action: SetStateAction<CanvasBackground | undefined>) => updateActiveProject((project) => ({
+    ...project,
+    backgroundImage: typeof action === 'function' ? action(project.backgroundImage) : action,
+  }));
+  const setView = (action: SetStateAction<ViewTransform>) => updateActiveProject((project) => ({
+    ...project,
+    view: typeof action === 'function' ? action(project.view) : action,
+  }));
   const [selectedParts, setSelectedParts] = useState<Set<string>>(new Set());
   const [selectedWires, setSelectedWires] = useState<Set<string>>(new Set());
   const [pendingFrom, setPendingFrom] = useState<WireEnd | null>(null);
-  const [view, setView] = useState<ViewTransform>({ x: 40, y: 30, k: 1 });
+  const [clipboard, setClipboard] = useState<WorkspaceClipboard | null>(null);
   const [wireColor, setWireColor] = useState('#2563eb');
   const [bundleSelectionMode, setBundleSelectionMode] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(() => window.innerWidth >= 768);
+  const [renamingProjectId, setRenamingProjectId] = useState<string | null>(null);
+  const [projectNameDraft, setProjectNameDraft] = useState('');
+  const [renamingEngineeringProjectId, setRenamingEngineeringProjectId] = useState<string | null>(null);
+  const [engineeringProjectNameDraft, setEngineeringProjectNameDraft] = useState('');
   const svgRef = useRef<SVGSVGElement | null>(null);
   const backgroundInputRef = useRef<HTMLInputElement | null>(null);
   const addCountRef = useRef(0);
+  const pasteCountRef = useRef(0);
+  const cancelProjectRenameRef = useRef(false);
+  const cancelEngineeringProjectRenameRef = useRef(false);
+  const sourceInputRef = useRef<HTMLInputElement | null>(null);
 
   const partDefs = useMemo(() => {
     const m = new Map<string, PartDef>();
@@ -134,22 +455,313 @@ export default function Home() {
   )
     ? (selectedWireItems[0].routingStyle ?? 'standard')
     : undefined;
+  const selectedWireBundleStart = selectedWireItems[0]?.bundleStart ?? 0.18;
+  const selectedWireBundleEnd = selectedWireItems[0]?.bundleEnd ?? 0.82;
   const selectedWireBundleSize = selectedWire?.bundleId
     ? wires.filter((wire) => wire.bundleId === selectedWire.bundleId).length
     : 1;
   const selectedBundleIds = new Set(selectedWireItems.map((wire) => wire.bundleId).filter((id): id is string => Boolean(id)));
   const canRestoreSelectedWiring = wires.some((wire) =>
-    Boolean(wire.control) && (selectedWires.has(wire.id) || Boolean(wire.bundleId && selectedBundleIds.has(wire.bundleId))),
+    (Boolean(wire.control) || Boolean(wire.waypoints?.length)) &&
+    (selectedWires.has(wire.id) || Boolean(wire.bundleId && selectedBundleIds.has(wire.bundleId))),
   );
 
   // 本地存档（仅当前浏览器）
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ parts, wires, customParts, backgroundImage }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        version: 3,
+        engineeringProjects,
+        activeEngineeringProjectId,
+        customParts,
+      } satisfies SavedState));
     } catch {
       /* ignore */
     }
-  }, [parts, wires, customParts, backgroundImage]);
+  }, [engineeringProjects, activeEngineeringProjectId, customParts]);
+
+  /* ---------- 工程与页面 ---------- */
+
+  const resetInteraction = () => {
+    setSelectedParts(new Set());
+    setSelectedWires(new Set());
+    setPendingFrom(null);
+    setBundleSelectionMode(false);
+    setRenamingProjectId(null);
+    setRenamingEngineeringProjectId(null);
+  };
+
+  const switchEngineeringProject = (projectId: string) => {
+    if (projectId === activeEngineeringProjectId) return;
+    setActiveEngineeringProjectId(projectId);
+    resetInteraction();
+    addCountRef.current = 0;
+    pasteCountRef.current = 0;
+  };
+
+  const addEngineeringProject = () => {
+    const existingNames = new Set(engineeringProjects.map((project) => project.name));
+    let number = engineeringProjects.length + 1;
+    while (existingNames.has(`工程 ${number}`)) number += 1;
+    const project = createEmptyEngineeringProject(`工程 ${number}`);
+    setEngineeringProjects((current) => [...current, project]);
+    setActiveEngineeringProjectId(project.id);
+    resetInteraction();
+  };
+
+  const renameActiveEngineeringProject = () => {
+    cancelEngineeringProjectRenameRef.current = false;
+    setEngineeringProjectNameDraft(activeEngineeringProject.name);
+    setRenamingEngineeringProjectId(activeEngineeringProjectId);
+  };
+
+  const commitEngineeringProjectRename = (projectId: string) => {
+    if (cancelEngineeringProjectRenameRef.current) {
+      cancelEngineeringProjectRenameRef.current = false;
+      return;
+    }
+    const name = engineeringProjectNameDraft.trim();
+    setRenamingEngineeringProjectId(null);
+    if (!name) return;
+    setEngineeringProjects((current) => current.map((project) =>
+      project.id === projectId && project.name !== name ? { ...project, name } : project,
+    ));
+  };
+
+  const closeActiveEngineeringProject = () => {
+    if (engineeringProjects.length <= 1) return;
+    if (!window.confirm(`关闭工程“${activeEngineeringProject.name}”？未导出的更改将只从当前浏览器工作区移除。`)) return;
+    const activeIndex = engineeringProjects.findIndex((project) => project.id === activeEngineeringProjectId);
+    const remaining = engineeringProjects.filter((project) => project.id !== activeEngineeringProjectId);
+    const nextProject = remaining[Math.min(activeIndex, remaining.length - 1)];
+    setEngineeringProjects(remaining);
+    setActiveEngineeringProjectId(nextProject.id);
+    resetInteraction();
+  };
+
+  const switchProject = (projectId: string) => {
+    if (projectId === activeProjectId) return;
+    setActiveProjectId(projectId);
+    resetInteraction();
+    addCountRef.current = 0;
+    pasteCountRef.current = 0;
+  };
+
+  const addProject = () => {
+    const existingNames = new Set(projects.map((project) => project.name));
+    let number = projects.length + 1;
+    while (existingNames.has(`页面 ${number}`)) number += 1;
+    const project = createEmptyPage(`页面 ${number}`);
+    setProjects((current) => [...current, project]);
+    setActiveProjectId(project.id);
+    resetInteraction();
+  };
+
+  const renameActiveProject = () => {
+    cancelProjectRenameRef.current = false;
+    setProjectNameDraft(activeProject.name);
+    setRenamingProjectId(activeProjectId);
+  };
+
+  const commitProjectRename = (projectId: string) => {
+    if (cancelProjectRenameRef.current) {
+      cancelProjectRenameRef.current = false;
+      return;
+    }
+    const name = projectNameDraft.trim();
+    setRenamingProjectId(null);
+    if (!name) return;
+    setProjects((current) => current.map((project) =>
+      project.id === projectId && project.name !== name ? { ...project, name } : project,
+    ));
+  };
+
+  const duplicateActiveProject = () => {
+    const cloned = cloneProjectContent(parts, wires);
+    const project: ProjectState = {
+      id: uid(),
+      name: `${activeProject.name} 副本`,
+      parts: cloned.parts,
+      wires: cloned.wires,
+      backgroundImage: backgroundImage ? { ...backgroundImage } : undefined,
+      view: { ...view },
+    };
+    setProjects((current) => [...current, project]);
+    setActiveProjectId(project.id);
+    resetInteraction();
+  };
+
+  const deleteActiveProject = () => {
+    if (projects.length <= 1) return;
+    if (!window.confirm(`删除页面“${activeProject.name}”？此操作不会影响工程中的其他页面。`)) return;
+    const activeIndex = projects.findIndex((project) => project.id === activeProjectId);
+    const remaining = projects.filter((project) => project.id !== activeProjectId);
+    const nextProject = remaining[Math.min(activeIndex, remaining.length - 1)];
+    setProjects(remaining);
+    setActiveProjectId(nextProject.id);
+    resetInteraction();
+  };
+
+  const saveSourceFile = () => {
+    const sourceFile: SourceFile = {
+      format: SOURCE_FILE_FORMAT,
+      version: SOURCE_FILE_VERSION,
+      savedAt: new Date().toISOString(),
+      project: activeEngineeringProject,
+      customParts,
+    };
+    const blob = new Blob([JSON.stringify(sourceFile, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = sourceFilename(activeEngineeringProject.name);
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  };
+
+  const openSourceFile = async (file: File) => {
+    if (file.size > SOURCE_FILE_MAX_BYTES) {
+      window.alert('工程源文件请小于 50 MB');
+      return;
+    }
+    try {
+      const parsed = JSON.parse(await file.text()) as unknown;
+      if (!isRecord(parsed) || parsed.format !== SOURCE_FILE_FORMAT) {
+        window.alert('这不是有效的 FRC 接线图源文件');
+        return;
+      }
+      let nextState: SavedState | null = null;
+      let useFilenameAsProjectName = false;
+      if (parsed.version === SOURCE_FILE_VERSION && 'project' in parsed) {
+        const projectValue = parsed.project;
+        const projectId = isRecord(projectValue) && typeof projectValue.id === 'string' ? projectValue.id : uid();
+        nextState = normalizeSavedState({
+          version: 3,
+          engineeringProjects: [projectValue],
+          activeEngineeringProjectId: projectId,
+          customParts: Array.isArray(parsed.customParts) ? parsed.customParts : [],
+        });
+      } else if (parsed.version === 1 && 'workspace' in parsed) {
+        nextState = normalizeSavedState(parsed.workspace);
+        useFilenameAsProjectName = true;
+      }
+      if (!nextState) {
+        window.alert('源文件内容不完整或已损坏');
+        return;
+      }
+      const importedBase = nextState.engineeringProjects[0];
+      const existingCustomParts = new Map(customParts.map((part) => [part.id, part]));
+      const partIdRemap = new Map<string, string>();
+      const mergedCustomParts = [...customParts];
+      nextState.customParts.forEach((part) => {
+        const existing = existingCustomParts.get(part.id);
+        if (!existing) {
+          existingCustomParts.set(part.id, part);
+          mergedCustomParts.push(part);
+        } else if (JSON.stringify(existing) !== JSON.stringify(part)) {
+          const nextId = uid();
+          partIdRemap.set(part.id, nextId);
+          const remappedPart = { ...part, id: nextId };
+          existingCustomParts.set(nextId, remappedPart);
+          mergedCustomParts.push(remappedPart);
+        }
+      });
+      const fallbackName = file.name.replace(/\.frcwire$/i, '').trim() || '导入的工程';
+      const baseName = useFilenameAsProjectName ? fallbackName : importedBase.name;
+      const existingNames = new Set(engineeringProjects.map((project) => project.name));
+      let name = baseName;
+      let copyNumber = 2;
+      while (existingNames.has(name)) {
+        name = `${baseName} (${copyNumber})`;
+        copyNumber += 1;
+      }
+      const importedProject: EngineeringProjectState = {
+        ...importedBase,
+        id: uid(),
+        name,
+        pages: importedBase.pages.map((page) => ({
+          ...page,
+          parts: page.parts.map((part) => ({ ...part, partId: partIdRemap.get(part.partId) ?? part.partId })),
+        })),
+      };
+      setCustomParts(mergedCustomParts);
+      setEngineeringProjects((current) => [...current, importedProject]);
+      setActiveEngineeringProjectId(importedProject.id);
+      resetInteraction();
+      addCountRef.current = 0;
+      pasteCountRef.current = 0;
+    } catch {
+      window.alert('无法读取工程源文件，请确认文件没有损坏');
+    }
+  };
+
+  const copySelection = () => {
+    if (selectedParts.size === 0 && selectedWires.size === 0) return;
+    const copiedPartUids = new Set(selectedParts);
+    if (copiedPartUids.size === 0) {
+      wires.forEach((wire) => {
+        if (!selectedWires.has(wire.id)) return;
+        copiedPartUids.add(wire.a.uid);
+        copiedPartUids.add(wire.b.uid);
+      });
+    }
+    const copiedParts = parts
+      .filter((part) => copiedPartUids.has(part.uid))
+      .map((part) => ({ ...part, fuses: part.fuses ? { ...part.fuses } : undefined }));
+    const copiedWires = wires
+      .filter((wire) => {
+        if (!copiedPartUids.has(wire.a.uid) || !copiedPartUids.has(wire.b.uid)) return false;
+        return selectedParts.size > 0 || selectedWires.has(wire.id);
+      })
+      .map((wire) => ({
+        ...wire,
+        a: { ...wire.a },
+        b: { ...wire.b },
+        control: wire.control ? { ...wire.control } : undefined,
+        waypoints: wire.waypoints?.map((waypoint) => ({ ...waypoint })),
+      }));
+    if (copiedParts.length === 0) return;
+    setClipboard({
+      sourceEngineeringProjectId: activeEngineeringProjectId,
+      sourcePageId: activeProjectId,
+      parts: copiedParts,
+      wires: copiedWires,
+    });
+    pasteCountRef.current = 0;
+  };
+
+  const pasteSelection = () => {
+    if (!clipboard || clipboard.parts.length === 0) return;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    clipboard.parts.forEach((part) => {
+      const def = partDefs.get(part.partId);
+      const size = def ? partSize(def) : { w: 0, h: 0 };
+      minX = Math.min(minX, part.x);
+      minY = Math.min(minY, part.y);
+      maxX = Math.max(maxX, part.x + size.w);
+      maxY = Math.max(maxY, part.y + size.h);
+    });
+    const rect = svgRef.current?.getBoundingClientRect();
+    const targetCenter = rect
+      ? { x: (rect.width / 2 - view.x) / view.k, y: (rect.height / 2 - view.y) / view.k }
+      : { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+    pasteCountRef.current += 1;
+    const cascadeOffset = clipboard.sourceEngineeringProjectId === activeEngineeringProjectId
+      && clipboard.sourcePageId === activeProjectId
+      ? pasteCountRef.current * 24
+      : 0;
+    const offsetX = targetCenter.x - (minX + maxX) / 2 + cascadeOffset;
+    const offsetY = targetCenter.y - (minY + maxY) / 2 + cascadeOffset;
+    const cloned = cloneProjectContent(clipboard.parts, clipboard.wires, offsetX, offsetY);
+    setParts((current) => [...current, ...cloned.parts]);
+    setWires((current) => [...current, ...cloned.wires]);
+    setSelectedParts(new Set(cloned.parts.map((part) => part.uid)));
+    setSelectedWires(new Set());
+    setPendingFrom(null);
+  };
 
   /* ---------- 元件操作 ---------- */
 
@@ -304,13 +916,23 @@ export default function Home() {
 
     if (style === 'standard') {
       setWires((current) => current.map((wire) => affectedIds.has(wire.id)
-        ? { ...wire, routingStyle: undefined, bundleId: undefined, control: undefined }
+        ? {
+            ...wire,
+            routingStyle: undefined,
+            bundleId: undefined,
+            bundleStart: undefined,
+            bundleEnd: undefined,
+            control: undefined,
+            waypoints: undefined,
+          }
         : wire));
       setBundleSelectionMode(false);
       return;
     }
 
     const nextBundleId = affectedWires.length > 1 ? (existingBundleId ?? uid()) : undefined;
+    const sharedBundleStart = affectedWires[0]?.bundleStart ?? 0.18;
+    const sharedBundleEnd = affectedWires[0]?.bundleEnd ?? 0.82;
     let sharedControl: { x: number; y: number } | undefined;
     if (affectedWires.length > 1 && !existingBundleId) {
       const centers = affectedWires.flatMap((wire) => {
@@ -331,18 +953,103 @@ export default function Home() {
           ...wire,
           routingStyle: style,
           bundleId: nextBundleId,
+          bundleStart: sharedBundleStart,
+          bundleEnd: sharedBundleEnd,
           control: sharedControl ?? wire.control,
+          waypoints: existingBundleId ? wire.waypoints : undefined,
         }
       : wire));
     setBundleSelectionMode(false);
   };
 
+  const applyWireBundleRange = (start: number, end: number) => {
+    const safeStart = Math.max(0, Math.min(start, end - 0.1));
+    const safeEnd = Math.min(1, Math.max(end, safeStart + 0.1));
+    setWires((current) => current.map((wire) =>
+      selectedWires.has(wire.id) || Boolean(wire.bundleId && selectedBundleIds.has(wire.bundleId))
+        ? { ...wire, bundleStart: safeStart, bundleEnd: safeEnd }
+        : wire,
+    ));
+  };
+
   const restoreSelectedWiring = () => {
     setWires((current) => current.map((wire) =>
       selectedWires.has(wire.id) || Boolean(wire.bundleId && selectedBundleIds.has(wire.bundleId))
-        ? { ...wire, control: undefined }
+        ? { ...wire, control: undefined, waypoints: undefined }
         : wire,
     ));
+  };
+
+  const applyWaypointsToWireGroup = (
+    wireId: string,
+    update: (waypoints: WireWaypoint[]) => WireWaypoint[],
+  ) => {
+    setWires((current) => {
+      const target = current.find((wire) => wire.id === wireId);
+      if (!target) return current;
+      const nextWaypoints = update(target.waypoints ?? []);
+      return current.map((wire) =>
+        wire.id === wireId || Boolean(target.bundleId && wire.bundleId === target.bundleId)
+          ? {
+              ...wire,
+              control: undefined,
+              waypoints: nextWaypoints.length > 0 ? nextWaypoints.map((waypoint) => ({ ...waypoint })) : undefined,
+            }
+          : wire,
+      );
+    });
+  };
+
+  const addWireWaypoint = (wireId: string, waypoint: WireWaypoint, index: number) => {
+    applyWaypointsToWireGroup(wireId, (waypoints) => {
+      const next = [...waypoints];
+      next.splice(Math.max(0, Math.min(index, next.length)), 0, {
+        ...waypoint,
+        id: uid(),
+        terminal: waypoint.terminal ?? 'wago',
+      });
+      return next;
+    });
+  };
+
+  const changeWireWaypoint = (wireId: string, waypointId: string, point?: { x: number; y: number }) => {
+    applyWaypointsToWireGroup(wireId, (waypoints) => point
+      ? waypoints.map((waypoint) => waypoint.id === waypointId ? { ...waypoint, ...point } : waypoint)
+      : waypoints.filter((waypoint) => waypoint.id !== waypointId));
+  };
+
+  const changeWireWaypointTerminal = (wireId: string, waypointId: string, terminal: WireTerminalType) => {
+    applyWaypointsToWireGroup(wireId, (waypoints) => waypoints.map((waypoint) =>
+      waypoint.id === waypointId ? { ...waypoint, terminal } : waypoint,
+    ));
+  };
+
+  const addSelectedWireWaypoint = () => {
+    if (!selectedWire) return;
+    const p1 = resolveWorldPort(selectedWire.a);
+    const p2 = resolveWorldPort(selectedWire.b);
+    if (!p1 || !p2) return;
+    const existing = selectedWire.waypoints ?? [];
+    const index = existing.length;
+    if (index === 0) {
+      const route = wireRoute(p1, p2, 0, selectedWire.control);
+      addWireWaypoint(selectedWire.id, { id: uid(), x: route.control.x, y: route.control.y, terminal: 'wago' }, 0);
+      return;
+    }
+
+    // 继续添加时放在最后一个断点与 B 端之间，避免多个断点堆叠在同一位置。
+    const last = existing[index - 1];
+    const nextPoint = {
+      id: uid(),
+      x: Math.round(((last.x + p2.x) / 2) / 4) * 4,
+      y: Math.round(((last.y + p2.y) / 2) / 4) * 4,
+      terminal: 'wago' as const,
+    };
+    if (Math.hypot(nextPoint.x - last.x, nextPoint.y - last.y) < 12) {
+      nextPoint.x += 24;
+      nextPoint.y += 24;
+    }
+    addWireWaypoint(selectedWire.id, nextPoint, index);
   };
 
   const onPortClick = (end: WireEnd) => {
@@ -366,7 +1073,18 @@ export default function Home() {
     const tA = defA?.ports.find((port) => port.id === pendingFrom.portId)?.type;
     const tB = defB?.ports.find((port) => port.id === end.portId)?.type;
     const color = tA && tA === tB ? PORT_TYPE_COLOR[tA] : wireColor;
-    const mainWireBase: Wire = { id: uid(), a: pendingFrom, b: end, color, assembly: 'field' };
+    const portA = defA?.ports.find((port) => port.id === pendingFrom.portId);
+    const portB = defB?.ports.find((port) => port.id === end.portId);
+    const isDataJumper = tA === 'data' && tB === 'data';
+    const mainWireBase: Wire = {
+      id: uid(),
+      a: pendingFrom,
+      b: end,
+      color,
+      assembly: isDataJumper ? 'jumper' : 'field',
+      terminalA: isDataJumper ? defaultTerminalForPort(portA) : undefined,
+      terminalB: isDataJumper ? defaultTerminalForPort(portB) : undefined,
+    };
     const mainWire: Wire = {
       ...mainWireBase,
       awg: wireGaugeRule(mainWireBase, parts, partDefs).recommended,
@@ -485,8 +1203,14 @@ export default function Home() {
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('demo') === '1') {
       setTimeout(() => loadDemo(true), 100);
-    } else if (initial.parts.length > 0) {
-      setTimeout(() => fitView(initial.parts), 100);
+    } else {
+      const initialEngineeringProject = initial.engineeringProjects.find(
+        (project) => project.id === initial.activeEngineeringProjectId,
+      ) ?? initial.engineeringProjects[0];
+      const initialPage = initialEngineeringProject.pages.find(
+        (page) => page.id === initialEngineeringProject.activePageId,
+      ) ?? initialEngineeringProject.pages[0];
+      if (initialPage.parts.length > 0) setTimeout(() => fitView(initialPage.parts), 100);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -636,7 +1360,24 @@ export default function Home() {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
-      if (e.key === 'Delete' || e.key === 'Backspace') {
+      const modifier = e.ctrlKey || e.metaKey;
+      if (modifier && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        saveSourceFile();
+      } else if (modifier && e.key.toLowerCase() === 'o') {
+        e.preventDefault();
+        sourceInputRef.current?.click();
+      } else if (modifier && e.key.toLowerCase() === 'c') {
+        if (selectedParts.size > 0 || selectedWires.size > 0) {
+          e.preventDefault();
+          copySelection();
+        }
+      } else if (modifier && e.key.toLowerCase() === 'v') {
+        if (clipboard) {
+          e.preventDefault();
+          pasteSelection();
+        }
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
         deleteSelection();
       } else if (e.key === 'Escape') {
@@ -645,7 +1386,7 @@ export default function Home() {
           setSelectedParts(new Set());
           setSelectedWires(new Set());
         }
-      } else if (e.key === 'r' || e.key === 'R') {
+      } else if (!modifier && (e.key === 'r' || e.key === 'R')) {
         rotateSelected();
       }
     };
@@ -707,7 +1448,7 @@ export default function Home() {
         <ToolBtn
           onClick={() => setBundleSelectionMode((active) => !active)}
           active={bundleSelectionMode}
-          title="打开后可直接逐根点击导线，选择要合并到拖链或束线管中的成员"
+          title="空白处左键拉框可批量选择线束；打开后可继续逐根点击导线增减成员"
         >
           <GitMerge className="h-3.5 w-3.5" aria-hidden="true" />
           线束多选
@@ -721,6 +1462,25 @@ export default function Home() {
           适应视图
         </ToolBtn>
         <div className="flex-1" />
+        <input
+          ref={sourceInputRef}
+          type="file"
+          accept=".frcwire,application/json"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) void openSourceFile(file);
+            event.currentTarget.value = '';
+          }}
+        />
+        <ToolBtn onClick={saveSourceFile} title="将当前工程及其全部页面保存为 .frcwire 源文件 (Ctrl+S)">
+          <Save className="h-3.5 w-3.5" aria-hidden="true" />
+          保存源文件
+        </ToolBtn>
+        <ToolBtn onClick={() => sourceInputRef.current?.click()} title="打开 .frcwire 工程，并作为新的工程标签加入当前工作区 (Ctrl+O)">
+          <FolderOpen className="h-3.5 w-3.5" aria-hidden="true" />
+          打开源文件
+        </ToolBtn>
         <ToolBtn onClick={loadDemo} title="载入示例接线图">
           <Zap className="h-3.5 w-3.5" aria-hidden="true" />
           示例
@@ -764,6 +1524,170 @@ export default function Home() {
           <Download className="h-3.5 w-3.5" aria-hidden="true" />
           导出 PNG
         </button>
+      </div>
+
+      {/* 工程标签栏：同时打开多个工程 */}
+      <div className="toolbar-scroll flex h-10 shrink-0 items-center gap-1.5 overflow-x-auto border-b border-sky-200 bg-sky-50 px-3 sm:px-4">
+        <span className="mr-1 shrink-0 text-[11px] font-bold text-sky-700">工程</span>
+        {engineeringProjects.map((project) => renamingEngineeringProjectId === project.id ? (
+          <div
+            key={project.id}
+            className="flex h-7 shrink-0 items-center gap-1.5 rounded-t-md border border-sky-400 bg-white px-1.5 text-xs shadow-sm ring-2 ring-sky-100"
+          >
+            <input
+              autoFocus
+              value={engineeringProjectNameDraft}
+              onChange={(event) => setEngineeringProjectNameDraft(event.target.value)}
+              onFocus={(event) => event.currentTarget.select()}
+              onBlur={() => commitEngineeringProjectRename(project.id)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  event.currentTarget.blur();
+                } else if (event.key === 'Escape') {
+                  event.preventDefault();
+                  cancelEngineeringProjectRenameRef.current = true;
+                  setRenamingEngineeringProjectId(null);
+                }
+              }}
+              aria-label="工程名称"
+              className="h-5 w-36 rounded border-0 bg-transparent px-1 font-semibold text-sky-800 outline-none"
+            />
+            <span className="rounded bg-sky-100 px-1 text-[9px] font-normal text-sky-500">{project.pages.length} 页</span>
+          </div>
+        ) : (
+          <button
+            key={project.id}
+            onClick={() => switchEngineeringProject(project.id)}
+            onDoubleClick={() => {
+              if (project.id === activeEngineeringProjectId) renameActiveEngineeringProject();
+            }}
+            aria-pressed={project.id === activeEngineeringProjectId}
+            title={`${project.name}：${project.pages.length} 个页面；双击当前标签可重命名`}
+            className={`flex h-7 shrink-0 items-center gap-1.5 rounded-t-md border px-3 text-xs transition-colors ${
+              project.id === activeEngineeringProjectId
+                ? 'border-sky-300 border-b-white bg-white font-bold text-sky-800 shadow-sm'
+                : 'border-transparent text-sky-600 hover:border-sky-200 hover:bg-white/70 hover:text-sky-800'
+            }`}
+          >
+            <span className="max-w-44 truncate">{project.name}</span>
+            <span className="rounded bg-sky-100 px-1 text-[9px] font-normal text-sky-500">{project.pages.length}</span>
+          </button>
+        ))}
+        <button
+          onClick={addEngineeringProject}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-dashed border-sky-300 text-sky-600 hover:border-sky-500 hover:bg-white"
+          title="新建工程"
+          aria-label="新建工程"
+        >
+          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+        <div className="mx-1 h-5 w-px shrink-0 bg-sky-200" />
+        <ToolBtn onClick={renameActiveEngineeringProject} title="重命名当前工程">
+          <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+          重命名工程
+        </ToolBtn>
+        <ToolBtn
+          onClick={closeActiveEngineeringProject}
+          disabled={engineeringProjects.length <= 1}
+          title="关闭当前工程；不会删除已经保存的 .frcwire 文件"
+        >
+          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+          关闭工程
+        </ToolBtn>
+      </div>
+
+      {/* 当前工程内的页面标签栏 */}
+      <div className="toolbar-scroll flex h-11 shrink-0 items-center gap-1.5 overflow-x-auto border-b border-slate-200 bg-slate-50 px-3 sm:px-4">
+        <span className="mr-1 shrink-0 text-[11px] font-semibold text-slate-500">页面</span>
+        {projects.map((project) => renamingProjectId === project.id ? (
+          <div
+            key={project.id}
+            className="flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-sky-400 bg-white px-1.5 text-xs shadow-sm ring-2 ring-sky-100"
+          >
+            <input
+              autoFocus
+              value={projectNameDraft}
+              onChange={(event) => setProjectNameDraft(event.target.value)}
+              onFocus={(event) => event.currentTarget.select()}
+              onBlur={() => commitProjectRename(project.id)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  event.currentTarget.blur();
+                } else if (event.key === 'Escape') {
+                  event.preventDefault();
+                  cancelProjectRenameRef.current = true;
+                  setRenamingProjectId(null);
+                }
+              }}
+              aria-label="页面名称"
+              className="h-5 w-32 rounded border-0 bg-transparent px-1 font-semibold text-sky-700 outline-none"
+            />
+            <span className="rounded bg-slate-100 px-1 text-[9px] font-normal text-slate-400">{project.parts.length}</span>
+          </div>
+        ) : (
+          <button
+            key={project.id}
+            onClick={() => switchProject(project.id)}
+            onDoubleClick={() => {
+              if (project.id === activeProjectId) renameActiveProject();
+            }}
+            aria-pressed={project.id === activeProjectId}
+            title={`${project.name}：${project.parts.length} 个元件、${project.wires.length} 根导线；双击当前页面标签可重命名`}
+            className={`flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs transition-colors ${
+              project.id === activeProjectId
+                ? 'border-sky-300 bg-white font-semibold text-sky-700 shadow-sm'
+                : 'border-transparent text-slate-500 hover:border-slate-200 hover:bg-white hover:text-slate-700'
+            }`}
+          >
+            <span className="max-w-36 truncate">{project.name}</span>
+            <span className="rounded bg-slate-100 px-1 text-[9px] font-normal text-slate-400">{project.parts.length}</span>
+          </button>
+        ))}
+        <button
+          onClick={addProject}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-dashed border-slate-300 text-slate-500 hover:border-sky-400 hover:bg-white hover:text-sky-600"
+          title="在当前工程中新建空白页面"
+          aria-label="新建页面"
+        >
+          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+        <div className="mx-1 h-5 w-px shrink-0 bg-slate-200" />
+        <ToolBtn onClick={renameActiveProject} title="重命名当前页面">
+          <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+          重命名页面
+        </ToolBtn>
+        <ToolBtn onClick={duplicateActiveProject} title="复制当前页面及其全部接线内容">
+          <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+          复制页面
+        </ToolBtn>
+        <ToolBtn onClick={deleteActiveProject} disabled={projects.length <= 1} title="删除当前页面">
+          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+          删除页面
+        </ToolBtn>
+        <div className="mx-1 h-5 w-px shrink-0 bg-slate-200" />
+        <ToolBtn
+          onClick={copySelection}
+          disabled={selCount === 0}
+          title="复制选中内容；选择元件时会包含这些元件之间的导线 (Ctrl+C)"
+        >
+          <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+          复制选中
+        </ToolBtn>
+        <ToolBtn
+          onClick={pasteSelection}
+          disabled={!clipboard}
+          title={clipboard ? `粘贴 ${clipboard.parts.length} 个元件和 ${clipboard.wires.length} 根导线到当前页面 (Ctrl+V)` : '剪贴板为空'}
+        >
+          <ClipboardPaste className="h-3.5 w-3.5" aria-hidden="true" />
+          粘贴
+        </ToolBtn>
+        {clipboard && (
+          <span className="shrink-0 text-[9px] text-slate-400">
+            剪贴板：{clipboard.parts.length} 件 / {clipboard.wires.length} 线
+          </span>
+        )}
       </div>
 
       <div className="relative flex flex-1 min-h-0">
@@ -810,9 +1734,14 @@ export default function Home() {
                 return next;
               });
             }}
-            onMarqueeSelect={(uids, additive) => {
+            onMarqueeSelect={({ partUids, wireIds }, additive) => {
+              if (wireIds.length > 0) {
+                setSelectedParts(new Set());
+                setSelectedWires((prev) => (additive ? new Set([...prev, ...wireIds]) : new Set(wireIds)));
+                return;
+              }
               setSelectedWires(new Set());
-              setSelectedParts((prev) => (additive ? new Set([...prev, ...uids]) : new Set(uids)));
+              setSelectedParts((prev) => (additive ? new Set([...prev, ...partUids]) : new Set(partUids)));
             }}
             onWireClick={(id, additive) => {
               setSelectedParts(new Set());
@@ -834,6 +1763,8 @@ export default function Home() {
                 );
               });
             }}
+            onWireWaypointAdd={addWireWaypoint}
+            onWireWaypointChange={changeWireWaypoint}
             onPortClick={onPortClick}
             onFuseClick={cyclePartFuse}
             onBackgroundClick={() => {
@@ -850,6 +1781,9 @@ export default function Home() {
             wireCount={selectedWires.size}
             value={selectedWireRoutingStyle}
             onChange={applyWireRoutingStyle}
+            bundleStart={selectedWireBundleStart}
+            bundleEnd={selectedWireBundleEnd}
+            onBundleRangeChange={applyWireBundleRange}
             onClose={() => setSelectedWires(new Set())}
           />
         )}
@@ -864,6 +1798,11 @@ export default function Home() {
               wire.id === selectedWire.id ? { ...wire, ...changes } : wire,
             ))}
             onRoutingStyleChange={applyWireRoutingStyle}
+            onBundleRangeChange={applyWireBundleRange}
+            onAddWaypoint={addSelectedWireWaypoint}
+            onWaypointTerminalChange={(waypointId, terminal) => changeWireWaypointTerminal(selectedWire.id, waypointId, terminal)}
+            onRemoveWaypoint={(waypointId) => changeWireWaypoint(selectedWire.id, waypointId)}
+            onClearWaypoints={() => selectedWire && applyWaypointsToWireGroup(selectedWire.id, () => [])}
             onClose={() => setSelectedWires(new Set())}
           />
         )}
@@ -883,7 +1822,9 @@ export default function Home() {
       {/* 底部状态栏 */}
       <div className="h-8 shrink-0 bg-white border-t border-slate-200 flex items-center px-4 gap-4 text-[11px] text-slate-500">
         <span>
-          <b className="text-slate-700">{parts.length}</b> 个元件 · <b className="text-slate-700">{wires.length}</b> 根导线
+          <b className="text-sky-700">{activeEngineeringProject.name}</b>
+          <span className="mx-1 text-slate-300">/</span>
+          <b className="text-slate-700">{activeProject.name}</b> · <b className="text-slate-700">{parts.length}</b> 个元件 · <b className="text-slate-700">{wires.length}</b> 根导线
           {selCount > 0 && <span className="text-sky-600"> · 已选 {selCount} 项</span>}
           {pendingFrom && <span className="text-orange-600"> · 接线中：请点击另一个端口完成连接（Esc 取消）</span>}
         </span>

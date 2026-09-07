@@ -11,19 +11,21 @@ import type {
 } from '../lib/wiring';
 import {
   defaultTerminalForPort,
+  cablePort,
+  wireWaypoints,
   WIRE_TERMINAL_OPTIONS,
 } from '../lib/wiring';
-import { WireBundleRangeEditor, WireRoutingStylePicker } from './WireBundlePanel';
+import { WireRoutingStylePicker } from './WireBundlePanel';
 
 interface Props {
   wire: Wire;
+  cableSize: number;
   parts: PlacedPart[];
   partDefs: ReadonlyMap<string, PartDef>;
   rule: WireGaugeRule;
   bundleSize: number;
   onChange: (changes: Partial<Wire>) => void;
   onRoutingStyleChange: (style: WireRoutingStyle) => void;
-  onBundleRangeChange: (start: number, end: number) => void;
   onAddWaypoint: () => void;
   onWaypointTerminalChange: (waypointId: string, terminal: WireTerminalType) => void;
   onRemoveWaypoint: (waypointId: string) => void;
@@ -61,7 +63,7 @@ function endInfo(
   const partLabel = [part?.customName?.trim() || def?.name || '未知器件', part?.deviceId?.trim()].filter(Boolean).join(' · ');
   return {
     port,
-    label: `${partLabel} · ${port?.label ?? end.portId}`,
+    label: `${partLabel} · ${def && port ? cablePort(def, port).label : end.portId}`,
   };
 }
 
@@ -93,7 +95,8 @@ function TerminalSelect({
   );
 }
 
-export default function WirePropertiesPanel({ wire, parts, partDefs, rule, bundleSize, onChange, onRoutingStyleChange, onBundleRangeChange, onAddWaypoint, onWaypointTerminalChange, onRemoveWaypoint, onClearWaypoints, onClose }: Props) {
+export default function WirePropertiesPanel({ wire, cableSize, parts, partDefs, rule, bundleSize, onChange, onRoutingStyleChange, onAddWaypoint, onWaypointTerminalChange, onRemoveWaypoint, onClearWaypoints, onClose }: Props) {
+  const waypoints = wireWaypoints(wire);
   const a = endInfo(wire, 'a', parts, partDefs);
   const b = endInfo(wire, 'b', parts, partDefs);
   const assembly = wire.assembly ?? 'field';
@@ -116,7 +119,7 @@ export default function WirePropertiesPanel({ wire, parts, partDefs, rule, bundl
       <div className="flex h-12 items-center gap-2 border-b border-slate-200 px-3">
         <Cable className="h-4 w-4 text-sky-600" aria-hidden="true" />
         <div className="min-w-0 flex-1">
-          <div className="text-xs font-semibold text-slate-800">导线属性</div>
+          <div className="text-xs font-semibold text-slate-800">{cableSize > 1 ? a.port?.type === 'canH' ? 'CAN 双芯线缆' : '电源双芯线缆' : '导线属性'}</div>
           <div className="truncate text-[10px] text-slate-400">{a.label} → {b.label}</div>
         </div>
         <button
@@ -181,13 +184,6 @@ export default function WirePropertiesPanel({ wire, parts, partDefs, rule, bundl
             <span className="text-xs font-semibold text-slate-700">线路保护与线束</span>
           </div>
           <WireRoutingStylePicker value={wire.routingStyle ?? 'standard'} onChange={onRoutingStyleChange} />
-          {wire.routingStyle && wire.routingStyle !== 'standard' && (
-            <WireBundleRangeEditor
-              start={wire.bundleStart ?? 0.18}
-              end={wire.bundleEnd ?? 0.82}
-              onChange={onBundleRangeChange}
-            />
-          )}
           {bundleSize > 1 ? (
             <div className="mt-2 rounded bg-violet-50 px-2.5 py-2 text-[10px] leading-4 text-violet-700">当前导线与另外 {bundleSize - 1} 根导线处于同一线束，调整样式或路径会同步应用到整组。</div>
           ) : (
@@ -197,7 +193,7 @@ export default function WirePropertiesPanel({ wire, parts, partDefs, rule, bundl
             <div className="flex items-center justify-between gap-2">
               <div>
                 <div className="text-[10px] font-semibold text-slate-700">中间端子</div>
-                <div className="text-[9px] text-slate-400">当前 {wire.waypoints?.length ?? 0} 个</div>
+                <div className="text-[9px] text-slate-400">当前 {waypoints.length} 个</div>
               </div>
               <div className="flex gap-1">
                 <button
@@ -210,7 +206,7 @@ export default function WirePropertiesPanel({ wire, parts, partDefs, rule, bundl
                 </button>
                 <button
                   onClick={onClearWaypoints}
-                  disabled={!wire.waypoints?.length}
+                  disabled={!waypoints.length}
                   className="flex h-7 items-center gap-1 rounded border border-slate-200 bg-white px-2 text-[10px] text-slate-600 hover:bg-slate-100 disabled:opacity-35"
                   title="删除当前导线的全部中间端子"
                 >
@@ -219,9 +215,9 @@ export default function WirePropertiesPanel({ wire, parts, partDefs, rule, bundl
                 </button>
               </div>
             </div>
-            {wire.waypoints && wire.waypoints.length > 0 && (
+            {waypoints.length > 0 && (
               <div className="mt-2 space-y-2">
-                {wire.waypoints.map((waypoint, index) => (
+                {waypoints.map((waypoint, index) => (
                   <div key={waypoint.id} className="rounded border border-violet-100 bg-white p-2">
                     <div className="mb-1 flex items-center justify-between gap-2">
                       <span className="text-[10px] font-semibold text-violet-700">中间端子 {index + 1}</span>

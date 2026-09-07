@@ -133,10 +133,16 @@ export interface Wire {
   routingStyle?: WireRoutingStyle;
   /** 多根导线共享同一个 ID 时，作为一组线束共同显示与调整 */
   bundleId?: string;
-  /** 拖链或束线管在线路总长度上的包覆起点比例，范围 0~1 */
+  /** Legacy coverage percentage, consumed only when migrating old files. */
   bundleStart?: number;
-  /** 拖链或束线管在线路总长度上的包覆终点比例，范围 0~1 */
+  /** Legacy coverage percentage, consumed only when migrating old files. */
   bundleEnd?: number;
+  /** Independent jacket ports in world coordinates; normals point outward. */
+  bundleEndpoints?: { entry: WorldPort; exit: WorldPort };
+  /** Stable A/B assignment to the independent jacket ports. */
+  bundleReversed?: boolean;
+  bundleLeadIn?: WireWaypoint[];
+  bundleLeadOut?: WireWaypoint[];
   /** 用户拖动后的正交布线路径控制点（世界坐标） */
   control?: { x: number; y: number };
   /** 用户在线路中间添加的可拖动端子，按从 A 端到 B 端的顺序排列 */
@@ -219,6 +225,10 @@ export function pairedPowerPort(def: PartDef, portId: string): PortDef | undefin
   const source = def.ports.find((port) => port.id === portId);
   if (!source || (source.type !== 'pwr+' && source.type !== 'pwr-')) return undefined;
   const oppositeType: PortType = source.type === 'pwr+' ? 'pwr-' : 'pwr+';
+  const matchingId = source.id.endsWith('+') ? source.id.slice(0, -1) + '-'
+    : source.id.endsWith('-') ? source.id.slice(0, -1) + '+' : undefined;
+  const namedPair = def.ports.find((port) => port.id === matchingId && port.type === oppositeType);
+  if (namedPair) return namedPair;
   const candidates = def.ports.filter(
     (port) => port.type === oppositeType && port.side === source.side,
   );
@@ -866,42 +876,61 @@ const terminal2To4 = vector({
   ],
 });
 
-const limelight3 = imagePart('Limelight 3 Technical.png', {
+const limelight3 = vector({
   id: 'limelight3',
   name: 'Limelight 3',
   category: '传感器',
   productUrl: 'https://limelightvision.io/products/limelight-3',
   docsUrl: 'https://docs.limelightvision.io/',
-  w: 950,
-  h: 760,
+  w: 180,
+  h: 140,
   displayWidth: 190,
   ports: [
-    p('usb', 'USB', 0.19, 0.55, 'data', 'left'),
-    p('eth', 'Ethernet', 0.46, 0.69, 'data', 'bottom'),
-    p('vin-', '电源 -', 0.79, 0.615, 'pwr-', 'right'),
-    p('vin+', '电源 +', 0.825, 0.59, 'pwr+', 'right'),
+    p('usb', 'USB', 0.03, 0.62, 'data', 'left'),
+    p('eth', 'Ethernet', 0.5, 0.97, 'data', 'bottom'),
+    p('vin-', '电源 -', 0.97, 0.67, 'pwr-', 'right'),
+    p('vin+', '电源 +', 0.97, 0.57, 'pwr+', 'right'),
   ],
 });
 
-const limelight4 = imagePart('Limelight 4 Technical.png', {
+const limelight4 = vector({
   id: 'limelight4',
   name: 'Limelight 4',
   category: '传感器',
   productUrl: 'https://limelightvision.io/products/limelight-4',
   docsUrl: 'https://docs.limelightvision.io/',
-  w: 620,
-  h: 660,
+  w: 160,
+  h: 170,
   displayWidth: 180,
   ports: [
-    p('eth', 'Ethernet', 0.055, 0.58, 'data', 'left'),
-    p('usbC', 'USB-C', 0.59, 0.37, 'data', 'top'),
-    p('vin+', '电源 +', 0.83, 0.62, 'pwr+', 'right'),
-    p('vin-', '电源 -', 0.83, 0.67, 'pwr-', 'right'),
+    p('eth', 'Ethernet', 0.03, 0.58, 'data', 'left'),
+    p('usbC', 'USB-C', 0.5, 0.03, 'data', 'top'),
+    p('vin+', '电源 +', 0.97, 0.57, 'pwr+', 'right'),
+    p('vin-', '电源 -', 0.97, 0.67, 'pwr-', 'right'),
+  ],
+});
+
+const canivore = imagePart('CANivore.png', {
+  id: 'canivore',
+  name: 'CTRE CANivore',
+  category: '控制',
+  productUrl: 'https://store.ctr-electronics.com/products/canivore',
+  docsUrl: 'https://ctre.download/files/user-manual/CANivore%20User%27s%20Guide.pdf',
+  w: 512,
+  h: 353,
+  displayWidth: 130,
+  ports: [
+    p('usbC', 'USB-C', 0, 0.5, 'data', 'left'),
+    p('vin+', 'VBAT + (6-28V)', 1, 0.37, 'pwr+', 'right'),
+    p('vin-', 'VBAT -', 1, 0.45, 'pwr-', 'right'),
+    p('canH', 'CAN H', 1, 0.54, 'canH', 'right'),
+    p('canL', 'CAN L', 1, 0.63, 'canL', 'right'),
   ],
 });
 
 export const BUILTIN_PARTS: PartDef[] = [
   roboRIO,
+  canivore,
   pdp,
   pdh,
   miniPdp,
@@ -944,6 +973,7 @@ export function partAssetSrc(fileName: string): string {
  * 通用传感器和接线端子没有唯一型号，因此采用元件库图片所代表型号的近似外形。
  */
 const PART_FOOTPRINTS_MM: Record<string, { w: number; h: number }> = {
+  canivore: { w: 55.12, h: 39.37 },
   roborio: { w: 191, h: 148 },
   pdp: { w: 108, h: 180 },
   pdh: { w: 108, h: 229 },
@@ -1015,7 +1045,9 @@ export function portWorld(part: PlacedPart, def: PartDef, port: PortDef): WorldP
   };
 }
 
-function roundedOrthogonalPath(points: Array<{ x: number; y: number }>, radius = 8): string {
+export type RoutePoint = { x: number; y: number };
+
+export function roundedOrthogonalPath(points: RoutePoint[], radius = 8): string {
   const filtered = points.filter((point, index) => {
     const prev = points[index - 1];
     return !prev || Math.hypot(point.x - prev.x, point.y - prev.y) > 0.1;
@@ -1027,7 +1059,8 @@ function roundedOrthogonalPath(points: Array<{ x: number; y: number }>, radius =
     const next = filtered[index + 1];
     const vertical = Math.abs(prev.x - point.x) < 0.1 && Math.abs(next.x - point.x) < 0.1;
     const horizontal = Math.abs(prev.y - point.y) < 0.1 && Math.abs(next.y - point.y) < 0.1;
-    return !vertical && !horizontal;
+    const forward = (point.x - prev.x) * (next.x - point.x) + (point.y - prev.y) * (next.y - point.y) > 0;
+    return !(forward && (vertical || horizontal));
   });
 
   if (compact.length < 2) return '';
@@ -1054,18 +1087,43 @@ function roundedOrthogonalPath(points: Array<{ x: number; y: number }>, radius =
 }
 
 /** 生成带端口引出段的圆角正交路径及其可拖动控制点。 */
-export function wireRoute(
+function proposedWireRoute(
   p1: WorldPort,
   p2: WorldPort,
   lane = 0,
   manualControl?: { x: number; y: number },
   waypoints?: WireWaypoint[],
-): { path: string; control: { x: number; y: number } } {
-  const stub = 18;
-  const a = { x: p1.x + p1.nx * stub, y: p1.y + p1.ny * stub };
-  const b = { x: p2.x + p2.nx * stub, y: p2.y + p2.ny * stub };
+): { path: string; control: RoutePoint; points: RoutePoint[] } {
+  const cardinal = (port: WorldPort): WorldPort => Math.abs(port.nx) > Math.abs(port.ny)
+    ? { ...port, nx: Math.sign(port.nx), ny: 0 }
+    : { ...port, nx: 0, ny: Math.sign(port.ny) || 1 };
+  p1 = cardinal(p1);
+  p2 = cardinal(p2);
   const p1Horizontal = Math.abs(p1.nx) > Math.abs(p1.ny);
   const p2Horizontal = Math.abs(p2.nx) > Math.abs(p2.ny);
+  const automatic = !manualControl && !waypoints?.length;
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const facingDistance = dx * p1.nx + dy * p1.ny;
+  const opposing = p1.nx * p2.nx + p1.ny * p2.ny < 0;
+  const aligned = p1Horizontal ? Math.abs(dy) < 0.0001 : Math.abs(dx) < 0.0001;
+  if (automatic && (Math.hypot(dx, dy) < 0.0001 || (opposing && aligned && facingDistance > 0))) {
+    const points = [{ x: p1.x, y: p1.y }, { x: p2.x, y: p2.y }];
+    return { path: roundedOrthogonalPath(points), points, control: { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 } };
+  }
+  if (automatic && p1Horizontal !== p2Horizontal) {
+    const elbow = p1Horizontal ? { x: p2.x, y: p1.y } : { x: p1.x, y: p2.y };
+    const fromDistance = (elbow.x - p1.x) * p1.nx + (elbow.y - p1.y) * p1.ny;
+    const toDistance = (elbow.x - p2.x) * p2.nx + (elbow.y - p2.y) * p2.ny;
+    if (fromDistance > 0 && toDistance > 0) {
+      const points = [p1, elbow, p2];
+      return { path: roundedOrthogonalPath(points), points, control: elbow };
+    }
+  }
+  // Short facing connections must not have overlapping outward stubs.
+  const stub = automatic && opposing && facingDistance > 0 ? Math.min(18, facingDistance / 3) : 18;
+  const a = { x: p1.x + p1.nx * stub, y: p1.y + p1.ny * stub };
+  const b = { x: p2.x + p2.nx * stub, y: p2.y + p2.ny * stub };
   if (waypoints && waypoints.length > 0) {
     const points: Array<{ x: number; y: number }> = [{ x: p1.x, y: p1.y }, a];
     let current = a;
@@ -1086,7 +1144,7 @@ export function wireRoute(
     }
     points.push(b, { x: p2.x, y: p2.y });
     const control = waypoints[Math.floor(waypoints.length / 2)];
-    return { path: roundedOrthogonalPath(points), control: { x: control.x, y: control.y } };
+    return { path: roundedOrthogonalPath(points), control: { x: control.x, y: control.y }, points };
   }
   let control: { x: number; y: number };
 
@@ -1120,7 +1178,25 @@ export function wireRoute(
     };
   }
 
-  if (manualControl) control = manualControl;
+  if (manualControl) control = { ...manualControl };
+  if (p1Horizontal === p2Horizontal) {
+    const axis = p1Horizontal ? 'x' : 'y';
+    const cross = p1Horizontal ? 'y' : 'x';
+    const n1 = p1Horizontal ? p1.nx : p1.ny;
+    const n2 = p2Horizontal ? p2.nx : p2.ny;
+    if (n1 * n2 < 0 && (b[axis] - a[axis]) * n1 < 0) {
+      const outside = manualControl?.[cross] ?? Math.min(a[cross], b[cross]) - 30 - Math.abs(lane);
+      const detour = [p1, a, { ...a, [cross]: outside }, { ...b, [cross]: outside }, b, p2];
+      return {
+        path: roundedOrthogonalPath(detour), points: detour,
+        control: { ...a, [axis]: (a[axis] + b[axis]) / 2, [cross]: outside },
+      };
+    }
+    if (automatic && opposing && facingDistance > 0) {
+      control[axis] = Math.max(Math.min(a[axis], b[axis]), Math.min(Math.max(a[axis], b[axis]), control[axis]));
+    }
+    control[cross] = (a[cross] + b[cross]) / 2;
+  }
   const fromControl = p1Horizontal
     ? { x: control.x, y: a.y }
     : { x: a.x, y: control.y };
@@ -1136,10 +1212,431 @@ export function wireRoute(
     b,
     { x: p2.x, y: p2.y },
   ];
-  return { path: roundedOrthogonalPath(points), control };
+  return { path: roundedOrthogonalPath(points), control, points };
+}
+
+export function compactRoute(points: RoutePoint[]): RoutePoint[] {
+  const result: RoutePoint[] = [];
+  for (const point of points) {
+    const b = result.at(-1);
+    if (b && Math.hypot(point.x - b.x, point.y - b.y) < 0.0001) continue;
+    const a = result.at(-2);
+    if (a && b && Math.abs((b.x - a.x) * (point.y - b.y) - (b.y - a.y) * (point.x - b.x)) < 0.0001
+      && (b.x - a.x) * (point.x - b.x) + (b.y - a.y) * (point.y - b.y) > 0) result.pop();
+    result.push({ x: point.x, y: point.y });
+  }
+  return result;
+}
+
+/** Reject folded stubs and crossings before rounding can hide the defect. */
+export function isSimpleRoute(input: RoutePoint[]): boolean {
+  const points = compactRoute(input);
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1];
+    const b = points[i];
+    const c = points[i + 1];
+    if (c && (b.x - a.x) * (c.x - b.x) + (b.y - a.y) * (c.y - b.y) < -0.0001) return false;
+    for (let j = i + 2; j < points.length; j++) {
+      const c = points[j - 1];
+      const d = points[j];
+      if (Math.max(Math.min(a.x, b.x), Math.min(c.x, d.x)) <= Math.min(Math.max(a.x, b.x), Math.max(c.x, d.x)) + 0.0001
+        && Math.max(Math.min(a.y, b.y), Math.min(c.y, d.y)) <= Math.min(Math.max(a.y, b.y), Math.max(c.y, d.y)) + 0.0001) return false;
+    }
+  }
+  return true;
+}
+
+export function wireRoute(p1: WorldPort, p2: WorldPort, lane = 0, manualControl?: RoutePoint, waypoints?: WireWaypoint[]) {
+  if (!waypoints?.length && Math.hypot(p1.x - p2.x, p1.y - p2.y) < 0.0001) {
+    return { points: [p1, p2], path: '', control: { x: p1.x, y: p1.y } };
+  }
+  const proposed = proposedWireRoute(p1, p2, lane, manualControl, waypoints);
+  if (isSimpleRoute(proposed.points)) return proposed;
+  const cardinal = (p: WorldPort): WorldPort => Math.abs(p.nx) > Math.abs(p.ny)
+    ? { ...p, nx: Math.sign(p.nx), ny: 0 } : { ...p, nx: 0, ny: Math.sign(p.ny) || 1 };
+  p1 = cardinal(p1);
+  p2 = cardinal(p2);
+  if (waypoints?.length) {
+    const points: RoutePoint[] = [p1];
+    let from = p1;
+    waypoints.forEach((point, index) => {
+      const next = waypoints[index + 1] ?? p2;
+      const direction = cardinal({ ...point, nx: next.x - point.x, ny: next.y - point.y });
+      points.push(...wireRoute(from, { ...direction, nx: -direction.nx, ny: -direction.ny }).points);
+      from = direction;
+    });
+    points.push(...wireRoute(from, p2).points);
+    return { points: compactRoute(points), path: roundedOrthogonalPath(points), control: proposed.control };
+  }
+  const facing = (p2.x - p1.x) * p1.nx + (p2.y - p1.y) * p1.ny;
+  const stub = Math.min(18, Math.hypot(p2.x - p1.x, p2.y - p1.y) / 3,
+    facing > 0 && p1.nx * p2.nx + p1.ny * p2.ny < 0 ? facing / 3 : Infinity);
+  const a = { x: p1.x + p1.nx * stub, y: p1.y + p1.ny * stub };
+  const b = { x: p2.x + p2.nx * stub, y: p2.y + p2.ny * stub };
+  const margin = 30 + Math.abs(lane);
+  const xs = [(a.x + b.x) / 2, Math.min(a.x, b.x) - margin, Math.max(a.x, b.x) + margin];
+  const ys = [(a.y + b.y) / 2, Math.min(a.y, b.y) - margin, Math.max(a.y, b.y) + margin];
+  if (manualControl) { xs.unshift(manualControl.x); ys.unshift(manualControl.y); }
+  const candidates: RoutePoint[][] = [[a, { x: b.x, y: a.y }, b], [a, { x: a.x, y: b.y }, b]];
+  for (const x of xs) candidates.push([a, { x, y: a.y }, { x, y: b.y }, b]);
+  for (const y of ys) candidates.push([a, { x: a.x, y }, { x: b.x, y }, b]);
+  for (const x of xs) for (const y of ys) {
+    candidates.push([a, { x, y: a.y }, { x, y }, { x: b.x, y }, b]);
+    candidates.push([a, { x: a.x, y }, { x, y }, { x, y: b.y }, b]);
+  }
+  const valid = candidates.map((middle) => compactRoute([p1, ...middle, p2])).filter(isSimpleRoute);
+  const cost = (points: RoutePoint[]) => routeLength(points) + points.length * 12
+    + (manualControl ? projectOntoRoute(points, manualControl).distance * 2 : 0);
+  valid.sort((a, b) => cost(a) - cost(b));
+  const points = valid[0] ?? proposed.points;
+  return { points, path: roundedOrthogonalPath(points), control: pointAlongRoute(points, routeLength(points) / 2) };
+}
+
+export function pairedCablePort(def: PartDef, portId: string): PortDef | undefined {
+  if (def.id === 'battery12v') return undefined;
+  const source = def.ports.find((port) => port.id === portId);
+  if (!source) return undefined;
+  if (source.type === 'pwr+' || source.type === 'pwr-') {
+    const pair = pairedPowerPort(def, portId);
+    return pair && pairedPowerPort(def, pair.id)?.id === portId ? pair : undefined;
+  }
+  if (source.type !== 'canH' && source.type !== 'canL') return undefined;
+  const otherType = source.type === 'canH' ? 'canL' : 'canH';
+  const otherId = source.id.replace(/[HL]$/, source.type === 'canH' ? 'L' : 'H');
+  return def.ports.find((port) => port.id === otherId && port.type === otherType);
+}
+
+/** One interactive port per two-conductor connector, retaining physical IDs. */
+export function cablePort(def: PartDef, port: PortDef): PortDef {
+  const pair = pairedCablePort(def, port.id);
+  if (!pair) return port;
+  const primary = port.type === 'pwr+' || port.type === 'canH' ? port : pair;
+  return { ...primary, x: (port.x + pair.x) / 2, y: (port.y + pair.y) / 2,
+    label: primary.type === 'canH' ? primary.label.replace(/\s*H.*$/, '') + ' (H/L)'
+      : primary.label.replace(/\s*[+].*$/, '') + ' (+/-)' };
+}
+
+export function cablePorts(def: PartDef): PortDef[] {
+  return def.ports.filter((port) => !pairedCablePort(def, port.id) || port.type === 'pwr+' || port.type === 'canH')
+    .map((port) => cablePort(def, port));
+}
+
+export function pairedWireGroups(wires: Wire[], parts: PlacedPart[], defs: ReadonlyMap<string, PartDef>) {
+  const partByUid = new Map(parts.map((part) => [part.uid, part]));
+  const endKey = (end: WireEnd) => JSON.stringify([end.uid, end.portId]);
+  const key = (a: WireEnd, b: WireEnd) => JSON.stringify([endKey(a), endKey(b)].sort());
+  const wireByEnds = new Map(wires.map((wire) => [key(wire.a, wire.b), wire]));
+  const groups = new Map<string, Wire[]>();
+  for (const wire of wires) {
+    if (groups.has(wire.id)) continue;
+    const defA = defs.get(partByUid.get(wire.a.uid)?.partId ?? '');
+    const defB = defs.get(partByUid.get(wire.b.uid)?.partId ?? '');
+    if (!defA || !defB) continue;
+    const typeA = defA.ports.find((port) => port.id === wire.a.portId)?.type;
+    const typeB = defB.ports.find((port) => port.id === wire.b.portId)?.type;
+    if (typeA !== typeB || (typeA !== 'pwr+' && typeA !== 'canH')) continue;
+    const pairA = pairedCablePort(defA, wire.a.portId);
+    const pairB = pairedCablePort(defB, wire.b.portId);
+    if (!pairA || !pairB) continue;
+    const companion = wireByEnds.get(key({ ...wire.a, portId: pairA.id }, { ...wire.b, portId: pairB.id }));
+    if (!companion || companion.bundleId !== wire.bundleId
+      || (companion.routingStyle ?? 'standard') !== (wire.routingStyle ?? 'standard')) continue;
+    const group = [wire, companion];
+    groups.set(wire.id, group);
+    groups.set(companion.id, group);
+  }
+  return groups;
+}
+
+export function compareWireEditors(a: Wire, b: Wire, cables: ReadonlyMap<string, Wire[]>) {
+  const secondary = (wire: Wire) => Number(cables.has(wire.id) && cables.get(wire.id)![0].id !== wire.id);
+  return secondary(a) - secondary(b) || a.id.localeCompare(b.id);
+}
+
+export function connectWireEnds(wires: Wire[], from: WireEnd, to: WireEnd, parts: PlacedPart[], defs: ReadonlyMap<string, PartDef>, color: string) {
+  if (from.uid === to.uid) return wires;
+  const a = wireEndContext(from, parts, defs);
+  const b = wireEndContext(to, parts, defs);
+  if (!a.def || !b.def || !a.port || !b.port) return wires;
+  let portA = a.port;
+  let portB = b.port;
+  if (portA.type !== portB.type) {
+    const alternateA = pairedCablePort(a.def, portA.id);
+    const alternateB = pairedCablePort(b.def, portB.id);
+    if (alternateA?.type === portB.type) portA = alternateA;
+    else if (alternateB?.type === portA.type) portB = alternateB;
+  }
+  const pairA = pairedCablePort(a.def, portA.id);
+  const pairB = pairedCablePort(b.def, portB.id);
+  const connections = [[portA, portB]];
+  if (portA.type === portB.type && pairA && pairB && pairA.type === pairB.type) connections.push([pairA, pairB]);
+  const next = [...wires];
+  const sameEnd = (a: WireEnd, b: WireEnd) => a.uid === b.uid && a.portId === b.portId;
+  for (const [left, right] of connections) {
+    const a = { ...from, portId: left.id };
+    const b = { ...to, portId: right.id };
+    if (next.some((wire) => (sameEnd(wire.a, a) && sameEnd(wire.b, b)) || (sameEnd(wire.a, b) && sameEnd(wire.b, a)))) continue;
+    const jumper = left.type === 'data' && right.type === 'data';
+    const wire: Wire = {
+      id: uid(), a, b, color: left.type === right.type ? PORT_TYPE_COLOR[left.type] : color,
+      assembly: jumper ? 'jumper' : 'field',
+      terminalA: jumper ? defaultTerminalForPort(left) : undefined,
+      terminalB: jumper ? defaultTerminalForPort(right) : undefined,
+    };
+    wire.awg = wireGaugeRule(wire, parts, defs).recommended;
+    next.push(wire);
+  }
+  return next.length === wires.length ? wires : next;
 }
 
 /** 兼容临时导线等只需要 SVG path 的调用。 */
 export function wirePath(p1: WorldPort, p2: WorldPort, lane = 0): string {
   return wireRoute(p1, p2, lane).path;
+}
+
+export function wireBundleRange(wire: Pick<Wire, 'bundleStart' | 'bundleEnd'>) {
+  const start = Math.max(0, Math.min(Number.isFinite(wire.bundleStart) ? wire.bundleStart! : 0.18, 0.9));
+  const end = Math.min(1, Math.max(Number.isFinite(wire.bundleEnd) ? wire.bundleEnd! : 0.82, start + 0.1));
+  return { start, end };
+}
+
+export function routeLength(points: RoutePoint[]) {
+  return points.reduce((sum, point, index) => index === 0 ? sum
+    : sum + Math.hypot(point.x - points[index - 1].x, point.y - points[index - 1].y), 0);
+}
+
+export function pointAlongRoute(points: RoutePoint[], distance: number): WorldPort {
+  let remaining = Math.max(0, distance);
+  for (let index = 1; index < points.length; index += 1) {
+    const a = points[index - 1];
+    const b = points[index];
+    const length = Math.hypot(b.x - a.x, b.y - a.y);
+    if (length < 0.0001) continue;
+    if (remaining < length || index === points.length - 1) {
+      const t = Math.min(1, remaining / length);
+      return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t,
+        nx: (b.x - a.x) / length, ny: (b.y - a.y) / length };
+    }
+    remaining -= length;
+  }
+  return { ...(points.at(-1) ?? { x: 0, y: 0 }), nx: 1, ny: 0 };
+}
+
+export function sliceRoute(points: RoutePoint[], start: number, end: number): RoutePoint[] {
+  const result: RoutePoint[] = [pointAlongRoute(points, start)];
+  let distance = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    distance += Math.hypot(points[index].x - points[index - 1].x, points[index].y - points[index - 1].y);
+    if (distance > start && distance < end) result.push(points[index]);
+  }
+  result.push(pointAlongRoute(points, end));
+  return result;
+}
+
+export function projectOntoRoute(points: RoutePoint[], point: RoutePoint) {
+  let distance = 0;
+  let best = { distance: Infinity, along: 0, point: points[0] ?? point };
+  for (let index = 1; index < points.length; index += 1) {
+    const a = points[index - 1];
+    const b = points[index];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const length = Math.hypot(dx, dy);
+    if (length < 0.0001) continue;
+    const t = Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / (length * length)));
+    const projected = { x: a.x + t * dx, y: a.y + t * dy };
+    const gap = Math.hypot(point.x - projected.x, point.y - projected.y);
+    if (gap < best.distance) best = { distance: gap, along: distance + t * length, point: projected };
+    distance += length;
+  }
+  return best;
+}
+
+export interface WireGeometry {
+  path: string;
+  visiblePaths: string[];
+  visiblePoints: RoutePoint[][];
+  points: RoutePoint[];
+  control: RoutePoint;
+  editorWire: Wire;
+}
+
+export interface BundleGeometry {
+  key: string;
+  style: Exclude<WireRoutingStyle, 'standard'>;
+  wireIds: string[];
+  path: string;
+  points: RoutePoint[];
+  startPoint: WorldPort;
+  endPoint: WorldPort;
+  labelPoint: RoutePoint;
+}
+
+export function wireEndsReversed(a: RoutePoint, b: RoutePoint, referenceA: RoutePoint, referenceB: RoutePoint) {
+  const gap = (left: RoutePoint, right: RoutePoint) => Math.hypot(left.x - right.x, left.y - right.y);
+  return gap(a, referenceB) + gap(b, referenceA) < gap(a, referenceA) + gap(b, referenceB);
+}
+
+export function wireWaypoints(wire: Wire) {
+  return [...(wire.bundleLeadIn ?? []), ...(wire.waypoints ?? []), ...(wire.bundleLeadOut ?? [])];
+}
+
+function bundleRoute(wire: Wire, a: WorldPort, b: WorldPort) {
+  const inward = (port: WorldPort): WorldPort => ({ ...port, nx: -port.nx, ny: -port.ny });
+  if (wire.bundleEndpoints) {
+    return {
+      ...wireRoute(inward(wire.bundleEndpoints.entry), inward(wire.bundleEndpoints.exit), 0, wire.control, wire.waypoints),
+      before: wire.bundleLeadIn, inside: wire.waypoints, after: wire.bundleLeadOut,
+    };
+  }
+  // Old files used percentages. Resolve them once when materializing the ports.
+  const spine = wireRoute(a, b, 0, wire.control, wire.waypoints);
+  const length = routeLength(spine.points);
+  const { start, end } = wireBundleRange(wire);
+  const before = wire.waypoints?.filter((point) => projectOntoRoute(spine.points, point).along < length * start);
+  const after = wire.waypoints?.filter((point) => projectOntoRoute(spine.points, point).along > length * end);
+  const inside = wire.waypoints?.filter((point) => !before?.includes(point) && !after?.includes(point));
+  return { ...spine, points: sliceRoute(spine.points, length * start, length * end), before, inside, after };
+}
+
+/** Jacket mouths are fan-out junctions, not direction-locked device sockets. */
+export function bundleLeadRoute(junction: WorldPort, device: WorldPort, lane = 0, waypoints?: WireWaypoint[]) {
+  const directions = [[junction.nx, junction.ny], [1, 0], [-1, 0], [0, 1], [0, -1]];
+  const candidates = directions
+    // Do not send a lead back into the jacket along its own centerline.
+    .filter(([nx, ny]) => nx * junction.nx + ny * junction.ny >= -0.1)
+    .map(([nx, ny]) => {
+      const gap = nx ? device.x - junction.x : device.y - junction.y;
+      const offset = Math.sign(gap) * Math.max(-Math.abs(gap) / 4, Math.min(Math.abs(gap) / 4, lane));
+      return wireRoute({ ...junction, nx, ny }, device, offset, undefined, waypoints);
+    });
+  const cost = (route: ReturnType<typeof wireRoute>) => routeLength(route.points) + Math.max(0, compactRoute(route.points).length - 2) * 16;
+  candidates.sort((a, b) => cost(a) - cost(b));
+  return candidates[0];
+}
+
+/** One source of geometry for rendering, picking, and shared route editing. */
+export function buildWireGeometry(
+  wires: Wire[],
+  getPort: (end: WireEnd) => WorldPort | null,
+  getLane: (wire: Wire) => number = () => 0,
+  cables: ReadonlyMap<string, Wire[]> = new Map(),
+) {
+  const routes = new Map<string, WireGeometry>();
+  const groups = new Map<string, Array<{ wire: Wire; a: WorldPort; b: WorldPort }>>();
+  for (const wire of wires) {
+    const a = getPort(wire.a);
+    const b = getPort(wire.b);
+    if (!a || !b) continue;
+    if (wire.routingStyle && wire.routingStyle !== 'standard') {
+      const key = `${wire.routingStyle}:${wire.bundleId ?? `wire:${wire.id}`}`;
+      const group = groups.get(key) ?? [];
+      group.push({ wire, a, b });
+      groups.set(key, group);
+    } else {
+      const route = wireRoute(a, b, getLane(wire), wire.control, wire.waypoints);
+      routes.set(wire.id, { ...route, visiblePaths: [route.path], visiblePoints: [route.points], editorWire: wire });
+    }
+  }
+  const bundles: BundleGeometry[] = [];
+  for (const [key, items] of groups) {
+    // Array reordering must not change which wire defines the shared spine.
+    items.sort((a, b) => compareWireEditors(a.wire, b.wire, cables));
+    const representative = items[0];
+    const { wire, a, b } = representative;
+    const spine = bundleRoute(wire, a, b);
+    const { before, after } = spine;
+    const inward = (port: WorldPort): WorldPort => ({ ...port, nx: -port.nx || 0, ny: -port.ny || 0 });
+    const trunk = spine.points;
+    // Endpoint normals follow the jacket itself, including when its end is
+    // exactly at a bend in the original full-length route.
+    const start = pointAlongRoute(trunk, 0);
+    const end = pointAlongRoute(trunk, routeLength(trunk));
+    const path = roundedOrthogonalPath(trunk);
+    const oriented = items.map((item) => {
+      const reversed = item.wire.bundleReversed ?? wireEndsReversed(item.a, item.b, a, b);
+      return { ...item, from: reversed ? item.b : item.a, to: reversed ? item.a : item.b };
+    });
+    const fanoutLanes = (junction: WorldPort, side: 'from' | 'to') => {
+      const branches = oriented.filter((item) => !cables.has(item.wire.id) || cables.get(item.wire.id)![0].id === item.wire.id);
+      // Farther devices use the inner rail, so nearer branches do not cross them.
+      branches.sort((a, b) => Math.hypot(b[side].x - junction.x, b[side].y - junction.y)
+        - Math.hypot(a[side].x - junction.x, a[side].y - junction.y) || a.wire.id.localeCompare(b.wire.id));
+      return new Map(branches.map((item, index) => [item.wire.id, (index - (branches.length - 1) / 2) * 10]));
+    };
+    const entryLanes = fanoutLanes(start, 'from');
+    const exitLanes = fanoutLanes(end, 'to');
+    oriented.forEach((item) => {
+      const { from, to } = item;
+      const entry = { ...start, nx: -start.nx, ny: -start.ny };
+      const cableId = cables.get(item.wire.id)?.[0].id ?? item.wire.id;
+      const leadIn = bundleLeadRoute(entry, from, entryLanes.get(cableId) ?? getLane(item.wire), before?.slice().reverse()).points.slice().reverse();
+      const leadOut = bundleLeadRoute(end, to, exitLanes.get(cableId) ?? getLane(item.wire), after).points;
+      const visiblePoints = [leadIn, leadOut];
+      const visiblePaths = visiblePoints.map((points) => roundedOrthogonalPath(points));
+      routes.set(item.wire.id, {
+        path: [...visiblePaths, path].join(' '), visiblePaths, visiblePoints,
+        points: [...leadIn, ...trunk, ...leadOut], control: spine.control, editorWire: wire,
+      });
+    });
+    bundles.push({ key, style: wire.routingStyle as BundleGeometry['style'], wireIds: items.map((item) => item.wire.id),
+      path, points: trunk, startPoint: inward(start), endPoint: end,
+      labelPoint: pointAlongRoute(trunk, routeLength(trunk) / 2) });
+  }
+  for (const [id, cable] of cables) {
+    const route = routes.get(cable[0].id);
+    if (route) routes.set(id, route);
+  }
+  return { routes, bundles };
+}
+
+export function anchorWireBundles(wires: Wire[], parts: PlacedPart[], defs: ReadonlyMap<string, PartDef>) {
+  if (!wires.some((wire) => wire.routingStyle && wire.routingStyle !== 'standard'
+    && (!wire.bundleEndpoints || wire.bundleReversed === undefined))) return wires;
+  const getPort = (end: WireEnd) => {
+    const part = parts.find((part) => part.uid === end.uid);
+    const def = part && defs.get(part.partId);
+    const port = def?.ports.find((port) => port.id === end.portId);
+    return part && def && port ? portWorld(part, def, cablePort(def, port)) : null;
+  };
+  const layout = buildWireGeometry(wires, getPort, () => 0, pairedWireGroups(wires, parts, defs));
+  const updates = new Map<string, Partial<Wire>>();
+  for (const bundle of layout.bundles) {
+    if (bundle.wireIds.every((id) => {
+      const wire = wires.find((wire) => wire.id === id)!;
+      return wire.bundleEndpoints && wire.bundleReversed !== undefined;
+    })) continue;
+    const editor = layout.routes.get(bundle.wireIds[0])!.editorWire;
+    const a = getPort(editor.bundleReversed ? editor.b : editor.a)!;
+    const b = getPort(editor.bundleReversed ? editor.a : editor.b)!;
+    const route = bundleRoute(editor, a, b);
+    for (const id of bundle.wireIds) {
+      const wire = wires.find((wire) => wire.id === id)!;
+      updates.set(id, {
+        bundleEndpoints: { entry: bundle.startPoint, exit: bundle.endPoint },
+        bundleReversed: wire.bundleReversed ?? wireEndsReversed(getPort(wire.a)!, getPort(wire.b)!, a, b),
+        bundleStart: undefined, bundleEnd: undefined,
+        bundleLeadIn: route.before, bundleLeadOut: route.after, waypoints: route.inside,
+        control: editor.bundleEndpoints ? editor.control : undefined,
+      });
+    }
+  }
+  return wires.map((wire) => updates.has(wire.id) ? { ...wire, ...updates.get(wire.id) } : wire);
+}
+
+export function translateWireRoutes(wires: Wire[], movedUids: Set<string>, dx: number, dy: number): Wire[] {
+  const fixedBundles = new Set(wires.filter((wire) => wire.bundleId
+    && (!movedUids.has(wire.a.uid) || !movedUids.has(wire.b.uid))).map((wire) => wire.bundleId));
+  return wires.map((wire) => {
+    if (wire.bundleEndpoints && wire.routingStyle && wire.routingStyle !== 'standard') return wire;
+    if (!movedUids.has(wire.a.uid) || !movedUids.has(wire.b.uid) || fixedBundles.has(wire.bundleId)) return wire;
+    return { ...wire,
+      bundleEndpoints: wire.bundleEndpoints ? {
+        entry: { ...wire.bundleEndpoints.entry, x: wire.bundleEndpoints.entry.x + dx, y: wire.bundleEndpoints.entry.y + dy },
+        exit: { ...wire.bundleEndpoints.exit, x: wire.bundleEndpoints.exit.x + dx, y: wire.bundleEndpoints.exit.y + dy },
+      } : undefined,
+      control: wire.control ? { x: wire.control.x + dx, y: wire.control.y + dy } : undefined,
+      waypoints: wire.waypoints?.map((point) => ({ ...point, x: point.x + dx, y: point.y + dy })),
+    };
+  });
 }

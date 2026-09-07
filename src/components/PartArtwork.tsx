@@ -387,20 +387,16 @@ function CANcoder({ def }: { def: PartDef }) {
   const wireColors = ['#dc2626', '#1f2937', '#eab308', '#16a34a', '#eab308', '#16a34a'];
   return (
     <>
-      <path d="M 21 51 H 4 V 81 H 21" fill="#2b3037" stroke="#111318" strokeWidth={2} />
-      <path d="M 159 51 H 176 V 81 H 159" fill="#2b3037" stroke="#111318" strokeWidth={2} />
-      <circle cx={10} cy={66} r={5.5} fill="#0f1217" stroke="#727b87" strokeWidth={1.5} />
-      <circle cx={170} cy={66} r={5.5} fill="#0f1217" stroke="#727b87" strokeWidth={1.5} />
-      <circle cx={90} cy={66} r={55} fill="#242930" stroke="#0f1217" strokeWidth={3} />
-      <circle cx={90} cy={66} r={45} fill="#30363f" stroke="#5d6672" strokeWidth={1.5} />
-      <circle cx={90} cy={66} r={25} fill="#161a20" stroke="#737e8c" strokeWidth={2} />
-      <circle cx={90} cy={66} r={11} fill="#cbd5e1" stroke="#64748b" strokeWidth={2} />
-      <path d="M 90 55 V 77 M 79 66 H 101" stroke="#475569" strokeWidth={2} />
-      <circle cx={126} cy={40} r={4} fill="#22c55e" stroke="#86efac" strokeWidth={1.2} />
-      <text x={90} y={31} textAnchor="middle" fill="#f8fafc" fontFamily="Arial, sans-serif" fontSize={10} fontWeight={700} letterSpacing={0}>CTRE</text>
-      <text x={90} y={105} textAnchor="middle" fill="#e2e8f0" fontFamily="Arial, sans-serif" fontSize={11} fontWeight={700} letterSpacing={0}>CANcoder</text>
-      <text x={90} y={116} textAnchor="middle" fill="#94a3b8" fontFamily="Arial, sans-serif" fontSize={5.5} letterSpacing={0}>ABSOLUTE MAGNETIC ENCODER</text>
-      <rect x={38} y={116} width={104} height={18} rx={6} fill="#171a1f" stroke="#4b5563" />
+      <path d="M 45 8 H 135 L 163 39 V 112 L 142 135 H 38 L 17 112 V 39 Z" fill="#e2e8ec" stroke="#7b8790" strokeWidth={3} />
+      <path d="M 52 20 H 128 L 148 44 V 109 L 135 121 H 45 L 32 109 V 44 Z" fill="#353d42" stroke="#aebdc4" strokeWidth={2} />
+      <path d="M 49 46 H 70 V 82 H 111 V 50 H 130 M 49 101 H 126" fill="none" stroke="#c4ac67" strokeWidth={2.5} />
+      <rect x={75} y={55} width={30} height={29} rx={3} fill="#141a1f" stroke="#91a0a8" />
+      {[49, 120].map((x) => <rect key={x} x={x} y={64} width={11} height={20} rx={1} fill="#171b20" stroke="#a9b0b2" />)}
+      <path d="M 45 8 H 135 L 163 39 V 112 L 142 135 H 38 L 17 112 V 39 Z" fill="#f8fcff" fillOpacity={0.32} stroke="#cbd5df" strokeWidth={2} />
+      {[35, 145].map((x) => <circle key={x} cx={x} cy={43} r={7} fill="#f3f7f9" stroke="#8796a2" strokeWidth={2} />)}
+      <circle cx={124} cy={97} r={5} fill="#84cc16" stroke="#d9f99d" strokeWidth={2} />
+      <text x={90} y={40} textAnchor="middle" fill="#bef264" fontFamily="Arial, sans-serif" fontSize={19} fontWeight={700}>CTRE</text>
+      <text x={85} y={110} textAnchor="middle" fill="#ffffff" fontFamily="Arial, sans-serif" fontSize={12} fontWeight={700}>CANcoder</text>
       {wireStarts.map((start, index) => (
         <path
           key={start}
@@ -411,6 +407,42 @@ function CANcoder({ def }: { def: PartDef }) {
           strokeLinecap="round"
         />
       ))}
+      <VectorPortPads def={def} />
+    </>
+  );
+}
+
+function Limelight({ def }: { def: PartDef }) {
+  const fourth = def.id === 'limelight4';
+  const { w, h } = def;
+  const cx = w / 2;
+  const cy = h * 0.43;
+  return (
+    <>
+      <rect x={5} y={5} width={w - 10} height={h - 10} rx={12} fill="#24292b" stroke="#111719" strokeWidth={3} />
+      <rect x={11} y={11} width={w - 22} height={h - 22} rx={8} fill="#394145" stroke="#68747a" strokeWidth={1.5} />
+      {fourth ? Array.from({ length: 9 }, (_, index) => (
+        <rect key={index} x={22 + index * 13} y={22} width={6} height={h - 57} rx={3} fill="#171d20" />
+      )) : [[-48, -20], [-20, -36], [22, -36], [49, -17], [-37, 24], [38, 24]].map(([x, y]) => (
+        <g key={`${x}:${y}`}>
+          <circle cx={cx + x} cy={cy + y} r={10} fill="#161e19" stroke="#748077" strokeWidth={1.5} />
+          <circle cx={cx + x} cy={cy + y} r={5} fill="#b7d994" />
+        </g>
+      ))}
+      <circle cx={cx} cy={cy} r={25} fill="#14191d" stroke="#96a3ab" strokeWidth={3} />
+      <circle cx={cx} cy={cy} r={18} fill="#162e34" stroke="#4d7077" strokeWidth={2} />
+      <circle cx={cx} cy={cy} r={11} fill="#080e13" />
+      <ellipse cx={cx - 6} cy={cy - 7} rx={5} ry={3} fill="#8ed5dd" opacity={0.8} />
+      {[[20, 20], [w - 20, 20], [20, h - 20], [w - 20, h - 20]].map(([x, y]) => <circle key={`${x}:${y}`} cx={x} cy={y} r={5} fill="#eef2f5" stroke="#94a3ad" strokeWidth={2} />)}
+      <rect x={cx - 48} y={h - 40} width={96} height={21} rx={3} fill="#24292b" />
+      <text x={cx} y={h - 25} textAnchor="middle" fill="#e8f6ed" fontFamily="Arial, sans-serif" fontSize={12} fontWeight={700}>LIMELIGHT {fourth ? '4' : '3'}</text>
+      {def.ports.filter((port) => port.type === 'data').map((port) => {
+        const x = port.x * w;
+        const y = port.y * h;
+        const vertical = port.side === 'left';
+        return <rect key={port.id} x={x - (vertical ? 4 : 12)} y={y - (vertical ? 12 : 4)} width={vertical ? 8 : 24} height={vertical ? 24 : 8} rx={2} fill="#111b21" stroke="#b5c6ce" strokeWidth={2} />;
+      })}
+      <rect x={w - 13} y={h * 0.52} width={10} height={h * 0.2} rx={2} fill="#42683d" stroke="#a3c78e" />
       <VectorPortPads def={def} />
     </>
   );
@@ -542,6 +574,8 @@ function renderVector(def: PartDef) {
     case 'pot': return <Potentiometer def={def} />;
     case 'ttb': return <ThroughBore def={def} />;
     case 'cancoder': return <CANcoder def={def} />;
+    case 'limelight3':
+    case 'limelight4': return <Limelight def={def} />;
     case 'ws2812': return <LedStrip def={def} />;
     case 'c270': return <Camera def={def} />;
     case 'battery12v': return <Battery def={def} />;

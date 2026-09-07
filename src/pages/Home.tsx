@@ -22,13 +22,20 @@ import type {
 import {
   BUILTIN_PARTS,
   allowedFuseRatings,
-  defaultTerminalForPort,
   WIRE_COLORS,
   PORT_TYPE_COLOR,
-  pairedPowerPort,
+  cablePort,
+  pairedWireGroups,
+  connectWireEnds,
+  compareWireEditors,
+  buildWireGeometry,
+  anchorWireBundles,
+  wireWaypoints,
   portWorld,
   wireGaugeRule,
   wireRoute,
+  wireEndsReversed,
+  translateWireRoutes,
   partSize,
   uid,
 } from '../lib/wiring';
@@ -132,7 +139,19 @@ function isWire(value: unknown): value is Wire {
   return typeof value.id === 'string'
     && isWireEnd(value.a)
     && isWireEnd(value.b)
-    && typeof value.color === 'string';
+    && typeof value.color === 'string'
+    && (value.bundleReversed === undefined || typeof value.bundleReversed === 'boolean')
+    && [value.bundleLeadIn, value.bundleLeadOut].every((points) => points === undefined || (Array.isArray(points)
+      && points.every((point) => isRecord(point) && typeof point.id === 'string' && isFiniteNumber(point.x) && isFiniteNumber(point.y))))
+    && (value.bundleEndpoints === undefined || (isRecord(value.bundleEndpoints)
+      && [value.bundleEndpoints.entry, value.bundleEndpoints.exit].every((port) => isRecord(port)
+        && isFiniteNumber(port.x) && isFiniteNumber(port.y) && isFiniteNumber(port.nx) && isFiniteNumber(port.ny)
+        && Math.abs(port.nx) + Math.abs(port.ny) > 0)))
+    && (value.control === undefined || (isRecord(value.control) && isFiniteNumber(value.control.x) && isFiniteNumber(value.control.y)))
+    && (value.waypoints === undefined || (Array.isArray(value.waypoints) && value.waypoints.every((point) =>
+      isRecord(point) && typeof point.id === 'string' && isFiniteNumber(point.x) && isFiniteNumber(point.y))))
+    && (value.bundleId === undefined || typeof value.bundleId === 'string')
+    && (value.routingStyle === undefined || ['standard', 'drag-chain', 'conduit'].includes(value.routingStyle as string));
 }
 
 function isCanvasBackground(value: unknown): value is CanvasBackground {
@@ -208,7 +227,7 @@ function normalizeSavedState(value: unknown): SavedState | null {
       id,
       name: typeof source.name === 'string' && source.name.trim() ? source.name.trim() : `页面 ${index + 1}`,
       parts,
-      wires,
+      wires: anchorWireBundles(wires, parts, savedPartDefs),
       backgroundImage: isCanvasBackground(source.backgroundImage) ? source.backgroundImage : undefined,
       view: isViewTransform(source.view) ? source.view : DEFAULT_VIEW,
     };
@@ -339,6 +358,12 @@ function cloneProjectContent(parts: PlacedPart[], wires: Wire[], offsetX = 0, of
       a: { ...wire.a, uid: aUid },
       b: { ...wire.b, uid: bUid },
       bundleId,
+      bundleLeadIn: wire.bundleLeadIn?.map((point) => ({ ...point, id: uid(), x: point.x + offsetX, y: point.y + offsetY })),
+      bundleLeadOut: wire.bundleLeadOut?.map((point) => ({ ...point, id: uid(), x: point.x + offsetX, y: point.y + offsetY })),
+      bundleEndpoints: wire.bundleEndpoints ? {
+        entry: { ...wire.bundleEndpoints.entry, x: wire.bundleEndpoints.entry.x + offsetX, y: wire.bundleEndpoints.entry.y + offsetY },
+        exit: { ...wire.bundleEndpoints.exit, x: wire.bundleEndpoints.exit.x + offsetX, y: wire.bundleEndpoints.exit.y + offsetY },
+      } : undefined,
       control: wire.control ? { x: wire.control.x + offsetX, y: wire.control.y + offsetY } : undefined,
       waypoints: wire.waypoints?.map((waypoint) => ({
         ...waypoint,
@@ -391,7 +416,11 @@ export default function Home() {
     ));
   };
   const updateActiveProject = (update: (project: ProjectState) => ProjectState) => {
-    setProjects((current) => current.map((project) => project.id === activeProjectId ? update(project) : project));
+    setProjects((current) => current.map((project) => {
+      if (project.id !== activeProjectId) return project;
+      const next = update({ ...project, wires: anchorWireBundles(project.wires, project.parts, partDefs) });
+      return { ...next, wires: anchorWireBundles(next.wires, next.parts, partDefs) };
+    }));
   };
   const setParts = (action: SetStateAction<PlacedPart[]>) => updateActiveProject((project) => ({
     ...project,
@@ -434,6 +463,7 @@ export default function Home() {
     [...BUILTIN_PARTS, ...customParts].forEach((d) => m.set(d.id, d));
     return m;
   }, [customParts]);
+  const cables = useMemo(() => pairedWireGroups(wires, parts, partDefs), [wires, parts, partDefs]);
 
   const selectedPart = useMemo(() => {
     if (selectedParts.size !== 1) return null;
@@ -445,9 +475,12 @@ export default function Home() {
   const shouldLockSelected = selectedPartItems.some((part) => !part.locked);
   const deletableSelectionCount = selectedWires.size + selectedPartItems.filter((part) => !part.locked).length;
   const selectedWire = useMemo(() => {
-    if (selectedWires.size !== 1) return null;
-    return wires.find((wire) => selectedWires.has(wire.id)) ?? null;
-  }, [selectedWires, wires]);
+    const first = wires.find((wire) => selectedWires.has(wire.id));
+    if (!first) return null;
+    const cable = cables.get(first.id);
+    if (cable && [...selectedWires].every((id) => cable.some((wire) => wire.id === id))) return cable[0];
+    return selectedWires.size === 1 ? first : null;
+  }, [selectedWires, wires, cables]);
   const selectedWireRule = selectedWire ? wireGaugeRule(selectedWire, parts, partDefs) : null;
   const selectedWireItems = wires.filter((wire) => selectedWires.has(wire.id));
   const selectedWireRoutingStyle = selectedWireItems.length > 0 && selectedWireItems.every(
@@ -455,14 +488,12 @@ export default function Home() {
   )
     ? (selectedWireItems[0].routingStyle ?? 'standard')
     : undefined;
-  const selectedWireBundleStart = selectedWireItems[0]?.bundleStart ?? 0.18;
-  const selectedWireBundleEnd = selectedWireItems[0]?.bundleEnd ?? 0.82;
   const selectedWireBundleSize = selectedWire?.bundleId
     ? wires.filter((wire) => wire.bundleId === selectedWire.bundleId).length
     : 1;
   const selectedBundleIds = new Set(selectedWireItems.map((wire) => wire.bundleId).filter((id): id is string => Boolean(id)));
   const canRestoreSelectedWiring = wires.some((wire) =>
-    (Boolean(wire.control) || Boolean(wire.waypoints?.length)) &&
+    (Boolean(wire.control) || Boolean(wireWaypoints(wire).length)) &&
     (selectedWires.has(wire.id) || Boolean(wire.bundleId && selectedBundleIds.has(wire.bundleId))),
   );
 
@@ -900,52 +931,51 @@ export default function Home() {
     const part = parts.find((item) => item.uid === end.uid);
     const def = part && partDefs.get(part.partId);
     const port = def?.ports.find((item) => item.id === end.portId);
-    return part && def && port ? portWorld(part, def, port) : null;
+    return part && def && port ? portWorld(part, def, cablePort(def, port)) : null;
   };
 
   const applyWireRoutingStyle = (style: WireRoutingStyle) => {
     const selected = wires.filter((wire) => selectedWires.has(wire.id));
     if (selected.length === 0) return;
-    const existingBundleId = selected.length === 1 ? selected[0].bundleId : undefined;
+    const bundleIds = new Set(selected.flatMap((wire) => wire.bundleId ? [wire.bundleId] : []));
+    const existingBundleId = bundleIds.size === 1 && selected.every((wire) => wire.bundleId)
+      ? selected[0].bundleId : undefined;
     const affectedIds = new Set(
-      existingBundleId
-        ? wires.filter((wire) => wire.bundleId === existingBundleId).map((wire) => wire.id)
-        : selected.map((wire) => wire.id),
+      wires.filter((wire) => selectedWires.has(wire.id) || Boolean(wire.bundleId && bundleIds.has(wire.bundleId)))
+        .map((wire) => wire.id),
     );
-    const affectedWires = wires.filter((wire) => affectedIds.has(wire.id));
+    const affectedWires = wires.filter((wire) => affectedIds.has(wire.id)).sort((a, b) => compareWireEditors(a, b, cables));
 
     if (style === 'standard') {
-      setWires((current) => current.map((wire) => affectedIds.has(wire.id)
-        ? {
-            ...wire,
-            routingStyle: undefined,
-            bundleId: undefined,
-            bundleStart: undefined,
-            bundleEnd: undefined,
-            control: undefined,
-            waypoints: undefined,
-          }
-        : wire));
+      setWires((current) => current.map((wire) => {
+        if (!affectedIds.has(wire.id)) return wire;
+        const reference = wire.bundleId ? affectedWires.find((item) => item.bundleId === wire.bundleId) : wire;
+        const a = resolveWorldPort(wire.a);
+        const b = resolveWorldPort(wire.b);
+        const referenceA = reference && resolveWorldPort(reference.a);
+        const referenceB = reference && resolveWorldPort(reference.b);
+        const reversed = wire.bundleReversed ?? (a && b && referenceA && referenceB && wireEndsReversed(a, b, referenceA, referenceB));
+        return {
+          ...wire, routingStyle: undefined, bundleId: undefined, bundleStart: undefined, bundleEnd: undefined, bundleEndpoints: undefined,
+          bundleReversed: undefined, bundleLeadIn: undefined, bundleLeadOut: undefined,
+          waypoints: reversed ? wireWaypoints(wire).reverse() : wireWaypoints(wire),
+        };
+      }));
       setBundleSelectionMode(false);
       return;
     }
 
     const nextBundleId = affectedWires.length > 1 ? (existingBundleId ?? uid()) : undefined;
-    const sharedBundleStart = affectedWires[0]?.bundleStart ?? 0.18;
-    const sharedBundleEnd = affectedWires[0]?.bundleEnd ?? 0.82;
-    let sharedControl: { x: number; y: number } | undefined;
-    if (affectedWires.length > 1 && !existingBundleId) {
-      const centers = affectedWires.flatMap((wire) => {
-        const a = resolveWorldPort(wire.a);
-        const b = resolveWorldPort(wire.b);
-        return a && b ? [{ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }] : [];
-      });
-      if (centers.length > 0) {
-        sharedControl = {
-          x: Math.round((centers.reduce((sum, point) => sum + point.x, 0) / centers.length) / 4) * 4,
-          y: Math.round((centers.reduce((sum, point) => sum + point.y, 0) / centers.length) / 4) * 4,
-        };
-      }
+    const sharedWire = affectedWires.find((wire) => wire.bundleEndpoints) ?? affectedWires[0];
+    const sharedControl = sharedWire.control;
+    const sharedWaypoints = sharedWire.waypoints ?? affectedWires.find((wire) => wire.waypoints?.length)?.waypoints;
+    const sharedA = resolveWorldPort(sharedWire.bundleReversed ? sharedWire.b : sharedWire.a);
+    const sharedB = resolveWorldPort(sharedWire.bundleReversed ? sharedWire.a : sharedWire.b);
+    const waypointShape = (points: WireWaypoint[]) => JSON.stringify(points.map(({ x, y, terminal }) => [x, y, terminal ?? 'wago']));
+    if (sharedWaypoints && affectedWires.some((wire) => wire.waypoints?.length
+      && waypointShape(wire.waypoints) !== waypointShape(sharedWaypoints))) {
+      window.alert('所选导线有不同的中间端子路径，请先统一端子路径再合并线束。现有端子已保留。');
+      return;
     }
 
     setWires((current) => current.map((wire) => affectedIds.has(wire.id)
@@ -953,29 +983,25 @@ export default function Home() {
           ...wire,
           routingStyle: style,
           bundleId: nextBundleId,
-          bundleStart: sharedBundleStart,
-          bundleEnd: sharedBundleEnd,
-          control: sharedControl ?? wire.control,
-          waypoints: existingBundleId ? wire.waypoints : undefined,
+          bundleStart: undefined,
+          bundleEnd: undefined,
+          bundleEndpoints: sharedWire.bundleEndpoints,
+          bundleReversed: wire.bundleEndpoints && wire.bundleId === sharedWire.bundleId ? wire.bundleReversed
+            : sharedWire.bundleEndpoints && sharedA && sharedB && resolveWorldPort(wire.a) && resolveWorldPort(wire.b)
+              ? wireEndsReversed(resolveWorldPort(wire.a)!, resolveWorldPort(wire.b)!, sharedA, sharedB) : undefined,
+          bundleLeadIn: sharedWire.bundleLeadIn,
+          bundleLeadOut: sharedWire.bundleLeadOut,
+          control: sharedControl,
+          waypoints: sharedWaypoints?.map((point) => ({ ...point })),
         }
       : wire));
     setBundleSelectionMode(false);
   };
 
-  const applyWireBundleRange = (start: number, end: number) => {
-    const safeStart = Math.max(0, Math.min(start, end - 0.1));
-    const safeEnd = Math.min(1, Math.max(end, safeStart + 0.1));
-    setWires((current) => current.map((wire) =>
-      selectedWires.has(wire.id) || Boolean(wire.bundleId && selectedBundleIds.has(wire.bundleId))
-        ? { ...wire, bundleStart: safeStart, bundleEnd: safeEnd }
-        : wire,
-    ));
-  };
-
   const restoreSelectedWiring = () => {
     setWires((current) => current.map((wire) =>
       selectedWires.has(wire.id) || Boolean(wire.bundleId && selectedBundleIds.has(wire.bundleId))
-        ? { ...wire, control: undefined, waypoints: undefined }
+        ? { ...wire, control: undefined, waypoints: undefined, bundleLeadIn: undefined, bundleLeadOut: undefined }
         : wire,
     ));
   };
@@ -987,13 +1013,18 @@ export default function Home() {
     setWires((current) => {
       const target = current.find((wire) => wire.id === wireId);
       if (!target) return current;
-      const nextWaypoints = update(target.waypoints ?? []);
+      const nextWaypoints = update(wireWaypoints(target));
+      const beforeIds = new Set(target.bundleLeadIn?.map((point) => point.id));
+      const afterIds = new Set(target.bundleLeadOut?.map((point) => point.id));
+      const cableIds = new Set((pairedWireGroups(current, parts, partDefs).get(wireId) ?? [target]).map((wire) => wire.id));
       return current.map((wire) =>
-        wire.id === wireId || Boolean(target.bundleId && wire.bundleId === target.bundleId)
+        cableIds.has(wire.id) || Boolean(target.bundleId && wire.bundleId === target.bundleId)
           ? {
               ...wire,
               control: undefined,
-              waypoints: nextWaypoints.length > 0 ? nextWaypoints.map((waypoint) => ({ ...waypoint })) : undefined,
+              bundleLeadIn: nextWaypoints.filter((point) => beforeIds.has(point.id)),
+              bundleLeadOut: nextWaypoints.filter((point) => afterIds.has(point.id)),
+              waypoints: nextWaypoints.filter((point) => !beforeIds.has(point.id) && !afterIds.has(point.id)),
             }
           : wire,
       );
@@ -1026,14 +1057,17 @@ export default function Home() {
 
   const addSelectedWireWaypoint = () => {
     if (!selectedWire) return;
-    const p1 = resolveWorldPort(selectedWire.a);
-    const p2 = resolveWorldPort(selectedWire.b);
+    const target = selectedWire.bundleId
+      ? wires.filter((wire) => wire.bundleId === selectedWire.bundleId).sort((a, b) => compareWireEditors(a, b, cables))[0]
+      : selectedWire;
+    const p1 = resolveWorldPort(target.a);
+    const p2 = resolveWorldPort(target.b);
     if (!p1 || !p2) return;
-    const existing = selectedWire.waypoints ?? [];
+    const existing = target.waypoints ?? [];
     const index = existing.length;
     if (index === 0) {
-      const route = wireRoute(p1, p2, 0, selectedWire.control);
-      addWireWaypoint(selectedWire.id, { id: uid(), x: route.control.x, y: route.control.y, terminal: 'wago' }, 0);
+      const route = buildWireGeometry(wires, resolveWorldPort, () => 0, cables).routes.get(target.id) ?? wireRoute(p1, p2, 0, target.control);
+      addWireWaypoint(target.id, { id: uid(), x: route.control.x, y: route.control.y, terminal: 'wago' }, 0);
       return;
     }
 
@@ -1049,7 +1083,7 @@ export default function Home() {
       nextPoint.x += 24;
       nextPoint.y += 24;
     }
-    addWireWaypoint(selectedWire.id, nextPoint, index);
+    addWireWaypoint(target.id, nextPoint, index);
   };
 
   const onPortClick = (end: WireEnd) => {
@@ -1065,73 +1099,14 @@ export default function Home() {
       setPendingFrom(end); // 同一元件上换起点
       return;
     }
-    // 颜色：两端同类型用类型色，否则用当前选色
-    const partA = parts.find((part) => part.uid === pendingFrom.uid);
-    const partB = parts.find((part) => part.uid === end.uid);
-    const defA = partDefs.get(partA?.partId ?? '');
-    const defB = partDefs.get(partB?.partId ?? '');
-    const tA = defA?.ports.find((port) => port.id === pendingFrom.portId)?.type;
-    const tB = defB?.ports.find((port) => port.id === end.portId)?.type;
-    const color = tA && tA === tB ? PORT_TYPE_COLOR[tA] : wireColor;
-    const portA = defA?.ports.find((port) => port.id === pendingFrom.portId);
-    const portB = defB?.ports.find((port) => port.id === end.portId);
-    const isDataJumper = tA === 'data' && tB === 'data';
-    const mainWireBase: Wire = {
-      id: uid(),
-      a: pendingFrom,
-      b: end,
-      color,
-      assembly: isDataJumper ? 'jumper' : 'field',
-      terminalA: isDataJumper ? defaultTerminalForPort(portA) : undefined,
-      terminalB: isDataJumper ? defaultTerminalForPort(portB) : undefined,
-    };
-    const mainWire: Wire = {
-      ...mainWireBase,
-      awg: wireGaugeRule(mainWireBase, parts, partDefs).recommended,
-    };
-    const canAutoPair =
-      partA?.partId !== 'battery12v' &&
-      partB?.partId !== 'battery12v' &&
-      tA === tB &&
-      (tA === 'pwr+' || tA === 'pwr-') &&
-      defA &&
-      defB;
-    const pairedA = canAutoPair ? pairedPowerPort(defA, pendingFrom.portId) : undefined;
-    const pairedB = canAutoPair ? pairedPowerPort(defB, end.portId) : undefined;
-
-    setWires((current) => {
-      if (!pairedA || !pairedB || pairedA.type !== pairedB.type) return [...current, mainWire];
-      const autoA: WireEnd = { uid: pendingFrom.uid, portId: pairedA.id };
-      const autoB: WireEnd = { uid: end.uid, portId: pairedB.id };
-      const isSameEnd = (left: WireEnd, right: WireEnd) =>
-        left.uid === right.uid && left.portId === right.portId;
-      const counterpartOccupied = current.some((wire) =>
-        isSameEnd(wire.a, autoA) ||
-        isSameEnd(wire.b, autoA) ||
-        isSameEnd(wire.a, autoB) ||
-        isSameEnd(wire.b, autoB),
-      );
-      if (counterpartOccupied) return [...current, mainWire];
-      const pairedWireBase: Wire = {
-        id: uid(),
-        a: autoA,
-        b: autoB,
-        color: PORT_TYPE_COLOR[pairedA.type],
-        assembly: 'field',
-      };
-      const pairedWire: Wire = {
-        ...pairedWireBase,
-        awg: wireGaugeRule(pairedWireBase, parts, partDefs).recommended,
-      };
-      return [...current, mainWire, pairedWire];
-    });
+    setWires((current) => connectWireEnds(current, pendingFrom, end, parts, partDefs, wireColor));
     setPendingFrom(null);
   };
 
   const onPickColor = (c: string) => {
     setWireColor(c);
     if (selectedWires.size > 0) {
-      setWires((ws) => ws.map((w) => (selectedWires.has(w.id) ? { ...w, color: c } : w)));
+      setWires((ws) => ws.map((w) => (selectedWires.has(w.id) && (!cables.has(w.id) || cables.get(w.id)![0].id === w.id) ? { ...w, color: c } : w)));
     }
   };
 
@@ -1245,6 +1220,15 @@ export default function Home() {
       maxX = Math.max(maxX, cx + bw / 2);
       maxY = Math.max(maxY, cy + bh / 2 + 24);
     });
+    if (targetParts === parts) {
+      const bounds = svgRef.current.querySelector('g')?.getBBox();
+      if (bounds && bounds.width > 0 && bounds.height > 0) {
+        minX = Math.min(minX, bounds.x);
+        minY = Math.min(minY, bounds.y);
+        maxX = Math.max(maxX, bounds.x + bounds.width);
+        maxY = Math.max(maxY, bounds.y + bounds.height);
+      }
+    }
     const rect = svgRef.current.getBoundingClientRect();
     const pad = 50;
     const kx = (rect.width - pad * 2) / (maxX - minX);
@@ -1292,6 +1276,13 @@ export default function Home() {
       maxX = Math.max(maxX, cx + bw / 2);
       maxY = Math.max(maxY, cy + bh / 2 + 26);
     });
+    const bounds = svg.querySelector('g')?.getBBox();
+    if (bounds && bounds.width > 0 && bounds.height > 0) {
+      minX = Math.min(minX, bounds.x);
+      minY = Math.min(minY, bounds.y);
+      maxX = Math.max(maxX, bounds.x + bounds.width);
+      maxY = Math.max(maxY, bounds.y + bounds.height);
+    }
     const pad = 40;
     minX -= pad;
     minY -= pad;
@@ -1396,7 +1387,7 @@ export default function Home() {
 
   /* ---------- 渲染 ---------- */
 
-  const selCount = selectedParts.size + selectedWires.size;
+  const selCount = selectedParts.size + new Set([...selectedWires].map((id) => cables.get(id)?.[0].id ?? id)).size;
 
   return (
     <div className="h-screen w-screen flex flex-col bg-slate-100 overflow-hidden">
@@ -1721,9 +1712,14 @@ export default function Home() {
             view={view}
             svgRef={svgRef}
             onViewChange={setView}
-            onMoveSelectedBy={(dx, dy, uids) =>
-              setParts((ps) => ps.map((p) => (uids.includes(p.uid) && !p.locked ? { ...p, x: p.x + dx, y: p.y + dy } : p)))
-            }
+            onMoveSelectedBy={(dx, dy, uids) => updateActiveProject((project) => {
+              const moved = new Set(project.parts.filter((part) => uids.includes(part.uid) && !part.locked).map((part) => part.uid));
+              return {
+                ...project,
+                parts: project.parts.map((part) => moved.has(part.uid) ? { ...part, x: part.x + dx, y: part.y + dy } : part),
+                wires: translateWireRoutes(project.wires, moved, dx, dy),
+              };
+            })}
             onPartClick={(uid2, additive) => {
               setSelectedWires(new Set());
               setSelectedParts((prev) => {
@@ -1746,24 +1742,41 @@ export default function Home() {
             onWireClick={(id, additive) => {
               setSelectedParts(new Set());
               setSelectedWires((prev) => {
-                if (!additive && !bundleSelectionMode) return new Set([id]);
+                const ids = cables.get(id)?.map((wire) => wire.id) ?? [id];
+                if (!additive && !bundleSelectionMode) return new Set(ids);
                 const next = new Set(prev);
-                if (next.has(id)) next.delete(id);
-                else next.add(id);
+                if (ids.every((id) => next.has(id))) ids.forEach((id) => next.delete(id));
+                else ids.forEach((id) => next.add(id));
                 return next;
               });
             }}
             onWireControlChange={(id, control) => {
               setWires((current) => {
                 const target = current.find((wire) => wire.id === id);
+                const cableIds = new Set((pairedWireGroups(current, parts, partDefs).get(id) ?? []).map((wire) => wire.id));
                 return current.map((wire) =>
-                  wire.id === id || Boolean(target?.bundleId && wire.bundleId === target.bundleId)
+                  wire.id === id || cableIds.has(wire.id) || Boolean(target?.bundleId && wire.bundleId === target.bundleId)
                     ? { ...wire, control }
                     : wire,
                 );
               });
             }}
             onWireWaypointAdd={addWireWaypoint}
+            onBundleEndpointsChange={(id, bundleEndpoints) => {
+              setWires((current) => {
+                const target = current.find((wire) => wire.id === id);
+                if (bundleEndpoints) {
+                  const { entry, exit } = bundleEndpoints;
+                  const dx = exit.x - entry.x;
+                  const dy = exit.y - entry.y;
+                  const nx = Math.abs(dx) >= Math.abs(dy) ? Math.sign(dx) || 1 : 0;
+                  const ny = nx ? 0 : Math.sign(dy) || 1;
+                  bundleEndpoints = { entry: { ...entry, nx: -nx, ny: -ny }, exit: { ...exit, nx, ny } };
+                }
+                return current.map((wire) => wire.id === id || Boolean(target?.bundleId && wire.bundleId === target.bundleId)
+                  ? { ...wire, bundleEndpoints, control: undefined } : wire);
+              });
+            }}
             onWireWaypointChange={changeWireWaypoint}
             onPortClick={onPortClick}
             onFuseClick={cyclePartFuse}
@@ -1776,29 +1789,32 @@ export default function Home() {
             }}
           />
         </div>
-        {selectedWires.size > 1 && (
+        {selectedWires.size > 1 && !selectedWire && (
           <WireBundlePanel
             wireCount={selectedWires.size}
             value={selectedWireRoutingStyle}
             onChange={applyWireRoutingStyle}
-            bundleStart={selectedWireBundleStart}
-            bundleEnd={selectedWireBundleEnd}
-            onBundleRangeChange={applyWireBundleRange}
             onClose={() => setSelectedWires(new Set())}
           />
         )}
         {selectedWire && selectedWireRule && (
           <WirePropertiesPanel
             wire={selectedWire}
+            cableSize={cables.get(selectedWire.id)?.length ?? 1}
             parts={parts}
             partDefs={partDefs}
             rule={selectedWireRule}
             bundleSize={selectedWireBundleSize}
-            onChange={(changes) => setWires((current) => current.map((wire) =>
-              wire.id === selectedWire.id ? { ...wire, ...changes } : wire,
-            ))}
+            onChange={(changes) => setWires((current) => current.map((wire) => {
+              if (wire.id !== selectedWire.id && !cables.get(selectedWire.id)?.some((item) => item.id === wire.id)) return wire;
+              if (wire.a.uid === selectedWire.a.uid) return { ...wire, ...changes };
+              const { terminalA, terminalB, ...shared } = changes;
+              return { ...wire, ...shared,
+                ...('terminalA' in changes ? { terminalB: terminalA } : {}),
+                ...('terminalB' in changes ? { terminalA: terminalB } : {}),
+              };
+            }))}
             onRoutingStyleChange={applyWireRoutingStyle}
-            onBundleRangeChange={applyWireBundleRange}
             onAddWaypoint={addSelectedWireWaypoint}
             onWaypointTerminalChange={(waypointId, terminal) => changeWireWaypointTerminal(selectedWire.id, waypointId, terminal)}
             onRemoveWaypoint={(waypointId) => changeWireWaypoint(selectedWire.id, waypointId)}
@@ -1824,7 +1840,7 @@ export default function Home() {
         <span>
           <b className="text-sky-700">{activeEngineeringProject.name}</b>
           <span className="mx-1 text-slate-300">/</span>
-          <b className="text-slate-700">{activeProject.name}</b> · <b className="text-slate-700">{parts.length}</b> 个元件 · <b className="text-slate-700">{wires.length}</b> 根导线
+          <b className="text-slate-700">{activeProject.name}</b> · <b className="text-slate-700">{parts.length}</b> 个元件 · <b className="text-slate-700">{wires.length - cables.size / 2}</b> 条线路
           {selCount > 0 && <span className="text-sky-600"> · 已选 {selCount} 项</span>}
           {pendingFrom && <span className="text-orange-600"> · 接线中：请点击另一个端口完成连接（Esc 取消）</span>}
         </span>

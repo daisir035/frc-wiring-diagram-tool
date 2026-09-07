@@ -1,0 +1,6 @@
+CTRE CANivore top-view asset
+Source: https://store.ctr-electronics.com/cdn/shop/files/CANivore-robotics-USB-to-CAN-FD-hub-tech_specs.png?v=1758737111
+Product: https://store.ctr-electronics.com/products/canivore
+Retrieved: 2026-09-07
+Processing: crop x=106, y=74, width=353, height=512; rotate clockwise 90 degrees.
+Body dimensions in the manufacturer drawing: 55.12 x 39.37 mm.

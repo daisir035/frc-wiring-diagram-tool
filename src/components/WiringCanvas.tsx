@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback, useId } from 'react';
 import type {
   CanvasBackground,
   PartDef,
   PlacedPart,
   Wire,
   WireEnd,
-  WireRoutingStyle,
   WireTerminalType,
   WireWaypoint,
   ViewTransform,
@@ -13,14 +12,21 @@ import type {
 } from '../lib/wiring';
 import {
   defaultTerminalForPort,
+  buildWireGeometry,
+  cablePort,
+  cablePorts,
+  pairedCablePort,
+  pairedWireGroups,
+  wireWaypoints,
+  projectOntoRoute,
   partSize,
   portWorld,
   wireGaugeRule,
   wirePath,
-  wireRoute,
   PORT_TYPE_COLOR,
 } from '../lib/wiring';
 import PartArtwork from './PartArtwork';
+import CableConductors from './CableConductors';
 
 interface Props {
   backgroundImage?: CanvasBackground;
@@ -38,6 +44,7 @@ interface Props {
   onMarqueeSelect: (selection: { partUids: string[]; wireIds: string[] }, additive: boolean) => void;
   onWireClick: (id: string, additive: boolean) => void;
   onWireControlChange: (id: string, control?: { x: number; y: number }) => void;
+  onBundleEndpointsChange: (id: string, endpoints?: Wire['bundleEndpoints']) => void;
   onWireWaypointAdd: (id: string, waypoint: WireWaypoint, index: number) => void;
   onWireWaypointChange: (id: string, waypointId: string, point?: { x: number; y: number }) => void;
   onPortClick: (end: WireEnd) => void;
@@ -51,6 +58,7 @@ type DragMode =
   | { kind: 'marquee'; startWx: number; startWy: number; additive: boolean }
   | { kind: 'parts'; uids: string[]; lastWx: number; lastWy: number; moved: boolean; additive: boolean; clickUid: string }
   | { kind: 'wire-control'; wireId: string }
+  | { kind: 'bundle-endpoint'; wireId: string; endpoint: 'entry' | 'exit'; endpoints: NonNullable<Wire['bundleEndpoints']>; offsetX: number; offsetY: number }
   | { kind: 'wire-waypoint'; wireId: string; waypointId: string };
 
 interface SelectionRect {
@@ -125,45 +133,6 @@ function pathIntersectsRect(path: string, rect: SelectionRect, padding: number) 
     previous = current;
   }
   return segmentIntersectsRect(previous, pathElement.getPointAtLength(length), hitRect);
-}
-
-function distanceToSegment(point: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }) {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const lengthSquared = dx * dx + dy * dy;
-  if (lengthSquared === 0) return Math.hypot(point.x - a.x, point.y - a.y);
-  const t = Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / lengthSquared));
-  return Math.hypot(point.x - (a.x + t * dx), point.y - (a.y + t * dy));
-}
-
-function wireBundleRange(wire: Wire) {
-  const rawStart = Number.isFinite(wire.bundleStart) ? wire.bundleStart! : 0.18;
-  const rawEnd = Number.isFinite(wire.bundleEnd) ? wire.bundleEnd! : 0.82;
-  const start = Math.max(0, Math.min(rawStart, 0.9));
-  const end = Math.min(1, Math.max(rawEnd, start + 0.1));
-  return { start, end };
-}
-
-function segmentStroke(start: number, end: number) {
-  if (start <= 0 && end >= 1) return {};
-  const length = Math.max(0.0001, end - start);
-  return {
-    pathLength: 1,
-    strokeDasharray: length + ' ' + Math.max(0.0001, 1 - length),
-    strokeDashoffset: -start,
-  };
-}
-
-function pointAtPathRatio(path: string, ratio: number) {
-  const pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  pathElement.setAttribute('d', path);
-  const length = pathElement.getTotalLength();
-  const point = pathElement.getPointAtLength(length * Math.max(0, Math.min(1, ratio)));
-  return { x: point.x, y: point.y };
-}
-
-function straightPath(a: { x: number; y: number }, b: { x: number; y: number }) {
-  return 'M ' + a.x + ' ' + a.y + ' L ' + b.x + ' ' + b.y;
 }
 
 const TERMINAL_NAMES: Record<WireTerminalType, string> = {
@@ -268,6 +237,7 @@ export default function WiringCanvas(props: Props) {
     onMarqueeSelect,
     onWireClick,
     onWireControlChange,
+    onBundleEndpointsChange,
     onWireWaypointAdd,
     onWireWaypointChange,
     onPortClick,
@@ -275,6 +245,7 @@ export default function WiringCanvas(props: Props) {
     onBackgroundClick,
   } = props;
   const containerRef = useRef<HTMLDivElement>(null);
+  const portFillId = useId().replace(/:/g, '');
   const dragRef = useRef<DragMode>({ kind: 'none' });
   const spaceRef = useRef(false);
   const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
@@ -338,7 +309,7 @@ export default function WiringCanvas(props: Props) {
   // 空格键平移
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLSelectElement)) {
+      if (e.code === 'Space' && !(e.target instanceof Element && e.target.closest('input, select, textarea, [contenteditable="true"]'))) {
         spaceRef.current = true;
         e.preventDefault();
       }
@@ -346,11 +317,18 @@ export default function WiringCanvas(props: Props) {
     const up = (e: KeyboardEvent) => {
       if (e.code === 'Space') spaceRef.current = false;
     };
+    const blur = () => {
+      spaceRef.current = false;
+      dragRef.current = { kind: 'none' };
+      setMarquee(null);
+    };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
+    window.addEventListener('blur', blur);
     return () => {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
+      window.removeEventListener('blur', blur);
     };
   }, []);
 
@@ -372,6 +350,41 @@ export default function WiringCanvas(props: Props) {
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
   }, [view, onViewChange]);
+
+  const partByUid = useMemo(() => new Map(parts.map((part) => [part.uid, part])), [parts]);
+  const getPort = useCallback((end: WireEnd) => {
+    const part = partByUid.get(end.uid);
+    const def = part && partDefs.get(part.partId);
+    const port = def?.ports.find((po) => po.id === end.portId);
+    if (!part || !def || !port) return null;
+    return portWorld(part, def, cablePort(def, port));
+  }, [partByUid, partDefs]);
+
+  const getPortDef = useCallback((end: WireEnd) => {
+    const part = partByUid.get(end.uid);
+    const def = part && partDefs.get(part.partId);
+    return def?.ports.find((port) => port.id === end.portId);
+  }, [partByUid, partDefs]);
+
+  const cables = useMemo(() => pairedWireGroups(wires, parts, partDefs), [wires, parts, partDefs]);
+  const wireLane = useCallback((wire: Wire) => {
+    if (cables.has(wire.id)) return 0;
+    const typeA = getPortDef(wire.a)?.type;
+    const typeB = getPortDef(wire.b)?.type;
+    if (typeA === typeB) {
+      if (typeA === 'pwr+') return -7;
+      if (typeA === 'pwr-') return 7;
+      if (typeA === 'canH') return -5;
+      if (typeA === 'canL') return 5;
+      if (typeA === 'phaseA') return -6;
+      if (typeA === 'phaseB') return 0;
+      if (typeA === 'phaseC') return 6;
+    }
+    let hash = 0;
+    for (const char of wire.id) hash = (hash * 31 + char.charCodeAt(0)) | 0;
+    return ((Math.abs(hash) % 5) - 2) * 2;
+  }, [getPortDef, cables]);
+  const geometry = useMemo(() => buildWireGeometry(wires, getPort, wireLane, cables), [wires, getPort, wireLane, cables]);
 
   /* ---------- 指针事件 ---------- */
 
@@ -439,6 +452,16 @@ export default function WiringCanvas(props: Props) {
       d.lastWx = w.x;
       d.lastWy = w.y;
       onMoveSelectedBy(dx, dy, d.uids);
+    } else if (d.kind === 'bundle-endpoint') {
+      const point = toWorld(e.clientX, e.clientY);
+      onBundleEndpointsChange(d.wireId, {
+        ...d.endpoints,
+        [d.endpoint]: {
+          ...d.endpoints[d.endpoint],
+          x: Math.round((point.x + d.offsetX) / 4) * 4,
+          y: Math.round((point.y + d.offsetY) / 4) * 4,
+        },
+      });
     } else if (d.kind === 'wire-control') {
       const point = toWorld(e.clientX, e.clientY);
       onWireControlChange(d.wireId, {
@@ -485,11 +508,11 @@ export default function WiringCanvas(props: Props) {
       const selectionRect = { x: rx, y: ry, w: rw, h: rh };
       const directlyHitWireIds = new Set(
         wires.filter((wire) => {
-          const p1 = getPort(wire.a);
-          const p2 = getPort(wire.b);
-          if (!p1 || !p2) return false;
-          const route = wireRoute(p1, p2, wireLane(wire), wire.control, wire.waypoints);
-          return pathIntersectsRect(route.path, selectionRect, 6 / view.k);
+          const route = geometry.routes.get(wire.id);
+          if (!route) return false;
+          return route.visiblePaths.some((path) => pathIntersectsRect(path, selectionRect, 6 / view.k))
+            || geometry.bundles.some((bundle) => bundle.wireIds.includes(wire.id)
+              && pathIntersectsRect(bundle.path, selectionRect, 10 / view.k));
         }).map((wire) => wire.id),
       );
       const hitBundleIds = new Set(
@@ -506,91 +529,15 @@ export default function WiringCanvas(props: Props) {
     }
   };
 
-  const getPort = (end: WireEnd) => {
-    const part = parts.find((p2) => p2.uid === end.uid);
-    const def = part && partDefs.get(part.partId);
-    const port = def?.ports.find((po) => po.id === end.portId);
-    if (!part || !def || !port) return null;
-    return portWorld(part, def, port);
-  };
-
-  const getPortDef = (end: WireEnd) => {
-    const part = parts.find((item) => item.uid === end.uid);
-    const def = part && partDefs.get(part.partId);
-    return def?.ports.find((port) => port.id === end.portId);
-  };
-
-  const getPortType = (end: WireEnd) => {
-    return getPortDef(end)?.type;
-  };
-
-  const wireLane = (wire: Wire) => {
-    const typeA = getPortType(wire.a);
-    const typeB = getPortType(wire.b);
-    if (typeA === typeB) {
-      if (typeA === 'pwr+') return -7;
-      if (typeA === 'pwr-') return 7;
-      if (typeA === 'canH') return -5;
-      if (typeA === 'canL') return 5;
-      if (typeA === 'phaseA') return -6;
-      if (typeA === 'phaseB') return 0;
-      if (typeA === 'phaseC') return 6;
-    }
-    let hash = 0;
-    for (const char of wire.id) hash = (hash * 31 + char.charCodeAt(0)) | 0;
-    return ((Math.abs(hash) % 5) - 2) * 2;
-  };
-
-  const routingGroups = new Map<string, {
-    style: Exclude<WireRoutingStyle, 'standard'>;
-    items: Array<{ wire: Wire; path: string; control: { x: number; y: number } }>;
-  }>();
-  wires.forEach((wire) => {
-    const style = wire.routingStyle;
-    if (!style || style === 'standard') return;
-    const p1 = getPort(wire.a);
-    const p2 = getPort(wire.b);
-    if (!p1 || !p2) return;
-    const route = wireRoute(p1, p2, wireLane(wire), wire.control, wire.waypoints);
-    const key = wire.bundleId ?? `wire:${wire.id}`;
-    const group = routingGroups.get(key) ?? { style, items: [] };
-    group.style = style;
-    group.items.push({ wire, path: route.path, control: route.control });
-    routingGroups.set(key, group);
-  });
-
-  const bundledWireGeometry = new Map<string, {
-    range: { start: number; end: number };
-    fanPaths: string[];
-  }>();
-  const routingVisuals = [...routingGroups.entries()].map(([key, group]) => {
-    const representative = group.items[0];
-    const range = wireBundleRange(representative.wire);
-    const startPoint = pointAtPathRatio(representative.path, range.start);
-    const endPoint = pointAtPathRatio(representative.path, range.end);
-    group.items.forEach((item) => {
-      const ownStart = pointAtPathRatio(item.path, range.start);
-      const ownEnd = pointAtPathRatio(item.path, range.end);
-      const fanPaths: string[] = [];
-      if (Math.hypot(ownStart.x - startPoint.x, ownStart.y - startPoint.y) > 0.5) {
-        fanPaths.push(straightPath(ownStart, startPoint));
-      }
-      if (Math.hypot(ownEnd.x - endPoint.x, ownEnd.y - endPoint.y) > 0.5) {
-        fanPaths.push(straightPath(ownEnd, endPoint));
-      }
-      bundledWireGeometry.set(item.wire.id, { range, fanPaths });
-    });
-    return {
-      key,
-      style: group.style,
-      count: group.items.length,
-      path: representative.path,
-      range,
-      startPoint,
-      endPoint,
-      labelPoint: pointAtPathRatio(representative.path, (range.start + range.end) / 2),
-    };
-  });
+  const editorIds = new Set<string>();
+  const editingWireIds = new Set(wires.filter((wire) => {
+    if (cables.has(wire.id) && cables.get(wire.id)![0].id !== wire.id) return false;
+    if (!selectedWires.has(wire.id)) return false;
+    const editorId = geometry.routes.get(wire.id)?.editorWire.id;
+    if (!editorId || editorIds.has(editorId)) return false;
+    editorIds.add(editorId);
+    return true;
+  }).map((wire) => wire.id));
 
   /* ---------- 渲染 ---------- */
 
@@ -612,7 +559,18 @@ export default function WiringCanvas(props: Props) {
         onPointerDown={onSvgPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onPointerCancel={() => { dragRef.current = { kind: 'none' }; setMarquee(null); }}
+        onLostPointerCapture={() => { dragRef.current = { kind: 'none' }; setMarquee(null); }}
+        style={{ touchAction: 'none' }}
       >
+        <defs>
+          {(['power', 'can'] as const).map((kind) => (
+            <linearGradient key={kind} id={`${portFillId}-${kind}`} x1="0" y1="0" x2="1" y2="1">
+              <stop offset="50%" stopColor={kind === 'power' ? PORT_TYPE_COLOR['pwr+'] : PORT_TYPE_COLOR.canH} />
+              <stop offset="50%" stopColor={kind === 'power' ? PORT_TYPE_COLOR['pwr-'] : PORT_TYPE_COLOR.canL} />
+            </linearGradient>
+          ))}
+        </defs>
         <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
           {backgroundImage && (
             <image
@@ -630,28 +588,18 @@ export default function WiringCanvas(props: Props) {
           )}
 
           {/* 拖链 / 束线管外套：每组只绘制一条细主干，彩色线在两端汇聚与散开 */}
-          {routingVisuals.map((visual) => {
-            const jacketWidth = Math.min(18, 9 + visual.count * 1.2);
+          {geometry.bundles.map((visual) => {
+            const count = visual.wireIds.length;
+            const jacketWidth = Math.min(18, 9 + count * 1.2);
             const label = visual.style === 'drag-chain' ? '拖链' : '束线管';
-            const labelText = visual.count > 1 ? `${label} · ${visual.count} 根` : label;
+            const labelText = count > 1 ? `${label} · ${count} 根` : label;
             const labelWidth = Math.max(54, labelText.length * 11 + 18);
-            const maskId = 'bundle-range-' + visual.key.replace(/[^a-zA-Z0-9_-]/g, '_');
             return (
-              <g key={'routing:' + visual.key} style={{ pointerEvents: 'none' }}>
-                <defs>
-                  <mask id={maskId} maskUnits="userSpaceOnUse" x={-100000} y={-100000} width={200000} height={200000}>
-                    <path
-                      d={visual.path}
-                      fill="none"
-                      stroke="#ffffff"
-                      strokeWidth={jacketWidth + 8}
-                      strokeLinecap="butt"
-                      strokeLinejoin="round"
-                      {...segmentStroke(visual.range.start, visual.range.end)}
-                    />
-                  </mask>
-                </defs>
-                <g mask={'url(#' + maskId + ')'}>
+              <g key={'routing:' + visual.key} data-bundle-id={visual.key} style={{ pointerEvents: 'none' }}>
+                {visual.wireIds.some((id) => selectedWires.has(id)) && (
+                  <path d={visual.path} fill="none" stroke="#38bdf8" strokeWidth={jacketWidth + 8} opacity={0.42} strokeLinejoin="round" />
+                )}
+                <g>
                   {visual.style === 'drag-chain' ? (
                     <>
                       <path d={visual.path} fill="none" stroke="#1e293b" strokeWidth={jacketWidth + 2} strokeLinecap="round" strokeLinejoin="round" opacity={0.94} />
@@ -667,7 +615,7 @@ export default function WiringCanvas(props: Props) {
                 </g>
                 <circle cx={visual.startPoint.x} cy={visual.startPoint.y} r={Math.max(3.5, jacketWidth / 2)} fill={visual.style === 'drag-chain' ? '#334155' : '#94a3b8'} stroke="#ffffff" strokeWidth={1.5} />
                 <circle cx={visual.endPoint.x} cy={visual.endPoint.y} r={Math.max(3.5, jacketWidth / 2)} fill={visual.style === 'drag-chain' ? '#334155' : '#94a3b8'} stroke="#ffffff" strokeWidth={1.5} />
-                <g transform={'translate(' + visual.labelPoint.x + ' ' + (visual.labelPoint.y - jacketWidth / 2 - 18) + ')'}>
+                <g transform={'translate(' + (visual.labelPoint.x + labelWidth / 2 + jacketWidth / 2 + 10) + ' ' + (visual.labelPoint.y - jacketWidth / 2 - 18) + ')'}>
                   <rect x={-labelWidth / 2} y={-10} width={labelWidth} height={20} rx={7} fill="#ffffff" fillOpacity={0.96} stroke={visual.style === 'drag-chain' ? '#334155' : '#64748b'} />
                   <text x={0} y={0.5} textAnchor="middle" dominantBaseline="middle" fontSize={10} fontWeight={700} fill="#334155">{labelText}</text>
                   <title>{visual.style === 'drag-chain' ? '拖链保护的运动线缆' : '套入束线管的合并线束'}</title>
@@ -678,11 +626,17 @@ export default function WiringCanvas(props: Props) {
 
           {/* 导线 */}
           {wires.map((wire) => {
+            const cable = cables.get(wire.id);
+            if (cable && cable[0].id !== wire.id) return null;
             const p1 = getPort(wire.a);
             const p2 = getPort(wire.b);
             if (!p1 || !p2) return null;
             const lane = wireLane(wire);
-            const route = wireRoute(p1, p2, lane, wire.control, wire.waypoints);
+            const route = geometry.routes.get(wire.id);
+            if (!route) return null;
+            const editorWire = route.editorWire;
+            const editableWaypoints = wireWaypoints(editorWire);
+            const showEditor = editingWireIds.has(wire.id);
             const d = route.path;
             const sel = selectedWires.has(wire.id);
             const portA = getPortDef(wire.a);
@@ -690,7 +644,7 @@ export default function WiringCanvas(props: Props) {
             const rule = wireGaugeRule(wire, parts, partDefs);
             const gaugeApplies = rule.allowed.length > 0;
             const gaugeCompliant = !gaugeApplies || (wire.awg !== undefined && rule.allowed.includes(wire.awg));
-            const gaugeText = sel && selectedWires.size === 1 && gaugeApplies
+            const gaugeText = sel && selectedWires.size === (cable?.length ?? 1) && gaugeApplies
               ? (wire.awg ? `${wire.awg} AWG` : '未选 AWG')
               : null;
             const commonType = portA?.type === portB?.type ? portA?.type : undefined;
@@ -710,40 +664,33 @@ export default function WiringCanvas(props: Props) {
             const labelWidth = gaugeText ? Math.max(48, gaugeText.length * 6.4 + 14) : 0;
             const terminalA = wire.terminalA ?? defaultTerminalForPort(portA);
             const terminalB = wire.terminalB ?? defaultTerminalForPort(portB);
-            const bundleGeometry = bundledWireGeometry.get(wire.id);
-            const visiblePaths = bundleGeometry
-              ? [
-                  { path: d, start: 0, end: bundleGeometry.range.start },
-                  { path: d, start: bundleGeometry.range.end, end: 1 },
-                  ...bundleGeometry.fanPaths.map((path) => ({ path, start: 0, end: 1 })),
-                ].filter((segment) => segment.end - segment.start > 0.0001)
-              : [{ path: d, start: 0, end: 1 }];
+            const visiblePaths = route.visiblePaths;
             return (
-              <g key={wire.id}>
+              <g key={wire.id} data-wire-id={wire.id} data-cable-members={cable?.map((wire) => wire.id).join(',')}>
                 {sel && visiblePaths.map((segment, index) => (
-                  <path key={'selection-' + index} d={segment.path} fill="none" stroke="#38bdf8" strokeWidth={10} opacity={0.42} strokeLinecap="round" strokeLinejoin="round" {...segmentStroke(segment.start, segment.end)} />
+                  <path key={'selection-' + index} d={segment} fill="none" stroke="#38bdf8" strokeWidth={10} opacity={0.42} strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />
                 ))}
                 {visiblePaths.map((segment, index) => (
                   <g key={'wire-segment-' + index} style={{ pointerEvents: 'none' }}>
+                    {cable ? <CableConductors points={route.visiblePoints[index]} colors={[wire.color, cable[1].color]} twisted={commonType === 'canH'} /> : <>
                     <path
-                      d={segment.path}
+                      d={segment}
                       fill="none"
                       stroke="#ffffff"
                       strokeWidth={7}
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       opacity={0.92}
-                      {...segmentStroke(segment.start, segment.end)}
                     />
                     <path
-                      d={segment.path}
+                      d={segment}
                       fill="none"
                       stroke={wire.color}
                       strokeWidth={3.5}
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      {...segmentStroke(segment.start, segment.end)}
                     />
+                    </>}
                   </g>
                 ))}
                 <path
@@ -755,7 +702,7 @@ export default function WiringCanvas(props: Props) {
                   strokeLinejoin="round"
                   style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
                   onPointerDown={(e) => {
-                    if (e.button !== 0) return;
+                    if (e.button !== 0 || spaceRef.current) return;
                     e.stopPropagation();
                     onWireClick(wire.id, e.shiftKey);
                   }}
@@ -768,17 +715,10 @@ export default function WiringCanvas(props: Props) {
                       y: Math.round(point.y / 4) * 4,
                       terminal: 'wago' as const,
                     };
-                    const anchors = [p1, ...(wire.waypoints ?? []), p2];
-                    let insertIndex = 0;
-                    let nearest = Infinity;
-                    for (let index = 0; index < anchors.length - 1; index += 1) {
-                      const distance = distanceToSegment(point, anchors[index], anchors[index + 1]);
-                      if (distance < nearest) {
-                        nearest = distance;
-                        insertIndex = index;
-                      }
-                    }
-                    onWireWaypointAdd(wire.id, snapped, insertIndex);
+                    const along = projectOntoRoute(route.points, point).along;
+                    const insertIndex = editableWaypoints.filter((waypoint) =>
+                      projectOntoRoute(route.points, waypoint).along < along).length;
+                    onWireWaypointAdd(editorWire.id, snapped, insertIndex);
                   }}
                 />
                 {wire.assembly === 'jumper' && (
@@ -787,9 +727,9 @@ export default function WiringCanvas(props: Props) {
                     <WireTerminalMarker port={p2} type={terminalB} color={wire.color} />
                   </>
                 )}
-                {wire.waypoints?.map((waypoint, index) => {
-                  const previous = index === 0 ? p1 : wire.waypoints![index - 1];
-                  const next = index === wire.waypoints!.length - 1 ? p2 : wire.waypoints![index + 1];
+                {wire.id === editorWire.id && editableWaypoints.map((waypoint, index) => {
+                  const previous = index === 0 ? p1 : editableWaypoints[index - 1];
+                  const next = index === editableWaypoints.length - 1 ? p2 : editableWaypoints[index + 1];
                   const dx = next.x - previous.x;
                   const dy = next.y - previous.y;
                   const length = Math.hypot(dx, dy) || 1;
@@ -834,20 +774,19 @@ export default function WiringCanvas(props: Props) {
                     <title>{gaugeCompliant ? rule.label : `${rule.label}：当前线规不符合允许范围`}</title>
                   </g>
                 )}
-                {sel && (!wire.waypoints || wire.waypoints.length === 0) && (
+                {showEditor && (!editorWire.waypoints || editorWire.waypoints.length === 0) && (
                   <g
                     transform={`translate(${route.control.x} ${route.control.y})`}
                     style={{ cursor: 'move' }}
                     onPointerDown={(e) => {
-                      if (e.button !== 0) return;
+                      if (e.button !== 0 || spaceRef.current) return;
                       e.stopPropagation();
                       ((e.currentTarget as SVGElement).ownerSVGElement as Element | null)?.setPointerCapture?.(e.pointerId);
-                      onWireClick(wire.id, false);
-                      dragRef.current = { kind: 'wire-control', wireId: wire.id };
+                      dragRef.current = { kind: 'wire-control', wireId: editorWire.id };
                     }}
                     onDoubleClick={(e) => {
                       e.stopPropagation();
-                      onWireControlChange(wire.id, undefined);
+                      onWireControlChange(editorWire.id, undefined);
                     }}
                   >
                     <circle r={8} fill="#ffffff" stroke="#0284c7" strokeWidth={2} />
@@ -855,20 +794,20 @@ export default function WiringCanvas(props: Props) {
                     <title>拖动调整路径，双击恢复自动布线</title>
                   </g>
                 )}
-                {sel && wire.waypoints?.map((waypoint, index) => (
+                {showEditor && editableWaypoints.map((waypoint, index) => (
                   <g
                     key={waypoint.id}
                     transform={`translate(${waypoint.x} ${waypoint.y})`}
                     style={{ cursor: 'move' }}
                     onPointerDown={(e) => {
-                      if (e.button !== 0) return;
+                      if (e.button !== 0 || spaceRef.current) return;
                       e.stopPropagation();
                       ((e.currentTarget as SVGElement).ownerSVGElement as Element | null)?.setPointerCapture?.(e.pointerId);
-                      dragRef.current = { kind: 'wire-waypoint', wireId: wire.id, waypointId: waypoint.id };
+                      dragRef.current = { kind: 'wire-waypoint', wireId: editorWire.id, waypointId: waypoint.id };
                     }}
                     onDoubleClick={(e) => {
                       e.stopPropagation();
-                      onWireWaypointChange(wire.id, waypoint.id, undefined);
+                      onWireWaypointChange(editorWire.id, waypoint.id, undefined);
                     }}
                   >
                     <circle r={13} fill="transparent" stroke="#7c3aed" strokeWidth={1.8} strokeDasharray="4 3" />
@@ -945,21 +884,24 @@ export default function WiringCanvas(props: Props) {
                       style={{ overflow: 'visible' }}
                     />
                   </g>
-                  {def.ports.map((port) => {
+                  {cablePorts(def).map((port) => {
+                    const paired = pairedCablePort(def, port.id);
                     const isPending =
-                      pendingFrom?.uid === part.uid && pendingFrom?.portId === port.id;
+                      pendingFrom?.uid === part.uid && (pendingFrom?.portId === port.id || pendingFrom?.portId === paired?.id);
                     return (
                       <g key={port.id}>
                         <circle
+                          data-port-uid={part.uid}
+                          data-port-id={port.id}
                           cx={port.x * w}
                           cy={port.y * h}
                           r={isPending ? 7 : 4.6}
-                          fill={isPending ? '#f97316' : PORT_TYPE_COLOR[port.type]}
+                          fill={isPending ? '#f97316' : paired ? `url(#${portFillId}-${port.type === 'canH' ? 'can' : 'power'})` : PORT_TYPE_COLOR[port.type]}
                           stroke="#ffffff"
                           strokeWidth={1.5}
                           style={{ cursor: 'crosshair', pointerEvents: 'all' }}
                           onPointerDown={(e) => {
-                            if (e.button !== 0) return;
+                            if (e.button !== 0 || spaceRef.current) return;
                             e.stopPropagation();
                             onPortClick({ uid: part.uid, portId: port.id });
                           }}
@@ -1036,6 +978,50 @@ export default function WiringCanvas(props: Props) {
           })}
 
           {/* 框选矩形 */}
+          {geometry.bundles.map((bundle) => (
+            <path key={`bundle-hit:${bundle.key}`} data-bundle-path={bundle.key} d={bundle.path}
+              fill="none" stroke="transparent" strokeWidth={22} strokeLinejoin="round"
+              style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+              onPointerDown={(event) => {
+                if (event.button !== 0 || spaceRef.current) return;
+                event.stopPropagation();
+                onMarqueeSelect({ partUids: [], wireIds: bundle.wireIds }, event.shiftKey);
+              }}>
+              <title>{bundle.style === 'drag-chain' ? '拖链' : '束线管'}</title>
+            </path>
+          ))}
+          {geometry.bundles.map((bundle) => {
+            const selected = bundle.wireIds.some((id) => selectedWires.has(id));
+            return (['entry', 'exit'] as const).map((endpoint) => {
+              const point = endpoint === 'entry' ? bundle.startPoint : bundle.endPoint;
+              return (
+                <g
+                  key={`${bundle.key}:${endpoint}`}
+                  data-bundle-endpoint={endpoint}
+                  role="button"
+                  aria-label={`${bundle.style === 'drag-chain' ? '拖链' : '束线管'}${endpoint === 'entry' ? '入口' : '出口'}`}
+                  transform={`translate(${point.x} ${point.y})`}
+                  style={{ cursor: 'move' }}
+                  onPointerDown={(e) => {
+                    if (e.button !== 0 || spaceRef.current) return;
+                    e.stopPropagation();
+                    e.currentTarget.setPointerCapture(e.pointerId);
+                    const pointer = toWorld(e.clientX, e.clientY);
+                    dragRef.current = {
+                      kind: 'bundle-endpoint', wireId: bundle.wireIds[0], endpoint,
+                      endpoints: { entry: bundle.startPoint, exit: bundle.endPoint },
+                      offsetX: point.x - pointer.x, offsetY: point.y - pointer.y,
+                    };
+                  }}
+                >
+                  <circle r={Math.max(12, 12 / view.k)} fill="transparent" />
+                  <circle r={Math.max(5, (selected ? 7 : 5) / view.k)} fill="#ffffff" stroke={selected ? '#0284c7' : '#64748b'} strokeWidth={1.5 / view.k} pointerEvents="none" />
+                  <circle r={2 / view.k} fill={selected ? '#0284c7' : '#64748b'} pointerEvents="none" />
+                  <title>{`${bundle.style === 'drag-chain' ? '拖链' : '束线管'}${endpoint === 'entry' ? '入口' : '出口'}`}</title>
+                </g>
+              );
+            });
+          })}
           {marquee && (
             <rect
               x={marquee.x}

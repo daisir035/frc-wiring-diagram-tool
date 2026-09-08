@@ -382,33 +382,47 @@ function ThroughBore({ def }: { def: PartDef }) {
 }
 
 function CANcoder({ def }: { def: PartDef }) {
-  const wireStarts = [47, 60, 76, 90, 106, 119];
-  const wireEnds = def.ports.map((port) => port.x * def.w);
-  const wireColors = ['#dc2626', '#1f2937', '#eab308', '#16a34a', '#eab308', '#16a34a'];
+  const wireStarts: Record<string, number> = { 'vin+': 63, 'vin-': 71, canInH: 83, canInL: 91, canOutH: 103, canOutL: 111 };
+  // Top view: the mounting ears mirror the manufacturer's bottom-view drawing.
+  const housing = 'M 90 4 C 101 4 111 8 119 13 C 130 13 139 22 139 34 C 139 39 137 43 136 46 C 137 60 133 69 127 77 V 115 Q 127 124 118 124 H 62 Q 53 124 53 115 V 84 C 46 81 41 74 41 66 C 41 61 42 58 45 56 C 44 54 44 52 44 50 C 44 24 64 4 90 4 Z';
   return (
-    <>
-      <path d="M 45 8 H 135 L 163 39 V 112 L 142 135 H 38 L 17 112 V 39 Z" fill="#e2e8ec" stroke="#7b8790" strokeWidth={3} />
-      <path d="M 52 20 H 128 L 148 44 V 109 L 135 121 H 45 L 32 109 V 44 Z" fill="#353d42" stroke="#aebdc4" strokeWidth={2} />
-      <path d="M 49 46 H 70 V 82 H 111 V 50 H 130 M 49 101 H 126" fill="none" stroke="#c4ac67" strokeWidth={2.5} />
-      <rect x={75} y={55} width={30} height={29} rx={3} fill="#141a1f" stroke="#91a0a8" />
-      {[49, 120].map((x) => <rect key={x} x={x} y={64} width={11} height={20} rx={1} fill="#171b20" stroke="#a9b0b2" />)}
-      <path d="M 45 8 H 135 L 163 39 V 112 L 142 135 H 38 L 17 112 V 39 Z" fill="#f8fcff" fillOpacity={0.32} stroke="#cbd5df" strokeWidth={2} />
-      {[35, 145].map((x) => <circle key={x} cx={x} cy={43} r={7} fill="#f3f7f9" stroke="#8796a2" strokeWidth={2} />)}
-      <circle cx={124} cy={97} r={5} fill="#84cc16" stroke="#d9f99d" strokeWidth={2} />
-      <text x={90} y={40} textAnchor="middle" fill="#bef264" fontFamily="Arial, sans-serif" fontSize={19} fontWeight={700}>CTRE</text>
-      <text x={85} y={110} textAnchor="middle" fill="#ffffff" fontFamily="Arial, sans-serif" fontSize={12} fontWeight={700}>CANcoder</text>
-      {wireStarts.map((start, index) => (
+    <g data-cancoder-artwork="wired-top">
+      {def.ports.map((port) => (
         <path
-          key={start}
-          d={`M ${start} 128 C ${start} 137 ${wireEnds[index]} 140 ${wireEnds[index]} 155`}
+          key={port.id}
+          data-cancoder-lead={port.id}
+          d={`M ${wireStarts[port.id] ?? 90} 108 C ${wireStarts[port.id] ?? 90} 131 ${port.x * def.w} 133 ${port.x * def.w} ${port.y * def.h}`}
           fill="none"
-          stroke={wireColors[index]}
-          strokeWidth={5}
+          stroke={PORT_TYPE_COLOR[port.type]}
+          strokeWidth={4.5}
           strokeLinecap="round"
         />
       ))}
+      <g transform="translate(90 2) scale(0.908 0.915) translate(-90 0)">
+        <path data-cancoder-outline="true" d={housing} fill="#d8dcda" stroke="#77847f" strokeWidth={2.5} />
+        <path d="M 90 15 C 112 15 127 32 127 52 C 127 65 119 76 119 85 V 111 H 61 V 85 C 61 76 53 64 53 52 C 53 31 69 15 90 15 Z"
+          fill="#68746b" fillOpacity={0.24} stroke="#b0b9b3" strokeWidth={1} />
+        <g fill="#54675b" opacity={0.2}>
+          <rect x={75} y={49} width={16} height={15} rx={2} />
+          <rect x={100} y={57} width={10} height={19} rx={1} />
+          <path d="M 66 88 H 114 V 93 H 66 Z M 67 104 H 112 V 108 H 67 Z" />
+        </g>
+        <path d={housing} fill="#f4f6ed" fillOpacity={0.3} stroke="#eef2ec" strokeWidth={0.8} />
+        {[[119, 34], [61, 66]].map(([x, y]) => <g key={`${x}:${y}`} data-cancoder-mount="true">
+          <circle cx={x} cy={y} r={8.5} fill="#c9d0ca" fillOpacity={0.7} stroke="#e9ede7" strokeWidth={1.5} />
+          <circle cx={x} cy={y} r={4} fill="#a4aea7" fillOpacity={0.65} />
+        </g>)}
+        <path d="M 55 46 C 58 25 75 14 92 14" fill="none" stroke="#f7f9f2" strokeWidth={2.5} strokeLinecap="round" opacity={0.8} />
+        <text x={89} y={43} textAnchor="middle" fill="#739d36" fontFamily="Arial, sans-serif" fontSize={20} fontStyle="italic" fontWeight={700}>CTR</text>
+        <circle cx={90} cy={76} r={9} fill="#d8ded7" stroke="#eef2e9" strokeWidth={1.5} />
+        <circle cx={90} cy={76} r={5.5} fill="#bdc8bd" stroke="#a3afa4" strokeWidth={1} />
+        <path d="M 87 73 L 93 79" stroke="#7c897d" strokeWidth={1.5} strokeLinecap="round" />
+        <rect x={62} y={97} width={56} height={19} rx={3} fill="#c7cfc7" stroke="#b5bfb5" />
+        <path d="M 66 101 H 114 M 79 101 V 112 M 99 101 V 112" stroke="#e8ece3" strokeWidth={1.5} />
+        <circle cx={112} cy={61} r={3.5} fill="#8dbb48" stroke="#dfebc9" strokeWidth={1} />
+      </g>
       <VectorPortPads def={def} />
-    </>
+    </g>
   );
 }
 

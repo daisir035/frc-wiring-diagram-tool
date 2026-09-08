@@ -17,6 +17,7 @@ import {
   cablePorts,
   pairedCablePort,
   pairedWireGroups,
+  wireRoutingLane,
   wireWaypoints,
   projectOntoRoute,
   partSize,
@@ -368,21 +369,7 @@ export default function WiringCanvas(props: Props) {
 
   const cables = useMemo(() => pairedWireGroups(wires, parts, partDefs), [wires, parts, partDefs]);
   const wireLane = useCallback((wire: Wire) => {
-    if (cables.has(wire.id)) return 0;
-    const typeA = getPortDef(wire.a)?.type;
-    const typeB = getPortDef(wire.b)?.type;
-    if (typeA === typeB) {
-      if (typeA === 'pwr+') return -7;
-      if (typeA === 'pwr-') return 7;
-      if (typeA === 'canH') return -5;
-      if (typeA === 'canL') return 5;
-      if (typeA === 'phaseA') return -6;
-      if (typeA === 'phaseB') return 0;
-      if (typeA === 'phaseC') return 6;
-    }
-    let hash = 0;
-    for (const char of wire.id) hash = (hash * 31 + char.charCodeAt(0)) | 0;
-    return ((Math.abs(hash) % 5) - 2) * 2;
+    return wireRoutingLane(wire, cables, getPortDef);
   }, [getPortDef, cables]);
   const geometry = useMemo(() => buildWireGeometry(wires, getPort, wireLane, cables), [wires, getPort, wireLane, cables]);
 
@@ -494,7 +481,7 @@ export default function WiringCanvas(props: Props) {
       const hitParts = parts.filter((pt) => {
         const def = partDefs.get(pt.partId);
         if (!def) return false;
-        const { w: pw, h: ph } = partSize(def);
+        const { w: pw, h: ph } = partSize(def, pt);
         // 旋转后的包围盒
         const r = (pt.rot * Math.PI) / 180;
         const cos = Math.abs(Math.cos(r));
@@ -846,7 +833,7 @@ export default function WiringCanvas(props: Props) {
           {parts.map((part) => {
             const def = partDefs.get(part.partId);
             if (!def) return null;
-            const { w, h } = partSize(def);
+            const { w, h } = partSize(def, part);
             const sel = selectedParts.has(part.uid);
             const displayLabel = [part.customName?.trim() || def.name, part.deviceId?.trim()].filter(Boolean).join(' · ');
             const pdhChannels = motorPdhChannels.get(part.uid) ?? [];

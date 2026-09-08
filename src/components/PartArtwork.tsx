@@ -416,33 +416,38 @@ function Limelight({ def }: { def: PartDef }) {
   const fourth = def.id === 'limelight4';
   const { w, h } = def;
   const cx = w / 2;
-  const cy = h * 0.43;
+  const cy = h * 0.315;
+  const holeX = (w - 144) / 2;
+  const holeY = (h - 80) / 2;
   return (
     <>
-      <rect x={5} y={5} width={w - 10} height={h - 10} rx={12} fill="#24292b" stroke="#111719" strokeWidth={3} />
-      <rect x={11} y={11} width={w - 22} height={h - 22} rx={8} fill="#394145" stroke="#68747a" strokeWidth={1.5} />
-      {fourth ? Array.from({ length: 9 }, (_, index) => (
-        <rect key={index} x={22 + index * 13} y={22} width={6} height={h - 57} rx={3} fill="#171d20" />
-      )) : [[-48, -20], [-20, -36], [22, -36], [49, -17], [-37, 24], [38, 24]].map(([x, y]) => (
+      <rect x={1} y={1} width={w - 2} height={h - 2} rx={9} fill="#24292b" stroke="#111719" strokeWidth={2} />
+      <rect x={4} y={4} width={w - 8} height={h - 8} rx={7} fill="#394145" stroke="#68747a" strokeWidth={1} />
+      {fourth ? <>
+        {Array.from({ length: 13 }, (_, index) => (
+          <rect key={index} x={22 + index * 9} y={5} width={4} height={h - 26} rx={2} fill="#171d20" />
+        ))}
+        <rect x={40} y={22} width={10} height={33} rx={4} fill="#e7f0ea" stroke="#121b1e" strokeWidth={2} />
+      </> : [[0.19, 0.315], [0.305, 0.175], [0.305, 0.46], [0.69, 0.175], [0.805, 0.315], [0.69, 0.46]].map(([x, y]) => (
         <g key={`${x}:${y}`}>
-          <circle cx={cx + x} cy={cy + y} r={10} fill="#161e19" stroke="#748077" strokeWidth={1.5} />
-          <circle cx={cx + x} cy={cy + y} r={5} fill="#b7d994" />
+          <circle cx={w * x} cy={h * y} r={8.5} fill="#161e19" stroke="#748077" strokeWidth={1.2} />
+          <circle cx={w * x} cy={h * y} r={3.5} fill="#b7d994" />
         </g>
       ))}
-      <circle cx={cx} cy={cy} r={25} fill="#14191d" stroke="#96a3ab" strokeWidth={3} />
-      <circle cx={cx} cy={cy} r={18} fill="#162e34" stroke="#4d7077" strokeWidth={2} />
-      <circle cx={cx} cy={cy} r={11} fill="#080e13" />
-      <ellipse cx={cx - 6} cy={cy - 7} rx={5} ry={3} fill="#8ed5dd" opacity={0.8} />
-      {[[20, 20], [w - 20, 20], [20, h - 20], [w - 20, h - 20]].map(([x, y]) => <circle key={`${x}:${y}`} cx={x} cy={y} r={5} fill="#eef2f5" stroke="#94a3ad" strokeWidth={2} />)}
-      <rect x={cx - 48} y={h - 40} width={96} height={21} rx={3} fill="#24292b" />
-      <text x={cx} y={h - 25} textAnchor="middle" fill="#e8f6ed" fontFamily="Arial, sans-serif" fontSize={12} fontWeight={700}>LIMELIGHT {fourth ? '4' : '3'}</text>
+      <circle cx={cx} cy={cy} r={14.5} fill="#14191d" stroke="#96a3ab" strokeWidth={2} />
+      <circle cx={cx} cy={cy} r={10.5} fill="#162e34" stroke="#4d7077" strokeWidth={1.5} />
+      <circle cx={cx} cy={cy} r={6.5} fill="#080e13" />
+      <ellipse cx={cx - 4} cy={cy - 4} rx={3} ry={2} fill="#8ed5dd" opacity={0.8} />
+      {[[holeX, holeY], [w - holeX, holeY], [holeX, h - holeY], [w - holeX, h - holeY]].map(([x, y]) => <circle key={`${x}:${y}`} cx={x} cy={y} r={5.1} fill="#eef2f5" stroke="#94a3ad" strokeWidth={1} />)}
+      <rect x={cx - 53} y={h - 23} width={106} height={16} rx={2} fill="#24292b" />
+      <text x={cx} y={h - 11} textAnchor="middle" fill="#e8f6ed" fontFamily="Arial, sans-serif" fontSize={11} fontWeight={700}>LIMELIGHT {fourth ? '4' : '3'}</text>
       {def.ports.filter((port) => port.type === 'data').map((port) => {
         const x = port.x * w;
         const y = port.y * h;
-        const vertical = port.side === 'left';
-        return <rect key={port.id} x={x - (vertical ? 4 : 12)} y={y - (vertical ? 12 : 4)} width={vertical ? 8 : 24} height={vertical ? 24 : 8} rx={2} fill="#111b21" stroke="#b5c6ce" strokeWidth={2} />;
+        const width = port.id === 'eth' ? 24 : 14;
+        return <rect key={port.id} x={x - width / 2} y={port.side === 'top' ? y : y - 5} width={width} height={5} rx={1} fill={port.id === 'usb' ? '#174b70' : '#111b21'} stroke="#b5c6ce" strokeWidth={1} />;
       })}
-      <rect x={w - 13} y={h * 0.52} width={10} height={h * 0.2} rx={2} fill="#42683d" stroke="#a3c78e" />
+      <rect x={w - 5} y={h * (fourth ? 0.63 : 0.51)} width={5} height={h * 0.2} rx={1} fill="#42683d" stroke="#a3c78e" />
       <VectorPortPads def={def} />
     </>
   );
@@ -496,62 +501,59 @@ function Battery({ def }: { def: PartDef }) {
   );
 }
 
-function TerminalScrew({ x, y, accent }: { x: number; y: number; accent: string }) {
-  return (
-    <g>
-      <circle cx={x} cy={y} r={12} fill="#d8dee7" stroke="#737b87" strokeWidth={1.6} />
-      <circle cx={x} cy={y} r={8.2} fill="#b7c0ca" stroke="#66707c" strokeWidth={1} />
-      <path d={`M ${x - 5.4} ${y + 5.4} L ${x + 5.4} ${y - 5.4}`} stroke="#59616b" strokeWidth={2.2} strokeLinecap="round" />
-      <circle cx={x} cy={y} r={11.2} fill="none" stroke={accent} strokeWidth={2.2} opacity={0.8} />
-    </g>
-  );
-}
-
-function TerminalPair({ def }: { def: PartDef }) {
-  const positiveY = def.h * 0.3;
-  const negativeY = def.h * 0.7;
+function PdpArtwork({ def }: { def: PartDef }) {
+  const { w, h } = def;
   return (
     <>
-      <rect x={2} y={4} width={def.w - 4} height={def.h - 8} rx={8} fill="#e8edf2" stroke="#7b8490" strokeWidth={2} />
-      <rect x={9} y={10} width={def.w - 18} height={30} rx={5} fill="#fee2e2" stroke="#ef9a9a" />
-      <rect x={9} y={56} width={def.w - 18} height={30} rx={5} fill="#d7dce3" stroke="#89919c" />
-      <path d={`M 34 ${positiveY} H 146`} stroke="#c98b26" strokeWidth={8} strokeLinecap="round" />
-      <path d={`M 34 ${negativeY} H 146`} stroke="#b98532" strokeWidth={8} strokeLinecap="round" />
-      <TerminalScrew x={34} y={positiveY} accent="#dc2626" />
-      <TerminalScrew x={146} y={positiveY} accent="#dc2626" />
-      <TerminalScrew x={34} y={negativeY} accent="#1f2937" />
-      <TerminalScrew x={146} y={negativeY} accent="#1f2937" />
-      <g fill="#5b6470" fontFamily="Arial, sans-serif" fontSize={7} fontWeight={700} letterSpacing={0}>
-        <text x={9} y={52}>IN</text>
-        <text x={159} y={52}>OUT</text>
-      </g>
+      <rect x={1} y={1} width={w - 2} height={h - 2} rx={9} fill="#22282b" stroke="#111719" strokeWidth={2} />
+      <rect x={w * 0.215} y={h * 0.032} width={w * 0.57} height={h * 0.79} rx={3} fill="#383d40" />
+      <text x={w / 2} y={h * 0.026} textAnchor="middle" fill="#a4ce68" fontSize={10} fontWeight={700} fontFamily="Arial, sans-serif">CTRE</text>
+      {def.ports.filter((port) => port.id.startsWith('ch')).map((port) => {
+        const right = port.side === 'right';
+        const y = port.y * h;
+        const color = port.type === 'pwr+' ? '#d94b3f' : '#343a3d';
+        return <g key={port.id}>
+          <rect x={right ? w * 0.81 : 0} y={y - h * 0.012} width={w * 0.19} height={h * 0.024} rx={2} fill={color} stroke="#737c80" strokeWidth={0.7} />
+          <rect x={right ? w * 0.94 : w * 0.018} y={y - h * 0.007} width={w * 0.04} height={h * 0.014} rx={1} fill="#151c20" />
+          <path d={`M ${right ? w * 0.835 : w * 0.095} ${y} h ${w * 0.06}`} stroke={port.type === 'pwr+' ? '#f6aaa1' : '#78858b'} strokeWidth={2} />
+        </g>;
+      })}
+      {def.fuseSlots?.map((slot) => <g key={slot.channel}>
+        <rect x={slot.x * w - 2} y={slot.y * h - 2} width={slot.w * w + 4} height={slot.h * h + 4} rx={2} fill="#13191d" stroke="#626e75" />
+        <text x={slot.channel >= 12 ? w * 0.25 : w * 0.75} y={(slot.y + slot.h / 2) * h + 3} textAnchor="middle" fill="#eef3f5" fontFamily="Arial, sans-serif" fontSize={9}>{slot.channel}</text>
+      </g>)}
+      <text x={w / 2} y={h * 0.856} textAnchor="middle" fill="#eef3f5" fontFamily="Arial, sans-serif" fontSize={13} fontWeight={700}>PDP 2.0</text>
+      {[{ x: w * 0.27, color: '#303a40', label: '-' }, { x: w * 0.73, color: '#b6312d', label: '+' }].map((input) => <g key={input.label}>
+        <rect x={input.x - w * 0.18} y={h * 0.88} width={w * 0.36} height={h * 0.095} rx={4} fill={input.color} stroke="#78878f" />
+        <path d={`M ${input.x} ${h * 0.934} V ${h}`} stroke={input.label === '+' ? '#dc2626' : '#7b868c'} strokeWidth={5} />
+        <circle cx={input.x} cy={h * 0.927} r={w * 0.052} fill="#bfc7cb" stroke="#f3f5f6" strokeWidth={2} />
+        <circle cx={input.x} cy={h * 0.927} r={w * 0.026} fill="#505b63" />
+        <text x={input.x + w * 0.09} y={h * 0.922} fill="#ffffff" fontSize={13} fontWeight={700}>{input.label}</text>
+      </g>)}
+      {[[9, 9], [w - 9, 9], [9, h - 10], [w - 9, h - 10]].map(([x, y]) => <circle key={`${x}:${y}`} cx={x} cy={y} r={4} fill="#b5c0c6" />)}
       <VectorPortPads def={def} />
     </>
   );
 }
 
-function Terminal2To4({ def }: { def: PartDef }) {
-  const inputPositiveY = def.h * 0.3;
-  const inputNegativeY = def.h * 0.7;
-  const outputYs = [0.16, 0.37, 0.63, 0.84].map((value) => def.h * value);
+function LeverTerminal({ def }: { def: PartDef }) {
   return (
     <>
-      <rect x={2} y={4} width={def.w - 4} height={def.h - 8} rx={9} fill="#e8edf2" stroke="#7b8490" strokeWidth={2} />
-      <rect x={10} y={12} width={76} height={45} rx={6} fill="#fee2e2" stroke="#ef9a9a" />
-      <rect x={10} y={71} width={76} height={45} rx={6} fill="#d7dce3" stroke="#89919c" />
-      <rect x={99} y={9} width={81} height={110} rx={6} fill="#f8fafc" stroke="#a8b0ba" />
-      <path d={`M 34 ${inputPositiveY} H 91 V ${outputYs[0]} H 155 M 91 ${inputPositiveY} V ${outputYs[2]} H 155`} fill="none" stroke="#c98b26" strokeWidth={7} strokeLinecap="round" strokeLinejoin="round" />
-      <path d={`M 34 ${inputNegativeY} H 83 V ${outputYs[1]} H 155 M 83 ${inputNegativeY} V ${outputYs[3]} H 155`} fill="none" stroke="#ad7b2b" strokeWidth={7} strokeLinecap="round" strokeLinejoin="round" />
-      <TerminalScrew x={34} y={inputPositiveY} accent="#dc2626" />
-      <TerminalScrew x={34} y={inputNegativeY} accent="#1f2937" />
-      <TerminalScrew x={155} y={outputYs[0]} accent="#dc2626" />
-      <TerminalScrew x={155} y={outputYs[1]} accent="#1f2937" />
-      <TerminalScrew x={155} y={outputYs[2]} accent="#dc2626" />
-      <TerminalScrew x={155} y={outputYs[3]} accent="#1f2937" />
-      <g fill="#5b6470" fontFamily="Arial, sans-serif" fontSize={7} fontWeight={700} letterSpacing={0}>
-        <text x={12} y={66}>2 IN</text>
-        <text x={149} y={66}>4 OUT</text>
-      </g>
+      <rect x={1} y={1} width={def.w - 2} height={def.h - 2} rx={6} fill="#cdd3d8" stroke="#67717a" strokeWidth={2} />
+      <rect x={def.w * 0.43} y={5} width={def.w * 0.14} height={def.h - 10} rx={2} fill="#a4aeb5" />
+      {def.ports.map((port) => {
+        const left = port.side === 'left';
+        const x = left ? 0 : def.w;
+        const y = port.y * def.h;
+        const height = Math.min(22, def.h * 0.17);
+        return <g key={port.id} transform={`translate(${x} ${y}) scale(${left ? 1 : -1} 1)`}>
+          <rect x={1} y={-height / 2} width={def.w * 0.38} height={height} rx={2} fill="#e5e8eb" stroke="#87939c" />
+          <rect x={2} y={-height * 0.32} width={11} height={height * 0.64} rx={2} fill="#303b43" />
+          <rect x={18} y={-height * 0.42} width={def.w * 0.22} height={height * 0.84} rx={2} fill="#f58522" stroke="#b75d11" />
+          <path d={`M 24 ${-height * 0.16} H ${def.w * 0.22 + 10} M 24 ${height * 0.16} H ${def.w * 0.22 + 10}`} stroke="#ffc36d" strokeWidth={2} />
+          <rect x={2} y={height / 2 - 3} width={10} height={3} fill={PORT_TYPE_COLOR[port.type]} />
+        </g>;
+      })}
       <VectorPortPads def={def} />
     </>
   );
@@ -559,6 +561,7 @@ function Terminal2To4({ def }: { def: PartDef }) {
 
 function renderVector(def: PartDef) {
   switch (def.id) {
+    case 'pdp': return <PdpArtwork def={def} />;
     case 'roborio': return <RoboRIO def={def} />;
     case 'vrm': return <VRM def={def} />;
     case 'vh109': return <Radio def={def} />;
@@ -579,8 +582,8 @@ function renderVector(def: PartDef) {
     case 'ws2812': return <LedStrip def={def} />;
     case 'c270': return <Camera def={def} />;
     case 'battery12v': return <Battery def={def} />;
-    case 'terminalPair': return <TerminalPair def={def} />;
-    case 'terminal2To4': return <Terminal2To4 def={def} />;
+    case 'terminalPair':
+    case 'terminal2To4': return <LeverTerminal def={def} />;
     default:
       return (
         <>
@@ -604,7 +607,10 @@ export default function PartArtwork({ def, width, height, fuses, onFuseClick, st
       aria-label={def.name}
     >
       {def.visual === 'vector' ? (
-        renderVector(def)
+        <>
+          {renderVector(def)}
+          <ImageFuseSlots def={def} fuses={fuses} onFuseClick={onFuseClick} />
+        </>
       ) : (
         <>
           <image href={partImageSrc(def)} width={def.w} height={def.h} preserveAspectRatio="xMidYMid meet" />

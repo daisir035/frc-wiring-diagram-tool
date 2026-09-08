@@ -90,6 +90,8 @@ export interface PlacedPart {
   deviceId?: string;
   /** 锁定后禁止移动、旋转和普通删除 */
   locked?: boolean;
+  /** Measured footprint for this instance, before rotation, in millimeters. */
+  sizeMm?: { w: number; h: number };
   /** 可配置保险丝槽；key 是通道号 */
   fuses?: Record<number, FuseRating>;
 }
@@ -103,6 +105,8 @@ export interface CanvasBackground {
   width: number;
   height: number;
   opacity: number;
+  /** Measured width of the entire reference image after page calibration. */
+  calibratedWidthMm?: number;
 }
 
 export interface WireEnd {
@@ -471,41 +475,41 @@ const roboRIO = imagePart('RoboRIO 2.0.png', {
 
 function pdpChannelPorts(): PortDef[] {
   const ports: PortDef[] = [];
-  const ys = spread(0.075, 0.62, 12);
+  const ys = spread(0.065, 0.785, 12);
   ys.forEach((y, row) => {
     const rightChannel = 11 - row;
-    ports.push(p(`ch${rightChannel}+`, `CH ${rightChannel} +`, 0.955, y - 0.008, 'pwr+', 'right'));
-    ports.push(p(`ch${rightChannel}-`, `CH ${rightChannel} -`, 0.955, y + 0.008, 'pwr-', 'right'));
+    ports.push(p(`ch${rightChannel}+`, `CH ${rightChannel} +`, 1, y - 0.014, 'pwr+', 'right'));
+    ports.push(p(`ch${rightChannel}-`, `CH ${rightChannel} -`, 1, y + 0.014, 'pwr-', 'right'));
 
     const leftChannel = 12 + row;
-    ports.push(p(`ch${leftChannel}-`, `CH ${leftChannel} -`, 0.045, y - 0.008, 'pwr-', 'left'));
-    ports.push(p(`ch${leftChannel}+`, `CH ${leftChannel} +`, 0.045, y + 0.008, 'pwr+', 'left'));
+    ports.push(p(`ch${leftChannel}-`, `CH ${leftChannel} -`, 0, y - 0.014, 'pwr-', 'left'));
+    ports.push(p(`ch${leftChannel}+`, `CH ${leftChannel} +`, 0, y + 0.014, 'pwr+', 'left'));
   });
   return ports;
 }
 
 function pdpFuseSlots(): NonNullable<PartDef['fuseSlots']> {
   const slots: NonNullable<PartDef['fuseSlots']> = [];
-  spread(0.064, 0.615, 12).forEach((y, row) => {
-    slots.push({ channel: 12 + row, x: 0.315, y, w: 0.135, h: 0.041 });
-    slots.push({ channel: 11 - row, x: 0.505, y, w: 0.145, h: 0.041 });
+  spread(0.065, 0.785, 12).forEach((y, row) => {
+    slots.push({ channel: 12 + row, x: 0.3, y: y - 0.023, w: 0.16, h: 0.046 });
+    slots.push({ channel: 11 - row, x: 0.54, y: y - 0.023, w: 0.16, h: 0.046 });
   });
   return slots;
 }
 
-const pdp = imagePart('CTRE PDP 2.0 Cropped.png', {
+const pdp = vector({
   id: 'pdp',
   name: 'CTRE PDP 2.0',
   category: '配电',
   productUrl: 'https://store.ctr-electronics.com/products/pdp-2',
-  w: 600,
-  h: 820,
+  w: 207.264,
+  h: 467.868,
   displayWidth: 220,
   fuseChannels: 24,
   fuseSlots: pdpFuseSlots(),
   ports: [
-    p('batt-', '电池输入 -', 0.268, 0.683, 'pwr-', 'bottom'),
-    p('batt+', '电池输入 +', 0.726, 0.748, 'pwr+', 'bottom'),
+    p('batt-', '电池输入 -', 0.27, 1, 'pwr-', 'bottom'),
+    p('batt+', '电池输入 +', 0.73, 1, 'pwr+', 'bottom'),
     ...pdpChannelPorts(),
   ],
 });
@@ -577,28 +581,22 @@ const pdh = imagePart('REV PDH.png', {
   ],
 });
 
-const miniPdp = imagePart('Mini Power Distribution Board Cropped.png', {
+const miniPdp = imagePart('REV Mini Power Module.png', {
   id: 'miniPdp',
-  name: 'miniPDP（6 路）',
+  name: 'miniPDH（REV MPM）',
   category: '配电',
-  w: 1020,
-  h: 960,
+  productUrl: 'https://www.revrobotics.com/rev-11-1956/',
+  docsUrl: 'https://docs.revrobotics.com/ion-control-system/mpm/overview',
+  w: 307,
+  h: 552,
   displayWidth: 180,
   ports: [
-    p('batt+', '电池输入 +', 0.672, 0.585, 'pwr+', 'bottom'),
-    p('batt-', '电池输入 -', 0.562, 0.711, 'pwr-', 'bottom'),
-    p('ch0+', 'CH 0 +', 0.48, 0.07, 'pwr+', 'top'),
-    p('ch0-', 'CH 0 -', 0.585, 0.19, 'pwr-', 'top'),
-    p('ch1+', 'CH 1 +', 0.407, 0.125, 'pwr+', 'top'),
-    p('ch1-', 'CH 1 -', 0.512, 0.247, 'pwr-', 'top'),
-    p('ch2+', 'CH 2 +', 0.334, 0.18, 'pwr+', 'top'),
-    p('ch2-', 'CH 2 -', 0.439, 0.304, 'pwr-', 'top'),
-    p('ch3+', 'CH 3 +', 0.261, 0.236, 'pwr+', 'top'),
-    p('ch3-', 'CH 3 -', 0.366, 0.361, 'pwr-', 'top'),
-    p('ch4+', 'CH 4 +', 0.188, 0.292, 'pwr+', 'top'),
-    p('ch4-', 'CH 4 -', 0.293, 0.418, 'pwr-', 'top'),
-    p('ch5+', 'CH 5 +', 0.116, 0.349, 'pwr+', 'top'),
-    p('ch5-', 'CH 5 -', 0.22, 0.475, 'pwr-', 'top'),
+    p('batt+', '12V 输入 +', 0.39, 1, 'pwr+', 'bottom'),
+    p('batt-', '12V 输入 -', 0.57, 1, 'pwr-', 'bottom'),
+    ...spread(0.185, 0.585, 6).flatMap((y, index) => [
+      p(`ch${5 - index}+`, `CH ${5 - index} +`, 1, y - 0.018, 'pwr+', 'right'),
+      p(`ch${5 - index}-`, `CH ${5 - index} -`, 1, y + 0.018, 'pwr-', 'right'),
+    ]),
   ],
 });
 
@@ -848,8 +846,8 @@ const terminalPair = vector({
   id: 'terminalPair',
   name: '双极直通接线端子',
   category: '配电',
-  w: 180,
-  h: 96,
+  w: 120,
+  h: 64,
   displayWidth: 125,
   ports: [
     p('in+', '正极输入 +', 0, 0.3, 'pwr+', 'left'),
@@ -863,8 +861,8 @@ const terminal2To4 = vector({
   id: 'terminal2To4',
   name: '2 进 4 出接线端子',
   category: '配电',
-  w: 190,
-  h: 128,
+  w: 170,
+  h: 90,
   displayWidth: 145,
   ports: [
     p('in+', '正极输入 +', 0, 0.3, 'pwr+', 'left'),
@@ -882,14 +880,14 @@ const limelight3 = vector({
   category: '传感器',
   productUrl: 'https://limelightvision.io/products/limelight-3',
   docsUrl: 'https://docs.limelightvision.io/',
-  w: 180,
-  h: 140,
+  w: 161.22,
+  h: 98.02,
   displayWidth: 190,
   ports: [
-    p('usb', 'USB', 0.03, 0.62, 'data', 'left'),
-    p('eth', 'Ethernet', 0.5, 0.97, 'data', 'bottom'),
-    p('vin-', '电源 -', 0.97, 0.67, 'pwr-', 'right'),
-    p('vin+', '电源 +', 0.97, 0.57, 'pwr+', 'right'),
+    p('usb', 'USB-A', 0.255, 1, 'data', 'bottom'),
+    p('eth', 'Ethernet', 0.765, 1, 'data', 'bottom'),
+    p('vin-', '电源 -', 1, 0.66, 'pwr-', 'right'),
+    p('vin+', '电源 +', 1, 0.56, 'pwr+', 'right'),
   ],
 });
 
@@ -899,14 +897,14 @@ const limelight4 = vector({
   category: '传感器',
   productUrl: 'https://limelightvision.io/products/limelight-4',
   docsUrl: 'https://docs.limelightvision.io/',
-  w: 160,
-  h: 170,
+  w: 160.22,
+  h: 96.22,
   displayWidth: 180,
   ports: [
-    p('eth', 'Ethernet', 0.03, 0.58, 'data', 'left'),
-    p('usbC', 'USB-C', 0.5, 0.03, 'data', 'top'),
-    p('vin+', '电源 +', 0.97, 0.57, 'pwr+', 'right'),
-    p('vin-', '电源 -', 0.97, 0.67, 'pwr-', 'right'),
+    p('eth', 'Ethernet', 0.77, 1, 'data', 'bottom'),
+    p('usbC', 'USB-C', 0.67, 0, 'data', 'top'),
+    p('vin+', '电源 +', 1, 0.68, 'pwr+', 'right'),
+    p('vin-', '电源 -', 1, 0.78, 'pwr-', 'right'),
   ],
 });
 
@@ -974,15 +972,15 @@ export function partAssetSrc(fileName: string): string {
  */
 const PART_FOOTPRINTS_MM: Record<string, { w: number; h: number }> = {
   canivore: { w: 55.12, h: 39.37 },
-  roborio: { w: 191, h: 148 },
-  pdp: { w: 108, h: 180 },
-  pdh: { w: 108, h: 229 },
-  miniPdp: { w: 85, h: 80 },
+  roborio: { w: 146, h: 143 },
+  pdp: { w: 103.632, h: 233.934 },
+  pdh: { w: 111.125, h: 225.425 },
+  miniPdp: { w: 47.625, h: 85.725 },
   battery12v: { w: 181, h: 76 },
   terminalPair: { w: 60, h: 32 },
   terminal2To4: { w: 85, h: 45 },
   breaker120: { w: 51, h: 76 },
-  vrm: { w: 89, h: 96 },
+  vrm: { w: 51.562, h: 56.388 },
   vh109: { w: 145, h: 67 },
   rsl: { w: 59, h: 35 },
   fuseAuto10: { w: 19, h: 5 },
@@ -996,25 +994,47 @@ const PART_FOOTPRINTS_MM: Record<string, { w: number; h: number }> = {
   ttb: { w: 38, h: 43 },
   cancoder: { w: 44, h: 38 },
   c270: { w: 70, h: 31 },
-  limelight3: { w: 86, h: 69 },
-  limelight4: { w: 76, h: 81 },
+  limelight3: { w: 80.61, h: 49.01 },
+  limelight4: { w: 80.11, h: 48.11 },
+  ws2812: { w: 240, h: 12 },
 };
 
-export function partSize(def: PartDef): { w: number; h: number } {
-  const physical = PART_FOOTPRINTS_MM[def.id];
-  if (physical) {
-    const worldUnitsPerMillimeter = 1.05;
-    return {
-      w: physical.w * worldUnitsPerMillimeter,
-      h: physical.h * worldUnitsPerMillimeter,
-    };
-  }
-  const w = def.displayWidth;
-  return { w, h: (w * def.h) / def.w };
+export const WORLD_UNITS_PER_MM = 1;
+
+const VERIFIED_DIMENSION_SOURCES: Record<string, string> = {
+  roborio: 'https://www.ni.com/docs/en-US/bundle/roborio-20-specs/page/specs.html',
+  canivore: 'https://ctre.download/files/user-manual/CANivore%20User%27s%20Guide.pdf',
+  pdp: 'https://store.ctr-electronics.com/products/pdp-2',
+  pdh: 'https://www.revrobotics.com/rev-11-1850/',
+  miniPdp: 'https://www.revrobotics.com/rev-11-1956/',
+  vrm: 'https://ctre.download/files/user-manual/VRM%20User%27s%20Guide.pdf',
+  limelight3: 'https://docs.limelightvision.io/docs/docs-limelight/getting-started/limelight-3',
+  limelight4: 'https://docs.limelightvision.io/docs/docs-limelight/getting-started/limelight-4',
+};
+
+export function isPhysicalSize(value: unknown): value is { w: number; h: number } {
+  if (!value || typeof value !== 'object' || !('w' in value) || !('h' in value)) return false;
+  return typeof value.w === 'number' && typeof value.h === 'number'
+    && Number.isFinite(value.w) && Number.isFinite(value.h)
+    && value.w >= 0.1 && value.h >= 0.1 && value.w <= 10000 && value.h <= 10000;
+}
+
+export function partDimensions(def: PartDef, part?: Pick<PlacedPart, 'sizeMm'>) {
+  const fallback = { w: def.displayWidth, h: def.displayWidth * def.h / def.w };
+  const measured = isPhysicalSize(part?.sizeMm);
+  const dimensions = measured ? part!.sizeMm! : (!def.custom && PART_FOOTPRINTS_MM[def.id]) || fallback;
+  const source = !def.custom ? VERIFIED_DIMENSION_SOURCES[def.id] : undefined;
+  return { ...dimensions, status: measured ? 'measured' as const : source ? 'verified' as const : 'reference' as const,
+    source: measured ? undefined : source };
+}
+
+export function partSize(def: PartDef, part?: Pick<PlacedPart, 'sizeMm'>): { w: number; h: number } {
+  const size = partDimensions(def, part);
+  return { w: size.w * WORLD_UNITS_PER_MM, h: size.h * WORLD_UNITS_PER_MM };
 }
 
 export function portWorld(part: PlacedPart, def: PartDef, port: PortDef): WorldPort {
-  const { w, h } = partSize(def);
+  const { w, h } = partSize(def, part);
   const cx = w / 2;
   const cy = h / 2;
   const px = port.x * w;
@@ -1346,6 +1366,17 @@ export function pairedWireGroups(wires: Wire[], parts: PlacedPart[], defs: Reado
     groups.set(companion.id, group);
   }
   return groups;
+}
+
+export function wireRoutingLane(wire: Wire, cables: ReadonlyMap<string, Wire[]>, getPort: (end: WireEnd) => PortDef | undefined) {
+  if (cables.has(wire.id)) return 0;
+  const typeA = getPort(wire.a)?.type;
+  const typeB = getPort(wire.b)?.type;
+  const lanes: Partial<Record<PortType, number>> = { 'pwr+': -7, 'pwr-': 7, canH: -5, canL: 5, phaseA: -6, phaseB: 0, phaseC: 6 };
+  if (typeA && typeA === typeB && lanes[typeA] !== undefined) return lanes[typeA]!;
+  let hash = 0;
+  for (const char of wire.id) hash = (hash * 31 + char.charCodeAt(0)) | 0;
+  return ((Math.abs(hash) % 5) - 2) * 2;
 }
 
 export function compareWireEditors(a: Wire, b: Wire, cables: ReadonlyMap<string, Wire[]>) {

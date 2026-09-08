@@ -1,0 +1,7 @@
+Product: REV Mini Power Module (REV-11-1956), shown as miniPDH in the library.
+Product page: https://www.revrobotics.com/rev-11-1956/
+Original top view: https://cdn11.bigcommerce.com/s-t3eo8vwp22/images/stencil/608x608/products/650/3255/REV-11-1956-MiniPowerModule-Top-FINAL__12664.1704391159.png?c=2
+Retrieved: 2026-09-08
+Processing: remove only edge-connected near-white background; crop to alpha bounds (151, 33, 458, 585). No perspective warping.
+Dimensions: width 1.875 in (47.625 mm), length 3.375 in (85.725 mm).
+Orientation: channel 5 at top through channel 0 at bottom; outputs on the right, input on the bottom.

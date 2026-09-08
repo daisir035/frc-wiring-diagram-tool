@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SetStateAction } from 'react';
-import { CircuitBoard, ClipboardPaste, Copy, Download, Eraser, FolderOpen, GitMerge, ImageOff, ImagePlus, Lock, Maximize, Pencil, Plus, PanelLeft, RotateCw, Save, Trash2, Undo2, Unlock, Zap } from 'lucide-react';
+import { CircuitBoard, ClipboardPaste, Copy, Download, Eraser, FileSpreadsheet, FolderOpen, GitMerge, ImageOff, ImagePlus, Lock, Maximize, Pencil, Plus, PanelLeft, RotateCw, Save, Settings2, Trash2, Undo2, Unlock, Zap } from 'lucide-react';
 import WiringCanvas from '../components/WiringCanvas';
 import LibraryPanel from '../components/LibraryPanel';
 import CustomBoardModal from '../components/CustomBoardModal';
 import PropertiesPanel from '../components/PropertiesPanel';
 import WirePropertiesPanel from '../components/WirePropertiesPanel';
 import WireBundlePanel from '../components/WireBundlePanel';
+import BomExportSettings from '../components/BomExportSettings';
+import { buildBom, calibrateBomPage, DEFAULT_BOM_OPTIONS } from '../lib/bom';
+import type { BomOptions } from '../lib/bom';
 import type {
   CanvasBackground,
   FuseRating,
@@ -37,6 +40,7 @@ import {
   wireEndsReversed,
   translateWireRoutes,
   partSize,
+  isPhysicalSize,
   uid,
 } from '../lib/wiring';
 
@@ -127,6 +131,7 @@ function isPlacedPart(value: unknown): value is PlacedPart {
     && typeof value.partId === 'string'
     && isFiniteNumber(value.x)
     && isFiniteNumber(value.y)
+    && (value.sizeMm === undefined || isPhysicalSize(value.sizeMm))
     && (value.rot === 0 || value.rot === 90 || value.rot === 180 || value.rot === 270);
 }
 
@@ -162,6 +167,7 @@ function isCanvasBackground(value: unknown): value is CanvasBackground {
     && isFiniteNumber(value.y)
     && isFiniteNumber(value.width)
     && isFiniteNumber(value.height)
+    && (value.calibratedWidthMm === undefined || (isFiniteNumber(value.calibratedWidthMm) && value.calibratedWidthMm > 0 && value.calibratedWidthMm <= 10000))
     && isFiniteNumber(value.opacity);
 }
 
@@ -445,6 +451,11 @@ export default function Home() {
   const [wireColor, setWireColor] = useState('#2563eb');
   const [bundleSelectionMode, setBundleSelectionMode] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
+  const [showBomSettings, setShowBomSettings] = useState(false);
+  const [bomOptions, setBomOptions] = useState<BomOptions>({ ...DEFAULT_BOM_OPTIONS });
+  const [bomExportBusy, setBomExportBusy] = useState(false);
+  const bomPages = bomOptions.scope === 'page' ? [activeProject] : projects;
+  const bomHasContent = bomPages.some((page) => page.parts.length > 0 || page.wires.length > 0);
   const [libraryOpen, setLibraryOpen] = useState(() => window.innerWidth >= 768);
   const [renamingProjectId, setRenamingProjectId] = useState<string | null>(null);
   const [projectNameDraft, setProjectNameDraft] = useState('');
@@ -633,6 +644,28 @@ export default function Home() {
     resetInteraction();
   };
 
+  const exportBOM = async () => {
+    if (bomExportBusy || !bomHasContent) return;
+    setBomExportBusy(true);
+    try {
+      const report = buildBom(activeEngineeringProject.name, bomPages, partDefs, bomOptions);
+      const { exportBomBuffer } = await import('../lib/bomExcel');
+      const buffer = await exportBomBuffer(report);
+      const blob = new Blob([new Uint8Array(buffer)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = sourceFilename(activeEngineeringProject.name).replace(/\.frcwire$/, '-BOM.xlsx');
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      console.error('BOM export failed', error);
+      window.alert('BOM 导出失败，请重试。');
+    } finally {
+      setBomExportBusy(false);
+    }
+  };
+
   const saveSourceFile = () => {
     const sourceFile: SourceFile = {
       format: SOURCE_FILE_FORMAT,
@@ -769,7 +802,7 @@ export default function Home() {
     let maxY = -Infinity;
     clipboard.parts.forEach((part) => {
       const def = partDefs.get(part.partId);
-      const size = def ? partSize(def) : { w: 0, h: 0 };
+      const size = def ? partSize(def, part) : { w: 0, h: 0 };
       minX = Math.min(minX, part.x);
       minY = Math.min(minY, part.y);
       maxX = Math.max(maxX, part.x + size.w);
@@ -1207,7 +1240,7 @@ export default function Home() {
     targetParts.forEach((p) => {
       const def = partDefs.get(p.partId);
       if (!def) return;
-      const { w, h } = partSize(def);
+      const { w, h } = partSize(def, p);
       const r = (p.rot * Math.PI) / 180;
       const cos = Math.abs(Math.cos(r));
       const sin = Math.abs(Math.sin(r));
@@ -1263,7 +1296,7 @@ export default function Home() {
     parts.forEach((p) => {
       const def = partDefs.get(p.partId);
       if (!def) return;
-      const { w, h } = partSize(def);
+      const { w, h } = partSize(def, p);
       const r = (p.rot * Math.PI) / 180;
       const cos = Math.abs(Math.cos(r));
       const sin = Math.abs(Math.sin(r));
@@ -1464,6 +1497,14 @@ export default function Home() {
             event.currentTarget.value = '';
           }}
         />
+        <ToolBtn onClick={() => { void exportBOM(); }} disabled={bomExportBusy || !bomHasContent}
+          title={bomOptions.scope === 'project' ? '导出当前工程所有页面的 Excel BOM' : '导出当前页面的 Excel BOM'}>
+          <FileSpreadsheet className="h-3.5 w-3.5" aria-hidden="true" />
+          {bomExportBusy ? 'BOM 导出中...' : '导出 BOM'}
+        </ToolBtn>
+        <ToolBtn onClick={() => setShowBomSettings(true)} title="BOM 导出设置">
+          <Settings2 className="h-3.5 w-3.5" aria-hidden="true" />
+        </ToolBtn>
         <ToolBtn onClick={saveSourceFile} title="将当前工程及其全部页面保存为 .frcwire 源文件 (Ctrl+S)">
           <Save className="h-3.5 w-3.5" aria-hidden="true" />
           保存源文件
@@ -1850,6 +1891,12 @@ export default function Home() {
         <span className="whitespace-nowrap">已自动保存</span>
       </div>
 
+      {showBomSettings && (
+        <BomExportSettings key={activeProjectId} options={bomOptions} background={backgroundImage} pageName={activeProject.name}
+          busy={bomExportBusy} hasContent={bomHasContent} onChange={setBomOptions}
+          onCalibrate={(widthMm) => updateActiveProject((project) => calibrateBomPage(project, widthMm, partDefs))}
+          onExport={() => { void exportBOM(); }} onClose={() => setShowBomSettings(false)} />
+      )}
       {showCustom && (
         <CustomBoardModal
           onClose={() => setShowCustom(false)}

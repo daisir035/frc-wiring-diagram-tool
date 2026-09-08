@@ -6,7 +6,6 @@ import type {
   Wire,
   WireEnd,
   WireTerminalType,
-  WireWaypoint,
   ViewTransform,
   WorldPort,
 } from '../lib/wiring';
@@ -17,9 +16,12 @@ import {
   cablePorts,
   pairedCablePort,
   pairedWireGroups,
+  cableInlineConnectors,
+  inlineConnectorLocation,
+  inlineConnectorPosition,
+  uid,
   wireRoutingLane,
   wireWaypoints,
-  projectOntoRoute,
   partSize,
   portWorld,
   wireGaugeRule,
@@ -27,6 +29,7 @@ import {
   PORT_TYPE_COLOR,
 } from '../lib/wiring';
 import PartArtwork from './PartArtwork';
+import InlineConnectorMarker from './InlineConnectorMarker';
 import CableConductors from './CableConductors';
 
 interface Props {
@@ -37,6 +40,7 @@ interface Props {
   selectedParts: Set<string>;
   selectedWires: Set<string>;
   pendingFrom: WireEnd | null;
+  pendingInlineWireId: string | null;
   view: ViewTransform;
   svgRef: React.RefObject<SVGSVGElement | null>;
   onViewChange: (v: ViewTransform) => void;
@@ -46,7 +50,9 @@ interface Props {
   onWireClick: (id: string, additive: boolean) => void;
   onWireControlChange: (id: string, control?: { x: number; y: number }) => void;
   onBundleEndpointsChange: (id: string, endpoints?: Wire['bundleEndpoints']) => void;
-  onWireWaypointAdd: (id: string, waypoint: WireWaypoint, index: number) => void;
+  onInlineConnectorChange: (wireId: string, connectorId: string, position: number) => void;
+  onInlineConnectorRemove: (wireId: string, connectorId: string) => void;
+  onInlinePlacementComplete: () => void;
   onWireWaypointChange: (id: string, waypointId: string, point?: { x: number; y: number }) => void;
   onPortClick: (end: WireEnd) => void;
   onFuseClick: (uid: string, channel: number) => void;
@@ -59,6 +65,7 @@ type DragMode =
   | { kind: 'marquee'; startWx: number; startWy: number; additive: boolean }
   | { kind: 'parts'; uids: string[]; lastWx: number; lastWy: number; moved: boolean; additive: boolean; clickUid: string }
   | { kind: 'wire-control'; wireId: string }
+  | { kind: 'inline-connector'; wireId: string; connectorId: string }
   | { kind: 'bundle-endpoint'; wireId: string; endpoint: 'entry' | 'exit'; endpoints: NonNullable<Wire['bundleEndpoints']>; offsetX: number; offsetY: number }
   | { kind: 'wire-waypoint'; wireId: string; waypointId: string };
 
@@ -230,6 +237,7 @@ export default function WiringCanvas(props: Props) {
     selectedParts,
     selectedWires,
     pendingFrom,
+    pendingInlineWireId,
     view,
     svgRef,
     onViewChange,
@@ -239,7 +247,9 @@ export default function WiringCanvas(props: Props) {
     onWireClick,
     onWireControlChange,
     onBundleEndpointsChange,
-    onWireWaypointAdd,
+    onInlineConnectorChange,
+    onInlineConnectorRemove,
+    onInlinePlacementComplete,
     onWireWaypointChange,
     onPortClick,
     onFuseClick,
@@ -372,6 +382,20 @@ export default function WiringCanvas(props: Props) {
     return wireRoutingLane(wire, cables, getPortDef);
   }, [getPortDef, cables]);
   const geometry = useMemo(() => buildWireGeometry(wires, getPort, wireLane, cables), [wires, getPort, wireLane, cables]);
+  const inlineClearance = (partDefs.has('terminalPair') ? partSize(partDefs.get('terminalPair')!).w / 2 : 30) + 16;
+  const insertInline = (wireId: string, point: { x: number; y: number }) => {
+    const wire = wires.find((wire) => wire.id === wireId);
+    const route = geometry.routes.get(wireId);
+    if (!wire || !route) return;
+    const position = inlineConnectorPosition(wire, route, point, getPort, inlineClearance);
+    if (position === null) {
+      window.alert('当前线缆没有足够长的直线段放置 2 转 2 接线端子。');
+      onInlinePlacementComplete();
+      return;
+    }
+    onInlineConnectorChange(wireId, uid(), position);
+    onInlinePlacementComplete();
+  };
 
   /* ---------- 指针事件 ---------- */
 
@@ -414,7 +438,7 @@ export default function WiringCanvas(props: Props) {
 
   const onPointerMove = (e: React.PointerEvent) => {
     const d = dragRef.current;
-    if (pendingFrom) setCursor(toWorld(e.clientX, e.clientY));
+    if (pendingFrom || pendingInlineWireId) setCursor(toWorld(e.clientX, e.clientY));
     if (d.kind === 'pan') {
       onViewChange({
         k: d.view.k,
@@ -455,6 +479,13 @@ export default function WiringCanvas(props: Props) {
         x: Math.round(point.x / 4) * 4,
         y: Math.round(point.y / 4) * 4,
       });
+    } else if (d.kind === 'inline-connector') {
+      const wire = wires.find((wire) => wire.id === d.wireId);
+      const route = geometry.routes.get(d.wireId);
+      if (wire && route) {
+        const position = inlineConnectorPosition(wire, route, toWorld(e.clientX, e.clientY), getPort, inlineClearance);
+        if (position !== null) onInlineConnectorChange(d.wireId, d.connectorId, position);
+      }
     } else if (d.kind === 'wire-waypoint') {
       const point = toWorld(e.clientX, e.clientY);
       onWireWaypointChange(d.wireId, d.waypointId, {
@@ -536,7 +567,7 @@ export default function WiringCanvas(props: Props) {
         background: '#f1f5f9',
         backgroundImage: 'radial-gradient(circle, #cbd5e1 1.2px, transparent 1.2px)',
         backgroundSize: '26px 26px',
-        cursor: pendingFrom ? 'crosshair' : 'default',
+        cursor: pendingFrom || pendingInlineWireId ? 'crosshair' : 'default',
       }}
       onContextMenu={(e) => e.preventDefault()}
     >
@@ -687,25 +718,15 @@ export default function WiringCanvas(props: Props) {
                   strokeWidth={14}
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+                  style={{ pointerEvents: 'stroke', cursor: pendingInlineWireId === wire.id ? 'crosshair' : 'pointer' }}
                   onPointerDown={(e) => {
                     if (e.button !== 0 || spaceRef.current) return;
                     e.stopPropagation();
+                    if (pendingInlineWireId === wire.id) {
+                      insertInline(wire.id, toWorld(e.clientX, e.clientY));
+                      return;
+                    }
                     onWireClick(wire.id, e.shiftKey);
-                  }}
-                  onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    const point = toWorld(e.clientX, e.clientY);
-                    const snapped = {
-                      id: `wp_${Date.now().toString(36)}`,
-                      x: Math.round(point.x / 4) * 4,
-                      y: Math.round(point.y / 4) * 4,
-                      terminal: 'wago' as const,
-                    };
-                    const along = projectOntoRoute(route.points, point).along;
-                    const insertIndex = editableWaypoints.filter((waypoint) =>
-                      projectOntoRoute(route.points, waypoint).along < along).length;
-                    onWireWaypointAdd(editorWire.id, snapped, insertIndex);
                   }}
                 />
                 {wire.assembly === 'jumper' && (
@@ -972,6 +993,10 @@ export default function WiringCanvas(props: Props) {
               onPointerDown={(event) => {
                 if (event.button !== 0 || spaceRef.current) return;
                 event.stopPropagation();
+                if (pendingInlineWireId && bundle.wireIds.includes(pendingInlineWireId)) {
+                  insertInline(pendingInlineWireId, toWorld(event.clientX, event.clientY));
+                  return;
+                }
                 onMarqueeSelect({ partUids: [], wireIds: bundle.wireIds }, event.shiftKey);
               }}>
               <title>{bundle.style === 'drag-chain' ? '拖链' : '束线管'}</title>
@@ -1009,6 +1034,60 @@ export default function WiringCanvas(props: Props) {
               );
             });
           })}
+          {wires.flatMap((wire) => {
+            const cable = cables.get(wire.id);
+            if (cable && cable[0].id !== wire.id) return [];
+            const route = geometry.routes.get(wire.id);
+            const def = partDefs.get('terminalPair');
+            if (!route || !def) return [];
+            const selected = selectedWires.has(wire.id);
+            const can = getPortDef(wire.a)?.type === 'canH' || getPortDef(wire.a)?.type === 'canL';
+            const colors: [string, string] = [wire.color, cable?.[1].color ?? wire.color];
+            const { w, h } = partSize(def);
+            return cableInlineConnectors(wire, cables).map((connector) => {
+              const point = inlineConnectorLocation(wire, connector, route, getPort, inlineClearance);
+              return <g key={`${wire.id}:${connector.id}`} data-inline-connector-id={connector.id} data-inline-wire-id={wire.id}
+                data-covered={point.covered} data-export-ignore={point.covered ? 'true' : undefined}
+                visibility={point.covered && !selected ? 'hidden' : undefined}
+                role="button" tabIndex={0} aria-label={point.covered ? '2 转 2 接线端子（管内）' : '2 转 2 接线端子'}
+                transform={`translate(${point.x} ${point.y}) rotate(${point.angle})`} style={{ cursor: 'grab' }}
+                onPointerDown={(event) => {
+                  if (event.button !== 0 || spaceRef.current) return;
+                  event.stopPropagation();
+                  event.currentTarget.focus();
+                  svgRef.current?.setPointerCapture(event.pointerId);
+                  onWireClick(wire.id, false);
+                  dragRef.current = { kind: 'inline-connector', wireId: wire.id, connectorId: connector.id };
+                }}
+                onKeyDown={(event) => {
+                  if (['Delete', 'Backspace', 'Enter', ' '].includes(event.key)) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (event.key === 'Delete' || event.key === 'Backspace') onInlineConnectorRemove(wire.id, connector.id);
+                    else onWireClick(wire.id, false);
+                  }
+                }}>
+                <rect x={point.covered ? -12 : -w / 2 - 5} y={point.covered ? -10 : -h / 2 - 4}
+                  width={point.covered ? 24 : w + 10} height={point.covered ? 20 : h + 8} fill="transparent" />
+                <InlineConnectorMarker def={def} colors={colors} can={can} covered={point.covered} selected={selected} />
+                <title>{!point.fits ? '2 转 2 接线端子：直线段长度不足' : point.covered ? '2 转 2 接线端子（管内）' : '2 转 2 接线端子'}</title>
+              </g>;
+            });
+          })}
+          {pendingInlineWireId && cursor && (() => {
+            const wire = wires.find((wire) => wire.id === pendingInlineWireId);
+            const route = geometry.routes.get(pendingInlineWireId);
+            const def = partDefs.get('terminalPair');
+            if (!wire || !route || !def) return null;
+            const position = inlineConnectorPosition(wire, route, cursor, getPort, inlineClearance);
+            if (position === null) return null;
+            const point = inlineConnectorLocation(wire, { id: 'preview', position }, route, getPort, inlineClearance);
+            if (Math.hypot(point.x - cursor.x, point.y - cursor.y) * view.k > Math.max(30, inlineClearance * view.k)) return null;
+            return <g data-export-ignore="true" transform={`translate(${point.x} ${point.y}) rotate(${point.angle})`} opacity={0.65} pointerEvents="none">
+              <InlineConnectorMarker def={def} colors={[wire.color, cables.get(wire.id)?.[1].color ?? wire.color]}
+                can={getPortDef(wire.a)?.type === 'canH'} covered={point.covered} selected />
+            </g>;
+          })()}
           {marquee && (
             <rect
               x={marquee.x}

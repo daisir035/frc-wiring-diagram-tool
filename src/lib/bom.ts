@@ -1,6 +1,6 @@
 import {
-  WORLD_UNITS_PER_MM, WIRE_COLORS, WIRE_TERMINAL_OPTIONS, anchorWireBundles, buildWireGeometry,
-  cablePort, defaultTerminalForPort, pairedWireGroups, partDimensions, partSize, portWorld,
+  WORLD_UNITS_PER_MM, WIRE_COLORS, WIRE_TERMINAL_OPTIONS, FUSE_RATINGS, allowedFuseRatings, anchorWireBundles, buildWireGeometry,
+  cablePort, cableInlineConnectors, defaultTerminalForPort, pairedWireGroups, partDimensions, partSize, portWorld,
   routeLength, wireRoutingLane, wireWaypoints,
 } from './wiring.ts';
 import type { CanvasBackground, PartDef, PlacedPart, ViewTransform, Wire, WireEnd, WireTerminalType } from './wiring.ts';
@@ -115,14 +115,15 @@ export function buildBom(project: string, pages: BomPage[], defs: ReadonlyMap<st
         sizeStatus: def ? sizeStatus : '未知', source: size?.source ?? def?.productUrl ?? '' });
       const notes = def ? (sizeStatus === '参考尺寸' ? ['型号或尺寸待核对'] : []) : ['器件定义缺失'];
       add({ key: keyOf('part', part.partId, size?.w, size?.h), category: part.partId.startsWith('terminal') ? '端子台' : def?.category ?? '未识别',
-        name: def?.name ?? `未识别器件 ${part.partId}`, specification: size ? `${size.w} × ${size.h} mm` : '',
+        name: part.partId === 'terminalPair' ? '2 转 2 接线端子' : def?.name ?? `未识别器件 ${part.partId}`, specification: size ? `${size.w} × ${size.h} mm` : '',
         quantity: 1, unit: '件', pages: [pageName], notes, source: def?.productUrl ?? def?.docsUrl ?? '' });
       if (!def) report.warnings.push(`${pageName}：器件 ${part.uid} 的定义缺失。`);
       for (const [channel, rating] of Object.entries(part.fuses ?? {})) {
-        if (!def?.fuseChannels || !Number.isInteger(Number(channel)) || Number(channel) < 0 || Number(channel) >= def.fuseChannels) {
+        if (!def?.fuseChannels || !Number.isInteger(Number(channel)) || Number(channel) < 0 || Number(channel) >= def.fuseChannels || !FUSE_RATINGS.includes(rating)) {
           report.warnings.push(`${pageName}：${part.customName || def?.name || part.uid} 的保险丝槽 ${channel} 无效，未计入。`);
           continue;
         }
+        if (!allowedFuseRatings(def, Number(channel)).includes(rating)) report.warnings.push(`${pageName}：${def.name} CH ${channel} 的 ${rating} A 保护规格与槽位限制不符。`);
         const format = part.partId === 'pdh' ? (Number(channel) >= 20 ? '小型插片保险丝' : '支路断路器') : 'ATO 断路器 / 保险丝';
         add({ key: keyOf('fuse', format, rating), category: '保险丝 / 断路器', name: format, specification: `${rating} A`,
           quantity: 1, unit: '个', pages: [pageName], notes: ['仅统计已配置槽位；采购时核对封装'], source: '' });
@@ -139,9 +140,23 @@ export function buildBom(project: string, pages: BomPage[], defs: ReadonlyMap<st
         quantity: count, unit: singlePin(type) ? '个' : '套', pages: [pageName], notes, source: '' });
     };
     const handledEditors = new Set<string>();
+    const handledInlineCables = new Set<string>();
     for (const wire of page.wires) {
       const cable = cables.get(wire.id);
       const cableId = cable?.[0].id ?? wire.id;
+      if (!handledInlineCables.has(cableId)) {
+        handledInlineCables.add(cableId);
+        const terminalDef = defs.get('terminalPair');
+        const size = terminalDef && partDimensions(terminalDef);
+        for (const connector of cableInlineConnectors(wire, cables)) {
+          add({ key: keyOf('part', 'terminalPair', size?.w, size?.h), category: '端子台', name: '2 转 2 接线端子',
+            specification: size ? `${size.w} × ${size.h} mm` : '2 进 2 出', quantity: 1, unit: '件', pages: [pageName],
+            notes: ['线内端子按每个实例计一次；线缆保持连续，管内端子也计入'], source: terminalDef?.productUrl ?? '' });
+          report.parts.push({ page: pageName, id: `${cableId}:${connector.id}`, name: '2 转 2 接线端子',
+            instance: `线内端子 / ${cableId}`, deviceId: '', w: size?.w ?? null, h: size?.h ?? null,
+            sizeStatus: size?.status === 'verified' ? '厂家尺寸' : '参考尺寸', source: size?.source ?? '' });
+        }
+      }
       const route = layout.routes.get(wire.id);
       const length = route ? routeLength(route.points) / WORLD_UNITS_PER_MM / 1000 : null;
       const lengthM = length !== null && Number.isFinite(length) ? length : null;

@@ -2,7 +2,7 @@ import ExcelJS from 'exceljs';
 import type { BomReport } from './bom.ts';
 
 const FIRST_ROW = 6;
-const text = (value: string) => value.slice(0, 32767);
+const text = (value: string) => value ? value.slice(0, 32767) : null;
 const colors = { ink: '243746', header: '176B79', border: 'D8E2E7', stripe: 'F2F7F9', link: '1666A7' };
 
 function createTable(workbook: ExcelJS.Workbook, name: string, title: string, description: string, columns: Array<[string, number]>) {
@@ -68,7 +68,7 @@ export function createBomWorkbook(report: BomReport, createdAt = new Date()) {
   const summary = createTable(workbook, 'BOM 汇总', `${report.project} - BOM`,
     `${scope}；共 ${report.pages.length} 页。线长为平面备料估算，非最终裁线长度。相同实物在不同页面重复绘制时会重复计数。`,
     [['序号', 8], ['类别', 22], ['物料名称', 34], ['规格', 34], ['数量', 14], ['单位', 8], ['涉及页面', 26], ['备注', 52], ['来源', 18]]);
-  const parts = createTable(workbook, '器件明细', '器件明细', '每行对应一个放置实例。尺寸为未旋转外形；参考尺寸不等于厂家确认尺寸。',
+  const parts = createTable(workbook, '器件明细', '器件明细', '每行对应一个器件或线内端子实例。尺寸为未旋转外形；参考尺寸不等于厂家确认尺寸。',
     [['页面', 24], ['实例 ID', 26], ['器件型号', 34], ['自定义名称', 26], ['设备 / CAN ID', 20], ['宽度(mm)', 14], ['高度(mm)', 14], ['尺寸依据', 16], ['来源', 18]]);
   const lines = createTable(workbook, '线路明细', '线路与线长明细',
     '现场导线按单芯逐条统计，双芯线有两行。成品线的接头已包含在成品线数量中。拖链 / 束线管每组只计一次；线长不包含三维高度差、绞合增量及运动行程。',
@@ -81,13 +81,13 @@ export function createBomWorkbook(report: BomReport, createdAt = new Date()) {
   parameters.getRow(1).height = 32;
   parameters.getRow(2).values = ['导出时间', createdAt];
   parameters.getCell('B2').numFmt = 'yyyy-mm-dd hh:mm';
-  parameters.getRow(3).values = ['导线预留比例', report.options.sparePercent / 100, '%', '可调整；影响现场导线和成品线的备料估算，不影响护套长度。'];
+  parameters.getRow(3).values = ['导线预留比例', report.options.sparePercent / 100, null, '可调整；影响现场导线和成品线的备料估算，不影响护套长度。'];
   parameters.getCell('B3').numFmt = '0%';
-  parameters.getRow(4).values = ['每端预留', report.options.tailMm, 'mm', '每条线路累计两端预留，最终估算向上取整到 0.01 m。'];
+  parameters.getRow(4).values = ['每端预留', report.options.tailMm, 'mm', '每条线路累计 A/B 两端预留，向上取整到 0.01 m；中间接插件附加余量另计。'];
   parameters.getCell('B3').dataValidation = { type: 'decimal', operator: 'between', formulae: [0, 1], showErrorMessage: true, errorTitle: '比例无效', error: '请输入 0 到 1 之间的比例。' };
   parameters.getCell('B4').dataValidation = { type: 'decimal', operator: 'between', formulae: [0, 10000], showErrorMessage: true, errorTitle: '长度无效', error: '请输入 0 到 10000 mm。' };
   parameters.getRow(5).values = ['长度算法', '正交中心线路径', '1 世界单位 = 1 mm', '器件端口、绕线控制点、拖链内部与外部引线均纳入累计；屏幕缩放不参与计算。'];
-  parameters.getRow(6).values = ['端子统计', '默认端子是估算', '', '单芯冷压端子逐芯计数；多芯接插件同一线缆端点计一套；共享中间接插件计一套。型号、极数、压接尺寸需在采购前核对。'];
+  parameters.getRow(6).values = ['端子统计', '默认端子是估算', null, '单芯冷压端子逐芯计数；多芯接插件同一线缆端点计一套；共享中间接插件计一套。型号、极数、压接尺寸需在采购前核对。'];
   parameters.getRow(8).values = ['页面', '底盘图', '标定实宽(mm)', '状态'];
   for (const page of report.pages) parameters.addRow([text(page.name), text(page.background), page.calibratedWidthMm,
     page.background ? page.calibratedWidthMm ? '已按整幅底盘图宽度标定；白边也包含在标定范围内。' : '底盘图未标定；长度暂按画布毫米比例。' : '无底盘图；长度按画布毫米比例。']);
@@ -134,7 +134,7 @@ export function createBomWorkbook(report: BomReport, createdAt = new Date()) {
   }
   for (const part of report.parts) {
     const row = parts.addRow([text(part.page), text(part.id), text(part.name), text(part.instance), text(part.deviceId), part.w, part.h, part.sizeStatus, sourceValue(part.source)]);
-    row.getCell(6).numFmt = row.getCell(7).numFmt = '0.###';
+    row.getCell(6).numFmt = row.getCell(7).numFmt = '0.000';
   }
   for (const sheet of [summary, parts, lines]) finishTable(sheet);
   return workbook;

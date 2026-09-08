@@ -8,7 +8,7 @@ import PropertiesPanel from '../components/PropertiesPanel';
 import WirePropertiesPanel from '../components/WirePropertiesPanel';
 import WireBundlePanel from '../components/WireBundlePanel';
 import BomExportSettings from '../components/BomExportSettings';
-import { buildBom, calibrateBomPage, DEFAULT_BOM_OPTIONS } from '../lib/bom';
+import { buildBom, calibrateBomPage, DEFAULT_BOM_OPTIONS, validateBomOptions } from '../lib/bom';
 import type { BomOptions } from '../lib/bom';
 import type {
   CanvasBackground,
@@ -31,12 +31,14 @@ import {
   pairedWireGroups,
   connectWireEnds,
   compareWireEditors,
-  buildWireGeometry,
+  cableInlineConnectors,
+  canInsertInlineConnector,
+  isInlineConnector,
+  updateInlineConnector,
   anchorWireBundles,
   wireWaypoints,
   portWorld,
   wireGaugeRule,
-  wireRoute,
   wireEndsReversed,
   translateWireRoutes,
   partSize,
@@ -45,6 +47,7 @@ import {
 } from '../lib/wiring';
 
 const STORAGE_KEY = 'frc-wiresheet-v1';
+const BOM_OPTIONS_KEY = 'frc-bom-options-v1';
 const DEFAULT_VIEW: ViewTransform = { x: 40, y: 30, k: 1 };
 const SOURCE_FILE_FORMAT = 'frc-wiresheet-source';
 const SOURCE_FILE_VERSION = 2;
@@ -145,6 +148,7 @@ function isWire(value: unknown): value is Wire {
     && isWireEnd(value.a)
     && isWireEnd(value.b)
     && typeof value.color === 'string'
+    && (value.inlineConnectors === undefined || (Array.isArray(value.inlineConnectors) && value.inlineConnectors.every(isInlineConnector)))
     && (value.bundleReversed === undefined || typeof value.bundleReversed === 'boolean')
     && [value.bundleLeadIn, value.bundleLeadOut].every((points) => points === undefined || (Array.isArray(points)
       && points.every((point) => isRecord(point) && typeof point.id === 'string' && isFiniteNumber(point.x) && isFiniteNumber(point.y))))
@@ -339,6 +343,7 @@ function loadSaved(): SavedState {
 function cloneProjectContent(parts: PlacedPart[], wires: Wire[], offsetX = 0, offsetY = 0) {
   const partUidMap = new Map(parts.map((part) => [part.uid, uid()]));
   const bundleIdMap = new Map<string, string>();
+  const inlineIdMap = new Map<string, string>();
   const clonedParts = parts.map((part) => ({
     ...part,
     uid: partUidMap.get(part.uid) as string,
@@ -364,6 +369,10 @@ function cloneProjectContent(parts: PlacedPart[], wires: Wire[], offsetX = 0, of
       a: { ...wire.a, uid: aUid },
       b: { ...wire.b, uid: bUid },
       bundleId,
+      inlineConnectors: wire.inlineConnectors?.map((connector) => {
+        if (!inlineIdMap.has(connector.id)) inlineIdMap.set(connector.id, uid());
+        return { ...connector, id: inlineIdMap.get(connector.id)! };
+      }),
       bundleLeadIn: wire.bundleLeadIn?.map((point) => ({ ...point, id: uid(), x: point.x + offsetX, y: point.y + offsetY })),
       bundleLeadOut: wire.bundleLeadOut?.map((point) => ({ ...point, id: uid(), x: point.x + offsetX, y: point.y + offsetY })),
       bundleEndpoints: wire.bundleEndpoints ? {
@@ -447,12 +456,22 @@ export default function Home() {
   const [selectedParts, setSelectedParts] = useState<Set<string>>(new Set());
   const [selectedWires, setSelectedWires] = useState<Set<string>>(new Set());
   const [pendingFrom, setPendingFrom] = useState<WireEnd | null>(null);
+  const [pendingInlineWireId, setPendingInlineWireId] = useState<string | null>(null);
   const [clipboard, setClipboard] = useState<WorkspaceClipboard | null>(null);
   const [wireColor, setWireColor] = useState('#2563eb');
   const [bundleSelectionMode, setBundleSelectionMode] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
   const [showBomSettings, setShowBomSettings] = useState(false);
-  const [bomOptions, setBomOptions] = useState<BomOptions>({ ...DEFAULT_BOM_OPTIONS });
+  const [bomOptions, setBomOptions] = useState<BomOptions>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(BOM_OPTIONS_KEY) ?? 'null') as BomOptions;
+      validateBomOptions(saved);
+      return { scope: saved.scope, sparePercent: saved.sparePercent, tailMm: saved.tailMm };
+    } catch { return { ...DEFAULT_BOM_OPTIONS }; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(BOM_OPTIONS_KEY, JSON.stringify(bomOptions)); } catch { /* Export still works when preference storage is full. */ }
+  }, [bomOptions]);
   const [bomExportBusy, setBomExportBusy] = useState(false);
   const bomPages = bomOptions.scope === 'page' ? [activeProject] : projects;
   const bomHasContent = bomPages.some((page) => page.parts.length > 0 || page.wires.length > 0);
@@ -528,6 +547,7 @@ export default function Home() {
     setSelectedParts(new Set());
     setSelectedWires(new Set());
     setPendingFrom(null);
+    setPendingInlineWireId(null);
     setBundleSelectionMode(false);
     setRenamingProjectId(null);
     setRenamingEngineeringProjectId(null);
@@ -830,6 +850,7 @@ export default function Home() {
   /* ---------- 元件操作 ---------- */
 
   const addPart = (partId: string) => {
+    setPendingInlineWireId(null);
     const def = partDefs.get(partId);
     if (!def || !svgRef.current) return;
     const rect = svgRef.current.getBoundingClientRect();
@@ -867,6 +888,7 @@ export default function Home() {
   };
 
   const deleteSelection = () => {
+    setPendingInlineWireId(null);
     if (selectedParts.size === 0 && selectedWires.size === 0) return;
     const deletablePartUids = new Set(
       parts.filter((part) => selectedParts.has(part.uid) && !part.locked).map((part) => part.uid),
@@ -1064,18 +1086,6 @@ export default function Home() {
     });
   };
 
-  const addWireWaypoint = (wireId: string, waypoint: WireWaypoint, index: number) => {
-    applyWaypointsToWireGroup(wireId, (waypoints) => {
-      const next = [...waypoints];
-      next.splice(Math.max(0, Math.min(index, next.length)), 0, {
-        ...waypoint,
-        id: uid(),
-        terminal: waypoint.terminal ?? 'wago',
-      });
-      return next;
-    });
-  };
-
   const changeWireWaypoint = (wireId: string, waypointId: string, point?: { x: number; y: number }) => {
     applyWaypointsToWireGroup(wireId, (waypoints) => point
       ? waypoints.map((waypoint) => waypoint.id === waypointId ? { ...waypoint, ...point } : waypoint)
@@ -1088,38 +1098,8 @@ export default function Home() {
     ));
   };
 
-  const addSelectedWireWaypoint = () => {
-    if (!selectedWire) return;
-    const target = selectedWire.bundleId
-      ? wires.filter((wire) => wire.bundleId === selectedWire.bundleId).sort((a, b) => compareWireEditors(a, b, cables))[0]
-      : selectedWire;
-    const p1 = resolveWorldPort(target.a);
-    const p2 = resolveWorldPort(target.b);
-    if (!p1 || !p2) return;
-    const existing = target.waypoints ?? [];
-    const index = existing.length;
-    if (index === 0) {
-      const route = buildWireGeometry(wires, resolveWorldPort, () => 0, cables).routes.get(target.id) ?? wireRoute(p1, p2, 0, target.control);
-      addWireWaypoint(target.id, { id: uid(), x: route.control.x, y: route.control.y, terminal: 'wago' }, 0);
-      return;
-    }
-
-    // 继续添加时放在最后一个断点与 B 端之间，避免多个断点堆叠在同一位置。
-    const last = existing[index - 1];
-    const nextPoint = {
-      id: uid(),
-      x: Math.round(((last.x + p2.x) / 2) / 4) * 4,
-      y: Math.round(((last.y + p2.y) / 2) / 4) * 4,
-      terminal: 'wago' as const,
-    };
-    if (Math.hypot(nextPoint.x - last.x, nextPoint.y - last.y) < 12) {
-      nextPoint.x += 24;
-      nextPoint.y += 24;
-    }
-    addWireWaypoint(target.id, nextPoint, index);
-  };
-
   const onPortClick = (end: WireEnd) => {
+    setPendingInlineWireId(null);
     if (!pendingFrom) {
       setPendingFrom(end);
       return;
@@ -1323,6 +1303,7 @@ export default function Home() {
     maxY += pad;
 
     const clone = svg.cloneNode(true) as SVGSVGElement;
+    clone.querySelectorAll('[data-export-ignore]').forEach((element) => element.remove());
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
     // 内联图片为 dataURL，避免污染 canvas
     const images = Array.from(clone.querySelectorAll('image'));
@@ -1405,7 +1386,8 @@ export default function Home() {
         e.preventDefault();
         deleteSelection();
       } else if (e.key === 'Escape') {
-        if (pendingFrom) setPendingFrom(null);
+        if (pendingInlineWireId) setPendingInlineWireId(null);
+        else if (pendingFrom) setPendingFrom(null);
         else {
           setSelectedParts(new Set());
           setSelectedWires(new Set());
@@ -1750,6 +1732,7 @@ export default function Home() {
             selectedParts={selectedParts}
             selectedWires={selectedWires}
             pendingFrom={pendingFrom}
+            pendingInlineWireId={selectedWire?.id === pendingInlineWireId ? pendingInlineWireId : null}
             view={view}
             svgRef={svgRef}
             onViewChange={setView}
@@ -1762,6 +1745,7 @@ export default function Home() {
               };
             })}
             onPartClick={(uid2, additive) => {
+              setPendingInlineWireId(null);
               setSelectedWires(new Set());
               setSelectedParts((prev) => {
                 if (!additive) return new Set([uid2]);
@@ -1772,6 +1756,7 @@ export default function Home() {
               });
             }}
             onMarqueeSelect={({ partUids, wireIds }, additive) => {
+              setPendingInlineWireId(null);
               if (wireIds.length > 0) {
                 setSelectedParts(new Set());
                 setSelectedWires((prev) => (additive ? new Set([...prev, ...wireIds]) : new Set(wireIds)));
@@ -1781,6 +1766,7 @@ export default function Home() {
               setSelectedParts((prev) => (additive ? new Set([...prev, ...partUids]) : new Set(partUids)));
             }}
             onWireClick={(id, additive) => {
+              setPendingInlineWireId(null);
               setSelectedParts(new Set());
               setSelectedWires((prev) => {
                 const ids = cables.get(id)?.map((wire) => wire.id) ?? [id];
@@ -1802,7 +1788,9 @@ export default function Home() {
                 );
               });
             }}
-            onWireWaypointAdd={addWireWaypoint}
+            onInlineConnectorChange={(wireId, connectorId, position) => setWires((current) => updateInlineConnector(current, wireId, connectorId, position, parts, partDefs))}
+            onInlineConnectorRemove={(wireId, connectorId) => setWires((current) => updateInlineConnector(current, wireId, connectorId, undefined, parts, partDefs))}
+            onInlinePlacementComplete={() => setPendingInlineWireId(null)}
             onBundleEndpointsChange={(id, bundleEndpoints) => {
               setWires((current) => {
                 const target = current.find((wire) => wire.id === id);
@@ -1822,7 +1810,8 @@ export default function Home() {
             onPortClick={onPortClick}
             onFuseClick={cyclePartFuse}
             onBackgroundClick={() => {
-              if (pendingFrom) setPendingFrom(null);
+              if (pendingInlineWireId) setPendingInlineWireId(null);
+              else if (pendingFrom) setPendingFrom(null);
               else {
                 setSelectedParts(new Set());
                 setSelectedWires(new Set());
@@ -1835,7 +1824,7 @@ export default function Home() {
             wireCount={selectedWires.size}
             value={selectedWireRoutingStyle}
             onChange={applyWireRoutingStyle}
-            onClose={() => setSelectedWires(new Set())}
+            onClose={() => { setSelectedWires(new Set()); setPendingInlineWireId(null); }}
           />
         )}
         {selectedWire && selectedWireRule && (
@@ -1856,11 +1845,19 @@ export default function Home() {
               };
             }))}
             onRoutingStyleChange={applyWireRoutingStyle}
-            onAddWaypoint={addSelectedWireWaypoint}
+            inlineConnectors={cableInlineConnectors(selectedWire, cables)}
+            inlineSupported={canInsertInlineConnector(selectedWire, parts, partDefs, cables)}
+            inlinePlacement={pendingInlineWireId === selectedWire.id}
+            onAddInline={() => { setPendingFrom(null); setPendingInlineWireId((id) => id === selectedWire.id ? null : selectedWire.id); }}
+            onRemoveInline={(id) => setWires((current) => updateInlineConnector(current, selectedWire.id, id, undefined, parts, partDefs))}
+            onClearInline={() => setWires((current) => {
+              const ids = new Set((pairedWireGroups(current, parts, partDefs).get(selectedWire.id) ?? [selectedWire]).map((wire) => wire.id));
+              return current.map((wire) => ids.has(wire.id) ? { ...wire, inlineConnectors: undefined } : wire);
+            })}
             onWaypointTerminalChange={(waypointId, terminal) => changeWireWaypointTerminal(selectedWire.id, waypointId, terminal)}
             onRemoveWaypoint={(waypointId) => changeWireWaypoint(selectedWire.id, waypointId)}
             onClearWaypoints={() => selectedWire && applyWaypointsToWireGroup(selectedWire.id, () => [])}
-            onClose={() => setSelectedWires(new Set())}
+            onClose={() => { setSelectedWires(new Set()); setPendingInlineWireId(null); }}
           />
         )}
         {!selectedWire && selectedPart && selectedPartDef && (
@@ -1884,6 +1881,7 @@ export default function Home() {
           <b className="text-slate-700">{activeProject.name}</b> · <b className="text-slate-700">{parts.length}</b> 个元件 · <b className="text-slate-700">{wires.length - cables.size / 2}</b> 条线路
           {selCount > 0 && <span className="text-sky-600"> · 已选 {selCount} 项</span>}
           {pendingFrom && <span className="text-orange-600"> · 接线中：请点击另一个端口完成连接（Esc 取消）</span>}
+          {pendingInlineWireId && selectedWire?.id === pendingInlineWireId && <span className="text-sky-700"> · 放置 2 转 2 接线端子</span>}
         </span>
         <div className="flex-1" />
         <span className="hidden sm:inline">缩放 {Math.round(view.k * 100)}%</span>

@@ -150,7 +150,7 @@ test('Excel export is a real XLSX with typed quantities, cached formulas, and so
   assert.ok(summary.autoFilter);
 });
 
-test('unknown lengths remain explicit in Excel even after a native recalculation', () => {
+test('unknown lengths have a nonblank guard in Excel quantity formulas', () => {
   const report = run([page([wire('broken', 'missing', '#dc2626')])]);
   const workbook = createBomWorkbook(report);
   const row = report.items.findIndex((item) => item.category === '导线') + 6;

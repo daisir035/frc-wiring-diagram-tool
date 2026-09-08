@@ -122,6 +122,12 @@ export interface WireWaypoint {
   terminal?: WireTerminalType;
 }
 
+export interface InlineConnector {
+  id: string;
+  /** Fraction of the complete cable route, measured from this wire's A end. */
+  position: number;
+}
+
 export interface Wire {
   id: string;
   a: WireEnd;
@@ -151,6 +157,8 @@ export interface Wire {
   control?: { x: number; y: number };
   /** 用户在线路中间添加的可拖动端子，按从 A 端到 B 端的顺序排列 */
   waypoints?: WireWaypoint[];
+  /** Two-in/two-out terminal blocks carried by this cable, not route controls. */
+  inlineConnectors?: InlineConnector[];
 }
 
 export interface ViewTransform {
@@ -1379,6 +1387,46 @@ export function wireRoutingLane(wire: Wire, cables: ReadonlyMap<string, Wire[]>,
   return ((Math.abs(hash) % 5) - 2) * 2;
 }
 
+export function isInlineConnector(value: unknown): value is InlineConnector {
+  if (!value || typeof value !== 'object' || !('id' in value) || !('position' in value)) return false;
+  return typeof value.id === 'string' && value.id.length > 0 && typeof value.position === 'number'
+    && Number.isFinite(value.position) && value.position >= 0 && value.position <= 1;
+}
+
+export function cableInlineConnectors(wire: Wire, cables: ReadonlyMap<string, Wire[]>) {
+  const connectors = new Map<string, InlineConnector>();
+  const members = [wire, ...(cables.get(wire.id) ?? []).filter((member) => member.id !== wire.id)];
+  for (const member of members) {
+    for (const connector of member.inlineConnectors ?? []) {
+      if (!isInlineConnector(connector) || connectors.has(connector.id)) continue;
+      connectors.set(connector.id, { ...connector, position: member.a.uid === wire.a.uid ? connector.position : 1 - connector.position });
+    }
+  }
+  return [...connectors.values()].sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
+}
+
+export function canInsertInlineConnector(wire: Wire, parts: PlacedPart[], defs: ReadonlyMap<string, PartDef>, cables: ReadonlyMap<string, Wire[]>) {
+  if ((cables.get(wire.id)?.length ?? 0) !== 2) return false;
+  const a = wireEndContext(wire.a, parts, defs).port;
+  const b = wireEndContext(wire.b, parts, defs).port;
+  return a?.type === b?.type && ['pwr+', 'pwr-', 'canH', 'canL'].includes(a?.type ?? '');
+}
+
+export function updateInlineConnector(wires: Wire[], wireId: string, connectorId: string, position: number | undefined,
+  parts: PlacedPart[], defs: ReadonlyMap<string, PartDef>) {
+  const target = wires.find((wire) => wire.id === wireId);
+  if (!target || !connectorId || (position !== undefined && !isInlineConnector({ id: connectorId, position }))) return wires;
+  const cables = pairedWireGroups(wires, parts, defs);
+  if (position !== undefined && !canInsertInlineConnector(target, parts, defs, cables)) return wires;
+  const members = cables.get(wireId) ?? [target];
+  const ids = new Set(members.map((wire) => wire.id));
+  const connectors = cableInlineConnectors(target, cables).filter((item) => item.id !== connectorId);
+  if (position !== undefined) connectors.push({ id: connectorId, position });
+  return wires.map((wire) => ids.has(wire.id) ? { ...wire, inlineConnectors: connectors.length ? connectors.map((item) => ({
+    ...item, position: wire.a.uid === target.a.uid ? item.position : 1 - item.position,
+  })) : undefined } : wire);
+}
+
 export function compareWireEditors(a: Wire, b: Wire, cables: ReadonlyMap<string, Wire[]>) {
   const secondary = (wire: Wire) => Number(cables.has(wire.id) && cables.get(wire.id)![0].id !== wire.id);
   return secondary(a) - secondary(b) || a.id.localeCompare(b.id);
@@ -1501,6 +1549,55 @@ export interface BundleGeometry {
   startPoint: WorldPort;
   endPoint: WorldPort;
   labelPoint: RoutePoint;
+}
+
+export function inlineConnectorAnchor(points: RoutePoint[], point: RoutePoint, clearance = 46) {
+  const compact = compactRoute(points);
+  let along = 0;
+  let best: { distance: number; along: number; point: RoutePoint } | null = null;
+  for (let index = 1; index < compact.length; index++) {
+    const a = compact[index - 1];
+    const b = compact[index];
+    const length = Math.hypot(b.x - a.x, b.y - a.y);
+    if (length >= clearance * 2) {
+      const nx = (b.x - a.x) / length;
+      const ny = (b.y - a.y) / length;
+      const start = { x: a.x + nx * clearance, y: a.y + ny * clearance };
+      const end = { x: b.x - nx * clearance, y: b.y - ny * clearance };
+      const projection = length === clearance * 2
+        ? { distance: Math.hypot(point.x - start.x, point.y - start.y), along: 0, point: start }
+        : projectOntoRoute([start, end], point);
+      if (!best || projection.distance < best.distance) best = { ...projection, along: along + clearance + projection.along };
+    }
+    along += length;
+  }
+  return best;
+}
+
+export function inlineConnectorPosition(wire: Wire, route: WireGeometry, point: RoutePoint, getPort: (end: WireEnd) => WorldPort | null, clearance = 46) {
+  const length = routeLength(route.points);
+  const anchor = inlineConnectorAnchor(route.points, point, clearance);
+  if (!anchor || length < 0.0001) return null;
+  const a = getPort(wire.a);
+  const b = getPort(wire.b);
+  const reverse = a && b && wireEndsReversed(a, b, route.points[0], route.points.at(-1)!);
+  const fraction = anchor.along / length;
+  return Math.max(0, Math.min(1, reverse ? 1 - fraction : fraction));
+}
+
+export function inlineConnectorLocation(wire: Wire, connector: InlineConnector, route: WireGeometry, getPort: (end: WireEnd) => WorldPort | null, clearance = 46) {
+  const length = routeLength(route.points);
+  const a = getPort(wire.a);
+  const b = getPort(wire.b);
+  const reverse = a && b && wireEndsReversed(a, b, route.points[0], route.points.at(-1)!);
+  const desiredDistance = (reverse ? 1 - connector.position : connector.position) * length;
+  const anchor = inlineConnectorAnchor(route.points, pointAlongRoute(route.points, desiredDistance), clearance);
+  const distance = anchor?.along ?? desiredDistance;
+  const point = pointAlongRoute(route.points, distance);
+  const start = routeLength(route.visiblePoints[0] ?? []);
+  const end = length - routeLength(route.visiblePoints[1] ?? []);
+  const covered = route.visiblePoints.length === 2 && distance > start + 0.001 && distance < end - 0.001;
+  return { ...point, covered, fits: Boolean(anchor), angle: Math.atan2(point.ny, point.nx) * 180 / Math.PI };
 }
 
 export function wireEndsReversed(a: RoutePoint, b: RoutePoint, referenceA: RoutePoint, referenceB: RoutePoint) {

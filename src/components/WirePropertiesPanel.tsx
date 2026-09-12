@@ -2,6 +2,7 @@ import { AlertTriangle, Cable, CheckCircle2, MapPinPlus, Plug, Ruler, Shield, Tr
 import type {
   PartDef,
   InlineConnector,
+  InlineConnectorKind,
   PlacedPart,
   Wire,
   WireAssembly,
@@ -15,6 +16,7 @@ import {
   cablePort,
   wireWaypoints,
   WIRE_TERMINAL_OPTIONS,
+  INLINE_CONNECTOR_STYLES,
 } from '../lib/wiring';
 import { WireRoutingStylePicker } from './WireBundlePanel';
 
@@ -29,6 +31,8 @@ interface Props {
   onRoutingStyleChange: (style: WireRoutingStyle) => void;
   inlineConnectors: InlineConnector[];
   inlineSupported: boolean;
+  inlineKind: InlineConnectorKind;
+  onInlineKindChange: (kind: InlineConnectorKind) => void;
   inlinePlacement: boolean;
   onAddInline: () => void;
   onRemoveInline: (id: string) => void;
@@ -102,7 +106,7 @@ function TerminalSelect({
 }
 
 export default function WirePropertiesPanel({ wire, cableSize, parts, partDefs, rule, bundleSize, onChange, onRoutingStyleChange,
-  inlineConnectors, inlineSupported, inlinePlacement, onAddInline, onRemoveInline, onClearInline,
+  inlineConnectors, inlineSupported, inlineKind, onInlineKindChange, inlinePlacement, onAddInline, onRemoveInline, onClearInline,
   onWaypointTerminalChange, onRemoveWaypoint, onClearWaypoints, onClose }: Props) {
   const waypoints = wireWaypoints(wire);
   const a = endInfo(wire, 'a', parts, partDefs);
@@ -142,24 +146,31 @@ export default function WirePropertiesPanel({ wire, cableSize, parts, partDefs, 
       <div className="flex-1 overflow-y-auto px-3 pb-4">
         <section className="border-b border-slate-100 py-3">
           <div className="mb-2 flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold text-slate-700">2 转 2 接线端子</span>
+            <span className="text-xs font-semibold text-slate-700">线内接点</span>
             <span className="text-[10px] tabular-nums text-slate-500">{inlineConnectors.length} 个</span>
           </div>
+          <label className="mb-2 block text-[10px] text-slate-500">接点类型
+            <select aria-label="接点类型" value={inlineKind} onChange={(event) => onInlineKindChange(event.target.value as InlineConnectorKind)}
+              className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-xs text-slate-700 outline-none focus:border-sky-500">
+              <option value="terminal2x2">2 转 2 端子</option>
+              <option value="solder">焊接点</option>
+            </select>
+          </label>
           <div className="flex items-center gap-2">
             <button onClick={onAddInline} disabled={!inlineSupported} aria-pressed={inlinePlacement}
-              title={inlineSupported ? '在线缆上选择插入位置' : '仅支持完整的电源双芯线或 CAN 双芯线'}
+              title={inlineSupported ? '在线缆上选择插入位置' : inlineKind === 'solder' ? '仅支持电源线或 CAN 线' : '仅支持完整的电源双芯线或 CAN 双芯线'}
               className={`flex h-8 flex-1 items-center justify-center gap-1.5 rounded border px-2 text-xs disabled:opacity-40 ${inlinePlacement ? 'border-sky-500 bg-sky-100 text-sky-800' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>
               {inlinePlacement ? <X className="h-3.5 w-3.5" aria-hidden="true" /> : <MapPinPlus className="h-3.5 w-3.5" aria-hidden="true" />}
-              {inlinePlacement ? '取消放置' : '添加 2 转 2'}
+              {inlinePlacement ? '取消放置' : inlineKind === 'solder' ? '添加焊接点' : '添加 2 转 2'}
             </button>
-            <button onClick={onClearInline} disabled={!inlineConnectors.length} title="清除全部 2 转 2 端子"
+            <button onClick={onClearInline} disabled={!inlineConnectors.length} title="清除全部线内接点"
               className="flex h-8 w-8 items-center justify-center rounded text-slate-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-30">
               <Trash2 className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
           {inlineConnectors.map((connector, index) => <div key={connector.id} className="mt-2 flex items-center justify-between border-b border-slate-100 py-1 text-xs text-slate-600">
-            <span>2 转 2 端子 {index + 1}</span>
-            <button onClick={() => onRemoveInline(connector.id)} title={`删除 2 转 2 端子 ${index + 1}`}
+            <span>{INLINE_CONNECTOR_STYLES[connector.kind ?? 'terminal2x2'].label} {index + 1}</span>
+            <button onClick={() => onRemoveInline(connector.id)} title={`删除 ${INLINE_CONNECTOR_STYLES[connector.kind ?? 'terminal2x2'].label} ${index + 1}`}
               className="flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-red-50 hover:text-red-600">
               <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
             </button>

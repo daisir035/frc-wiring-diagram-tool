@@ -58,16 +58,16 @@ test('projecting a selected point onto the cable returns its physical A-to-B pos
   const wires = power();
   const route = geometry(wires).routes.get('red');
   near(inlineConnectorPosition(wires[0], route, { x: 410, y: 40 }, getPort), 0.4);
-  near(inlineConnectorPosition(wires[0], route, { x: -500, y: 5 }, getPort), 0.046);
-  near(inlineConnectorPosition(wires[0], route, { x: 1500, y: 5 }, getPort), 0.954);
+  near(inlineConnectorPosition(wires[0], route, { x: -500, y: 5 }, getPort), 0.026);
+  near(inlineConnectorPosition(wires[0], route, { x: 1500, y: 5 }, getPort), 0.974);
 });
 
 test('placement reserves space for the terminal body at ports and bends without changing the line', () => {
   const points = [{ x: 0, y: 0 }, { x: 150, y: 0 }, { x: 150, y: 200 }];
   const anchor = inlineConnectorAnchor(points, { x: 150, y: 0 });
-  assert.ok(anchor.point.x <= 104 || anchor.point.y >= 46);
+  assert.ok(anchor.point.x <= 124 || anchor.point.y >= 26);
   assert.equal(inlineConnectorAnchor([{ x: 0, y: 0 }, { x: 50, y: 0 }], { x: 25, y: 0 }), null);
-  near(inlineConnectorAnchor([{ x: 0, y: 0 }, { x: 92, y: 0 }], { x: 0, y: 0 }).along, 46);
+  near(inlineConnectorAnchor([{ x: 0, y: 0 }, { x: 52, y: 0 }], { x: 0, y: 0 }).along, 26);
 });
 
 test('two-to-two connectors can be inside conduit without changing carrier geometry or other cables', () => {
@@ -128,4 +128,41 @@ test('BOM counts one terminal per cable attachment, including terminals hidden i
   assert.equal(item.quantity, 2);
   assert.equal(report.parts.filter((part) => part.name === '2 转 2 接线端子').length, 2);
   assert.equal(report.lines.filter((line) => line.kind === '现场导线').length, 4);
+});
+
+test('solder points preserve their kind while dragging, copying and loading older terminals', () => {
+  const original = power();
+  const soldered = updateInlineConnector(original, 'red', 'joint', 0.3, parts, defs, 'solder');
+  assert.ok(soldered.every((wire) => wire.inlineConnectors[0].kind === 'solder'));
+  const moved = updateInlineConnector(soldered, 'red', 'joint', 0.6, parts, defs);
+  assert.ok(moved.every((wire) => wire.inlineConnectors[0].kind === 'solder'));
+  assert.equal(geometry(moved).routes.get('red').path, geometry(original).routes.get('red').path);
+  assert.equal(isInlineConnector({ id: 'old', position: 0.4 }), true);
+  assert.equal(isInlineConnector({ id: 'bad', position: 0.4, kind: 'unknown' }), false);
+  assert.deepEqual(JSON.parse(JSON.stringify(moved))[0].inlineConnectors, moved[0].inlineConnectors);
+});
+
+test('both connector types support CAN pairs; solder also supports individual power wires', () => {
+  for (const kind of ['terminal2x2', 'solder']) {
+    const wires = can();
+    assert.equal(canInsertInlineConnector(wires[0], parts, defs, pairedWireGroups(wires, parts, defs), kind), true);
+    const changed = updateInlineConnector(wires, 'yellow', kind, 0.4, parts, defs, kind);
+    assert.equal(changed.length, 2);
+    assert.ok(changed.every((wire) => wire.inlineConnectors[0].kind === kind));
+    assert.equal(geometry(changed).routes.get('yellow').path, geometry(wires).routes.get('yellow').path);
+  }
+  const single = [power()[0]];
+  assert.equal(canInsertInlineConnector(single[0], parts, defs, new Map(), 'solder'), true);
+  assert.equal(updateInlineConnector(single, 'red', 'joint', 0.5, parts, defs, 'solder')[0].inlineConnectors[0].kind, 'solder');
+});
+
+test('small solder joints fit short spans and stay distinct from terminals in BOM', () => {
+  const span = [{ x: 0, y: 0 }, { x: 40, y: 0 }];
+  assert.equal(inlineConnectorAnchor(span, { x: 20, y: 0 }), null);
+  assert.equal(inlineConnectorAnchor(span, { x: 20, y: 0 }, 16).along, 20);
+  const wires = updateInlineConnector(can(), 'yellow', 'joint', 0.5, parts, defs, 'solder');
+  const report = buildBom('Robot', [{ id: 'p', name: 'Page', parts, wires }], defs);
+  assert.equal(report.items.find((item) => item.name === '焊接点').quantity, 2);
+  assert.equal(report.items.some((item) => item.name === '2 转 2 接线端子'), false);
+  assert.equal(report.parts.length, parts.length);
 });

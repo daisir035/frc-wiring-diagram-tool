@@ -1,4 +1,4 @@
-import { compactRoute } from './wiring.ts';
+import { compactRoute, pointAlongRoute, routeLength } from './wiring.ts';
 import type { RoutePoint } from './wiring.ts';
 
 function sampleRoundedRoute(input: RoutePoint[]) {
@@ -35,8 +35,26 @@ const polyline = (points: RoutePoint[]) => points.length < 2 ? ''
   : points.map((point, index) => `${index ? 'L' : 'M'} ${point.x.toFixed(3)} ${point.y.toFixed(3)}`).join(' ');
 
 /** Both conductors follow the same rounded centerline and local normal. */
-export function cableConductorPaths(points: RoutePoint[], twisted: boolean) {
+export interface CableEndAlignment {
+  startAxis?: RoutePoint;
+  endAxis?: RoutePoint;
+  polarity?: 1 | -1;
+}
+
+export function cablePolarity(points: RoutePoint[], startAxis?: RoutePoint, endAxis?: RoutePoint): 1 | -1 {
+  for (const [axis, tangent] of [[startAxis, pointAlongRoute(points, 0)], [endAxis, pointAlongRoute(points, routeLength(points))]] as const) {
+    if (!axis) continue;
+    const side = -tangent.ny * axis.x + tangent.nx * axis.y;
+    if (Math.abs(side) > 0.0001) return side > 0 ? 1 : -1;
+  }
+  return 1;
+}
+
+export function cableConductorPaths(points: RoutePoint[], twisted: boolean, alignment: CableEndAlignment = {}) {
   const center = sampleRoundedRoute(points);
+  const totalLength = routeLength(center);
+  const polarity = alignment.polarity ?? cablePolarity(points, alignment.startAxis, alignment.endAxis);
+  const fanoutLength = Math.min(24, totalLength / 2);
   const conductors: [RoutePoint[], RoutePoint[]] = [[], []];
   const crossings: Array<{ conductor: number; path: string }> = [];
   let distance = 0;
@@ -54,11 +72,24 @@ export function cableConductorPaths(points: RoutePoint[], twisted: boolean) {
       ? Math.abs((point.x - previous.x) * (next.y - point.y) - (point.y - previous.y) * (next.x - point.x)) : 0;
     const radius = cross > 1e-8 ? Math.hypot(point.x - previous.x, point.y - previous.y)
       * Math.hypot(next.x - point.x, next.y - point.y) * length / (2 * cross) : Infinity;
-    const offset = Math.min(2.6, radius * 0.65) * (twisted ? Math.sin(phase) : 1);
+    const offset = Math.min(2.6, radius * 0.65) * (twisted ? Math.sin(phase) : 1) * polarity;
+    let ox = -(next.y - previous.y) / length * offset;
+    let oy = (next.x - previous.x) / length * offset;
+    // Ease only the terminal tails toward their actual pin order; the rest
+    // remains parallel (or twisted), independent of screen orientation.
+    const nearStart = distance <= fanoutLength;
+    const axis = nearStart ? alignment.startAxis : alignment.endAxis;
+    const remaining = nearStart ? distance : totalLength - distance;
+    if (axis && fanoutLength > 0 && remaining <= fanoutLength) {
+      const t = Math.max(0, Math.min(1, 1 - remaining / fanoutLength));
+      const blend = t * t * (3 - 2 * t);
+      const axisLength = Math.hypot(axis.x, axis.y) || 1;
+      ox += (axis.x / axisLength * 2.6 - ox) * blend;
+      oy += (axis.y / axisLength * 2.6 - oy) * blend;
+    }
     for (const index of [0, 1]) {
       const sign = index === 0 ? 1 : -1;
-      conductors[index].push({ x: point.x - (next.y - previous.y) / length * offset * sign,
-        y: point.y + (next.x - previous.x) / length * offset * sign });
+      conductors[index].push({ x: point.x + ox * sign, y: point.y + oy * sign });
     }
     if (twisted) {
       const top = Math.cos(phase) >= 0 ? 0 : 1;

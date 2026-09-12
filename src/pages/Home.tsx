@@ -19,6 +19,7 @@ import type {
   WireEnd,
   WireRoutingStyle,
   WireTerminalType,
+  InlineConnectorKind,
   WireWaypoint,
   ViewTransform,
 } from '../lib/wiring';
@@ -35,6 +36,7 @@ import {
   canInsertInlineConnector,
   isInlineConnector,
   updateInlineConnector,
+  INLINE_CONNECTOR_STYLES,
   anchorWireBundles,
   wireWaypoints,
   portWorld,
@@ -457,6 +459,7 @@ export default function Home() {
   const [selectedWires, setSelectedWires] = useState<Set<string>>(new Set());
   const [pendingFrom, setPendingFrom] = useState<WireEnd | null>(null);
   const [pendingInlineWireId, setPendingInlineWireId] = useState<string | null>(null);
+  const [inlineKind, setInlineKind] = useState<InlineConnectorKind>('terminal2x2');
   const [clipboard, setClipboard] = useState<WorkspaceClipboard | null>(null);
   const [wireColor, setWireColor] = useState('#2563eb');
   const [bundleSelectionMode, setBundleSelectionMode] = useState(false);
@@ -1733,6 +1736,7 @@ export default function Home() {
             selectedWires={selectedWires}
             pendingFrom={pendingFrom}
             pendingInlineWireId={selectedWire?.id === pendingInlineWireId ? pendingInlineWireId : null}
+            inlineKind={inlineKind}
             view={view}
             svgRef={svgRef}
             onViewChange={setView}
@@ -1788,7 +1792,7 @@ export default function Home() {
                 );
               });
             }}
-            onInlineConnectorChange={(wireId, connectorId, position) => setWires((current) => updateInlineConnector(current, wireId, connectorId, position, parts, partDefs))}
+            onInlineConnectorChange={(wireId, connectorId, position, kind) => setWires((current) => updateInlineConnector(current, wireId, connectorId, position, parts, partDefs, kind))}
             onInlineConnectorRemove={(wireId, connectorId) => setWires((current) => updateInlineConnector(current, wireId, connectorId, undefined, parts, partDefs))}
             onInlinePlacementComplete={() => setPendingInlineWireId(null)}
             onBundleEndpointsChange={(id, bundleEndpoints) => {
@@ -1846,7 +1850,9 @@ export default function Home() {
             }))}
             onRoutingStyleChange={applyWireRoutingStyle}
             inlineConnectors={cableInlineConnectors(selectedWire, cables)}
-            inlineSupported={canInsertInlineConnector(selectedWire, parts, partDefs, cables)}
+            inlineSupported={canInsertInlineConnector(selectedWire, parts, partDefs, cables, inlineKind)}
+            inlineKind={inlineKind}
+            onInlineKindChange={(kind) => { setInlineKind(kind); setPendingInlineWireId(null); }}
             inlinePlacement={pendingInlineWireId === selectedWire.id}
             onAddInline={() => { setPendingFrom(null); setPendingInlineWireId((id) => id === selectedWire.id ? null : selectedWire.id); }}
             onRemoveInline={(id) => setWires((current) => updateInlineConnector(current, selectedWire.id, id, undefined, parts, partDefs))}
@@ -1881,7 +1887,7 @@ export default function Home() {
           <b className="text-slate-700">{activeProject.name}</b> · <b className="text-slate-700">{parts.length}</b> 个元件 · <b className="text-slate-700">{wires.length - cables.size / 2}</b> 条线路
           {selCount > 0 && <span className="text-sky-600"> · 已选 {selCount} 项</span>}
           {pendingFrom && <span className="text-orange-600"> · 接线中：请点击另一个端口完成连接（Esc 取消）</span>}
-          {pendingInlineWireId && selectedWire?.id === pendingInlineWireId && <span className="text-sky-700"> · 放置 2 转 2 接线端子</span>}
+          {pendingInlineWireId && selectedWire?.id === pendingInlineWireId && <span className="text-sky-700"> · 放置{INLINE_CONNECTOR_STYLES[inlineKind].label}</span>}
         </span>
         <div className="flex-1" />
         <span className="hidden sm:inline">缩放 {Math.round(view.k * 100)}%</span>

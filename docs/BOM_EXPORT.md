@@ -15,6 +15,7 @@ Quantity is based on placed instances, not physical serial numbers. Drawing the 
 
 - Device instances with the same definition and dimensions aggregate. Generic terminal blocks placed on the canvas are ordinary inventory items.
 - Two-in/two-out inline terminal blocks are counted once per cable attachment, including blocks enclosed in conduit. They aggregate with the corresponding straight-through terminal block and do not create extra conductors or alter centerline lengths.
+- Inline solder connections count one solder joint per conductor under welding work, grouped by AWG. They do not create terminal-block inventory; solder and insulation consumables remain unspecified.
 - Only configured fuse/breaker slots are counted. Packaging and incompatible ratings require review; empty slots are not inferred.
 - Ferrules, ring terminals and fork terminals count once per conductor end. Intermediate single-pin crimps count both sides of every conductor.
 - Multi-pin endpoint connectors count once per logical cable and physical connector, even when the companion conductor is stored in reverse.

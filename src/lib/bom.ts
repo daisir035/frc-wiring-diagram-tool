@@ -149,6 +149,12 @@ export function buildBom(project: string, pages: BomPage[], defs: ReadonlyMap<st
         const terminalDef = defs.get('terminalPair');
         const size = terminalDef && partDimensions(terminalDef);
         for (const connector of cableInlineConnectors(wire, cables)) {
+          if (connector.kind === 'solder') {
+            for (const member of cable ?? [wire]) add({ key: keyOf('solder', member.awg ?? null), category: '焊接作业', name: '焊接点',
+              specification: member.awg ? `${member.awg} AWG · 单芯接头` : '单芯接头 · 线规待定', quantity: 1, unit: '个', pages: [pageName],
+              notes: ['每芯计一处焊接，不计为接线端子；焊锡及绝缘材料用量另核对'], source: '' });
+            continue;
+          }
           add({ key: keyOf('part', 'terminalPair', size?.w, size?.h), category: '端子台', name: '2 转 2 接线端子',
             specification: size ? `${size.w} × ${size.h} mm` : '2 进 2 出', quantity: 1, unit: '件', pages: [pageName],
             notes: ['线内端子按每个实例计一次；线缆保持连续，管内端子也计入'], source: terminalDef?.productUrl ?? '' });

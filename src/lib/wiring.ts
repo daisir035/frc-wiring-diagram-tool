@@ -122,8 +122,17 @@ export interface WireWaypoint {
   terminal?: WireTerminalType;
 }
 
+export type InlineConnectorKind = 'terminal2x2' | 'solder';
+
+export const INLINE_CONNECTOR_STYLES = {
+  terminal2x2: { label: '2 转 2 端子', width: 24, height: 12, clearance: 26 },
+  solder: { label: '焊接点', width: 10, height: 8, clearance: 16 },
+} as const;
+
 export interface InlineConnector {
   id: string;
+  /** Missing on older drawings; defaults to a two-in/two-out terminal. */
+  kind?: InlineConnectorKind;
   /** Fraction of the complete cable route, measured from this wire's A end. */
   position: number;
 }
@@ -1349,6 +1358,19 @@ export function cablePorts(def: PartDef): PortDef[] {
     .map((port) => cablePort(def, port));
 }
 
+/** Local direction from the secondary pin toward positive / CAN-H. */
+export function cablePortPolarity(def: PartDef, port: PortDef, size = partSize(def)): RoutePoint | undefined {
+  const source = def.ports.find((item) => item.id === port.id);
+  const pair = source && pairedCablePort(def, source.id);
+  if (!source || !pair) return undefined;
+  const sign = source.type === 'pwr+' || source.type === 'canH' ? 1 : -1;
+  const dx = (source.x - pair.x) * size.w * sign;
+  const dy = (source.y - pair.y) * size.h * sign;
+  const length = Math.hypot(dx, dy);
+  if (length < 0.0001) return source.side === 'top' || source.side === 'bottom' ? { x: -1, y: 0 } : { x: 0, y: -1 };
+  return { x: dx / length || 0, y: dy / length || 0 };
+}
+
 export function pairedWireGroups(wires: Wire[], parts: PlacedPart[], defs: ReadonlyMap<string, PartDef>) {
   const partByUid = new Map(parts.map((part) => [part.uid, part]));
   const endKey = (end: WireEnd) => JSON.stringify([end.uid, end.portId]);
@@ -1390,7 +1412,8 @@ export function wireRoutingLane(wire: Wire, cables: ReadonlyMap<string, Wire[]>,
 export function isInlineConnector(value: unknown): value is InlineConnector {
   if (!value || typeof value !== 'object' || !('id' in value) || !('position' in value)) return false;
   return typeof value.id === 'string' && value.id.length > 0 && typeof value.position === 'number'
-    && Number.isFinite(value.position) && value.position >= 0 && value.position <= 1;
+    && Number.isFinite(value.position) && value.position >= 0 && value.position <= 1
+    && (!('kind' in value) || value.kind === undefined || value.kind === 'terminal2x2' || value.kind === 'solder');
 }
 
 export function cableInlineConnectors(wire: Wire, cables: ReadonlyMap<string, Wire[]>) {
@@ -1405,23 +1428,24 @@ export function cableInlineConnectors(wire: Wire, cables: ReadonlyMap<string, Wi
   return [...connectors.values()].sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
 }
 
-export function canInsertInlineConnector(wire: Wire, parts: PlacedPart[], defs: ReadonlyMap<string, PartDef>, cables: ReadonlyMap<string, Wire[]>) {
-  if ((cables.get(wire.id)?.length ?? 0) !== 2) return false;
+export function canInsertInlineConnector(wire: Wire, parts: PlacedPart[], defs: ReadonlyMap<string, PartDef>, cables: ReadonlyMap<string, Wire[]>, kind: InlineConnectorKind = 'terminal2x2') {
+  if (kind === 'terminal2x2' && (cables.get(wire.id)?.length ?? 0) !== 2) return false;
   const a = wireEndContext(wire.a, parts, defs).port;
   const b = wireEndContext(wire.b, parts, defs).port;
   return a?.type === b?.type && ['pwr+', 'pwr-', 'canH', 'canL'].includes(a?.type ?? '');
 }
 
 export function updateInlineConnector(wires: Wire[], wireId: string, connectorId: string, position: number | undefined,
-  parts: PlacedPart[], defs: ReadonlyMap<string, PartDef>) {
+  parts: PlacedPart[], defs: ReadonlyMap<string, PartDef>, kind?: InlineConnectorKind) {
   const target = wires.find((wire) => wire.id === wireId);
-  if (!target || !connectorId || (position !== undefined && !isInlineConnector({ id: connectorId, position }))) return wires;
+  if (!target || !connectorId || (position !== undefined && !isInlineConnector({ id: connectorId, position, kind }))) return wires;
   const cables = pairedWireGroups(wires, parts, defs);
-  if (position !== undefined && !canInsertInlineConnector(target, parts, defs, cables)) return wires;
+  const existing = cableInlineConnectors(target, cables).find((item) => item.id === connectorId);
+  if (position !== undefined && !canInsertInlineConnector(target, parts, defs, cables, kind ?? existing?.kind ?? 'terminal2x2')) return wires;
   const members = cables.get(wireId) ?? [target];
   const ids = new Set(members.map((wire) => wire.id));
   const connectors = cableInlineConnectors(target, cables).filter((item) => item.id !== connectorId);
-  if (position !== undefined) connectors.push({ id: connectorId, position });
+  if (position !== undefined) connectors.push({ ...existing, id: connectorId, position, ...(kind ? { kind } : {}) });
   return wires.map((wire) => ids.has(wire.id) ? { ...wire, inlineConnectors: connectors.length ? connectors.map((item) => ({
     ...item, position: wire.a.uid === target.a.uid ? item.position : 1 - item.position,
   })) : undefined } : wire);
@@ -1551,7 +1575,7 @@ export interface BundleGeometry {
   labelPoint: RoutePoint;
 }
 
-export function inlineConnectorAnchor(points: RoutePoint[], point: RoutePoint, clearance = 46) {
+export function inlineConnectorAnchor(points: RoutePoint[], point: RoutePoint, clearance: number = INLINE_CONNECTOR_STYLES.terminal2x2.clearance) {
   const compact = compactRoute(points);
   let along = 0;
   let best: { distance: number; along: number; point: RoutePoint } | null = null;
@@ -1574,7 +1598,7 @@ export function inlineConnectorAnchor(points: RoutePoint[], point: RoutePoint, c
   return best;
 }
 
-export function inlineConnectorPosition(wire: Wire, route: WireGeometry, point: RoutePoint, getPort: (end: WireEnd) => WorldPort | null, clearance = 46) {
+export function inlineConnectorPosition(wire: Wire, route: WireGeometry, point: RoutePoint, getPort: (end: WireEnd) => WorldPort | null, clearance: number = INLINE_CONNECTOR_STYLES.terminal2x2.clearance) {
   const length = routeLength(route.points);
   const anchor = inlineConnectorAnchor(route.points, point, clearance);
   if (!anchor || length < 0.0001) return null;
@@ -1585,7 +1609,8 @@ export function inlineConnectorPosition(wire: Wire, route: WireGeometry, point: 
   return Math.max(0, Math.min(1, reverse ? 1 - fraction : fraction));
 }
 
-export function inlineConnectorLocation(wire: Wire, connector: InlineConnector, route: WireGeometry, getPort: (end: WireEnd) => WorldPort | null, clearance = 46) {
+export function inlineConnectorLocation(wire: Wire, connector: InlineConnector, route: WireGeometry, getPort: (end: WireEnd) => WorldPort | null,
+  clearance: number = INLINE_CONNECTOR_STYLES[connector.kind ?? 'terminal2x2'].clearance) {
   const length = routeLength(route.points);
   const a = getPort(wire.a);
   const b = getPort(wire.b);

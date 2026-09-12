@@ -6,6 +6,7 @@ import type {
   Wire,
   WireEnd,
   WireTerminalType,
+  InlineConnectorKind,
   ViewTransform,
   WorldPort,
 } from '../lib/wiring';
@@ -13,6 +14,8 @@ import {
   defaultTerminalForPort,
   buildWireGeometry,
   cablePort,
+  cablePortPolarity,
+  INLINE_CONNECTOR_STYLES,
   cablePorts,
   pairedCablePort,
   pairedWireGroups,
@@ -31,6 +34,7 @@ import {
 import PartArtwork from './PartArtwork';
 import InlineConnectorMarker from './InlineConnectorMarker';
 import CableConductors from './CableConductors';
+import { cablePolarity } from '../lib/cableGeometry';
 
 interface Props {
   backgroundImage?: CanvasBackground;
@@ -41,6 +45,7 @@ interface Props {
   selectedWires: Set<string>;
   pendingFrom: WireEnd | null;
   pendingInlineWireId: string | null;
+  inlineKind: InlineConnectorKind;
   view: ViewTransform;
   svgRef: React.RefObject<SVGSVGElement | null>;
   onViewChange: (v: ViewTransform) => void;
@@ -50,7 +55,7 @@ interface Props {
   onWireClick: (id: string, additive: boolean) => void;
   onWireControlChange: (id: string, control?: { x: number; y: number }) => void;
   onBundleEndpointsChange: (id: string, endpoints?: Wire['bundleEndpoints']) => void;
-  onInlineConnectorChange: (wireId: string, connectorId: string, position: number) => void;
+  onInlineConnectorChange: (wireId: string, connectorId: string, position: number, kind?: InlineConnectorKind) => void;
   onInlineConnectorRemove: (wireId: string, connectorId: string) => void;
   onInlinePlacementComplete: () => void;
   onWireWaypointChange: (id: string, waypointId: string, point?: { x: number; y: number }) => void;
@@ -238,6 +243,7 @@ export default function WiringCanvas(props: Props) {
     selectedWires,
     pendingFrom,
     pendingInlineWireId,
+    inlineKind,
     view,
     svgRef,
     onViewChange,
@@ -382,18 +388,41 @@ export default function WiringCanvas(props: Props) {
     return wireRoutingLane(wire, cables, getPortDef);
   }, [getPortDef, cables]);
   const geometry = useMemo(() => buildWireGeometry(wires, getPort, wireLane, cables), [wires, getPort, wireLane, cables]);
-  const inlineClearance = (partDefs.has('terminalPair') ? partSize(partDefs.get('terminalPair')!).w / 2 : 30) + 16;
+  const cableVisuals = useMemo(() => {
+    const axisAt = (end: WireEnd) => {
+      const part = partByUid.get(end.uid);
+      const def = part && partDefs.get(part.partId);
+      const port = def?.ports.find((port) => port.id === end.portId);
+      const local = part && def && port && cablePortPolarity(def, port, partSize(def, part));
+      if (!local || !part) return undefined;
+      const angle = part.rot * Math.PI / 180;
+      return { x: local.x * Math.cos(angle) - local.y * Math.sin(angle), y: local.x * Math.sin(angle) + local.y * Math.cos(angle) };
+    };
+    return new Map(wires.map((wire) => {
+      const route = geometry.routes.get(wire.id);
+      const a = getPort(wire.a);
+      const b = getPort(wire.b);
+      const axisA = axisAt(wire.a);
+      const axisB = axisAt(wire.b);
+      const axisFor = (point?: { x: number; y: number }) => !point ? undefined
+        : a && Math.hypot(point.x - a.x, point.y - a.y) < 0.001 ? axisA
+          : b && Math.hypot(point.x - b.x, point.y - b.y) < 0.001 ? axisB : undefined;
+      const polarity = route ? cablePolarity(route.points, axisFor(route.points[0]), axisFor(route.points.at(-1))) : 1;
+      return [wire.id, { polarity, segments: route?.visiblePoints.map((points) => ({ startAxis: axisFor(points[0]), endAxis: axisFor(points.at(-1)) })) ?? [] }];
+    }));
+  }, [wires, geometry, partByUid, partDefs, getPort]);
+  const inlineClearance = INLINE_CONNECTOR_STYLES[inlineKind].clearance;
   const insertInline = (wireId: string, point: { x: number; y: number }) => {
     const wire = wires.find((wire) => wire.id === wireId);
     const route = geometry.routes.get(wireId);
     if (!wire || !route) return;
     const position = inlineConnectorPosition(wire, route, point, getPort, inlineClearance);
     if (position === null) {
-      window.alert('当前线缆没有足够长的直线段放置 2 转 2 接线端子。');
+      window.alert(`当前线缆没有足够长的直线段放置${INLINE_CONNECTOR_STYLES[inlineKind].label}。`);
       onInlinePlacementComplete();
       return;
     }
-    onInlineConnectorChange(wireId, uid(), position);
+    onInlineConnectorChange(wireId, uid(), position, inlineKind);
     onInlinePlacementComplete();
   };
 
@@ -483,7 +512,8 @@ export default function WiringCanvas(props: Props) {
       const wire = wires.find((wire) => wire.id === d.wireId);
       const route = geometry.routes.get(d.wireId);
       if (wire && route) {
-        const position = inlineConnectorPosition(wire, route, toWorld(e.clientX, e.clientY), getPort, inlineClearance);
+        const kind = cableInlineConnectors(wire, cables).find((item) => item.id === d.connectorId)?.kind ?? 'terminal2x2';
+        const position = inlineConnectorPosition(wire, route, toWorld(e.clientX, e.clientY), getPort, INLINE_CONNECTOR_STYLES[kind].clearance);
         if (position !== null) onInlineConnectorChange(d.wireId, d.connectorId, position);
       }
     } else if (d.kind === 'wire-waypoint') {
@@ -581,14 +611,6 @@ export default function WiringCanvas(props: Props) {
         onLostPointerCapture={() => { dragRef.current = { kind: 'none' }; setMarquee(null); }}
         style={{ touchAction: 'none' }}
       >
-        <defs>
-          {(['power', 'can'] as const).map((kind) => (
-            <linearGradient key={kind} id={`${portFillId}-${kind}`} x1="0" y1="0" x2="1" y2="1">
-              <stop offset="50%" stopColor={kind === 'power' ? PORT_TYPE_COLOR['pwr+'] : PORT_TYPE_COLOR.canH} />
-              <stop offset="50%" stopColor={kind === 'power' ? PORT_TYPE_COLOR['pwr-'] : PORT_TYPE_COLOR.canL} />
-            </linearGradient>
-          ))}
-        </defs>
         <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
           {backgroundImage && (
             <image
@@ -690,7 +712,8 @@ export default function WiringCanvas(props: Props) {
                 ))}
                 {visiblePaths.map((segment, index) => (
                   <g key={'wire-segment-' + index} style={{ pointerEvents: 'none' }}>
-                    {cable ? <CableConductors points={route.visiblePoints[index]} colors={[wire.color, cable[1].color]} twisted={commonType === 'canH'} /> : <>
+                    {cable ? <CableConductors points={route.visiblePoints[index]} colors={[wire.color, cable[1].color]} twisted={commonType === 'canH'}
+                      polarity={cableVisuals.get(wire.id)?.polarity} {...cableVisuals.get(wire.id)?.segments[index]} /> : <>
                     <path
                       d={segment}
                       fill="none"
@@ -851,7 +874,7 @@ export default function WiringCanvas(props: Props) {
             })()}
 
           {/* 元件 */}
-          {parts.map((part) => {
+          {parts.map((part, partIndex) => {
             const def = partDefs.get(part.partId);
             if (!def) return null;
             const { w, h } = partSize(def, part);
@@ -892,19 +915,27 @@ export default function WiringCanvas(props: Props) {
                       style={{ overflow: 'visible' }}
                     />
                   </g>
-                  {cablePorts(def).map((port) => {
+                  {cablePorts(def).map((port, portIndex) => {
                     const paired = pairedCablePort(def, port.id);
+                    const axis = cablePortPolarity(def, port, { w, h });
+                    const gradientId = `${portFillId}-port-${partIndex}-${portIndex}`;
                     const isPending =
                       pendingFrom?.uid === part.uid && (pendingFrom?.portId === port.id || pendingFrom?.portId === paired?.id);
                     return (
                       <g key={port.id}>
+                        {axis && <defs>
+                          <linearGradient id={gradientId} x1={0.5 + axis.x / 2} y1={0.5 + axis.y / 2} x2={0.5 - axis.x / 2} y2={0.5 - axis.y / 2}>
+                            <stop offset="50%" stopColor={PORT_TYPE_COLOR[port.type]} />
+                            <stop offset="50%" stopColor={PORT_TYPE_COLOR[paired!.type]} />
+                          </linearGradient>
+                        </defs>}
                         <circle
                           data-port-uid={part.uid}
                           data-port-id={port.id}
                           cx={port.x * w}
                           cy={port.y * h}
                           r={isPending ? 7 : 4.6}
-                          fill={isPending ? '#f97316' : paired ? `url(#${portFillId}-${port.type === 'canH' ? 'can' : 'power'})` : PORT_TYPE_COLOR[port.type]}
+                          fill={isPending ? '#f97316' : axis ? `url(#${gradientId})` : PORT_TYPE_COLOR[port.type]}
                           stroke="#ffffff"
                           strokeWidth={1.5}
                           style={{ cursor: 'crosshair', pointerEvents: 'all' }}
@@ -1038,18 +1069,17 @@ export default function WiringCanvas(props: Props) {
             const cable = cables.get(wire.id);
             if (cable && cable[0].id !== wire.id) return [];
             const route = geometry.routes.get(wire.id);
-            const def = partDefs.get('terminalPair');
-            if (!route || !def) return [];
+            if (!route) return [];
             const selected = selectedWires.has(wire.id);
-            const can = getPortDef(wire.a)?.type === 'canH' || getPortDef(wire.a)?.type === 'canL';
             const colors: [string, string] = [wire.color, cable?.[1].color ?? wire.color];
-            const { w, h } = partSize(def);
             return cableInlineConnectors(wire, cables).map((connector) => {
-              const point = inlineConnectorLocation(wire, connector, route, getPort, inlineClearance);
+              const kind = connector.kind ?? 'terminal2x2';
+              const { width: w, height: h, label, clearance } = INLINE_CONNECTOR_STYLES[kind];
+              const point = inlineConnectorLocation(wire, connector, route, getPort, clearance);
               return <g key={`${wire.id}:${connector.id}`} data-inline-connector-id={connector.id} data-inline-wire-id={wire.id}
                 data-covered={point.covered} data-export-ignore={point.covered ? 'true' : undefined}
                 visibility={point.covered && !selected ? 'hidden' : undefined}
-                role="button" tabIndex={0} aria-label={point.covered ? '2 转 2 接线端子（管内）' : '2 转 2 接线端子'}
+                role="button" tabIndex={0} aria-label={point.covered ? `${label}（管内）` : label}
                 transform={`translate(${point.x} ${point.y}) rotate(${point.angle})`} style={{ cursor: 'grab' }}
                 onPointerDown={(event) => {
                   if (event.button !== 0 || spaceRef.current) return;
@@ -1069,23 +1099,22 @@ export default function WiringCanvas(props: Props) {
                 }}>
                 <rect x={point.covered ? -12 : -w / 2 - 5} y={point.covered ? -10 : -h / 2 - 4}
                   width={point.covered ? 24 : w + 10} height={point.covered ? 20 : h + 8} fill="transparent" />
-                <InlineConnectorMarker def={def} colors={colors} can={can} covered={point.covered} selected={selected} />
-                <title>{!point.fits ? '2 转 2 接线端子：直线段长度不足' : point.covered ? '2 转 2 接线端子（管内）' : '2 转 2 接线端子'}</title>
+                <InlineConnectorMarker kind={kind} colors={colors} polarity={cableVisuals.get(wire.id)?.polarity} single={!cable} covered={point.covered} selected={selected} />
+                <title>{!point.fits ? `${label}：直线段长度不足` : point.covered ? `${label}（管内）` : label}</title>
               </g>;
             });
           })}
           {pendingInlineWireId && cursor && (() => {
             const wire = wires.find((wire) => wire.id === pendingInlineWireId);
             const route = geometry.routes.get(pendingInlineWireId);
-            const def = partDefs.get('terminalPair');
-            if (!wire || !route || !def) return null;
+            if (!wire || !route) return null;
             const position = inlineConnectorPosition(wire, route, cursor, getPort, inlineClearance);
             if (position === null) return null;
-            const point = inlineConnectorLocation(wire, { id: 'preview', position }, route, getPort, inlineClearance);
+            const point = inlineConnectorLocation(wire, { id: 'preview', position, kind: inlineKind }, route, getPort, inlineClearance);
             if (Math.hypot(point.x - cursor.x, point.y - cursor.y) * view.k > Math.max(30, inlineClearance * view.k)) return null;
             return <g data-export-ignore="true" transform={`translate(${point.x} ${point.y}) rotate(${point.angle})`} opacity={0.65} pointerEvents="none">
-              <InlineConnectorMarker def={def} colors={[wire.color, cables.get(wire.id)?.[1].color ?? wire.color]}
-                can={getPortDef(wire.a)?.type === 'canH'} covered={point.covered} selected />
+              <InlineConnectorMarker kind={inlineKind} colors={[wire.color, cables.get(wire.id)?.[1].color ?? wire.color]}
+                polarity={cableVisuals.get(wire.id)?.polarity} single={!cables.has(wire.id)} covered={point.covered} selected />
             </g>;
           })()}
           {marquee && (

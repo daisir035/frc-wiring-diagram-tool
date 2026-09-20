@@ -45,6 +45,8 @@ export interface PortDef {
   type: PortType;
   /** 导线从端口离开器件的方向 */
   side?: PortSide;
+  /** 同一双芯连接器中另一端口的 ID；自定义端口不依赖命名规则。 */
+  pairId?: string;
 }
 
 export interface PartDef {
@@ -245,6 +247,7 @@ export function allowedFuseRatings(def: PartDef, channel: number): FuseRating[] 
 export function pairedPowerPort(def: PartDef, portId: string): PortDef | undefined {
   const source = def.ports.find((port) => port.id === portId);
   if (!source || (source.type !== 'pwr+' && source.type !== 'pwr-')) return undefined;
+  if (source.pairId !== undefined || def.ports.some((port) => port.pairId === portId)) return explicitPairedPort(def, source);
   const oppositeType: PortType = source.type === 'pwr+' ? 'pwr-' : 'pwr+';
   const matchingId = source.id.endsWith('+') ? source.id.slice(0, -1) + '-'
     : source.id.endsWith('-') ? source.id.slice(0, -1) + '+' : undefined;
@@ -310,7 +313,16 @@ export function wireGaugeRule(
       20: { recommended: 18, allowed: [10, 12, 14, 16, 18], note: '20A 断路器或 11–20A 保险丝支路最低为 18 AWG。' },
       10: { recommended: 18, allowed: [10, 12, 14, 16, 18], note: '10A 断路器支路推荐 18 AWG；若使用 PDH 小保险丝端口，可使用更细线径。' },
     };
-    if (rating) {
+    if (rating !== undefined && !FUSE_RATINGS.includes(rating)) {
+      return {
+        id: 'distribution-invalid-fuse',
+        label: `${distribution.def?.name ?? '配电'} CH ${channel} · 保险丝规格无效`,
+        recommended: 12,
+        allowed: [10, 12, 14, 16, 18],
+        note: '无法根据此保险丝规格判断线规，请先修正通道保护规格。',
+      };
+    }
+    if (rating !== undefined) {
       const smallPdhFuse = distribution.part.partId === 'pdh' && channel >= 20;
       if (smallPdhFuse && rating === 10 && partIds.includes('cancoder')) {
         return {
@@ -1324,15 +1336,32 @@ export function wireRoute(p1: WorldPort, p2: WorldPort, lane = 0, manualControl?
   const valid = candidates.map((middle) => compactRoute([p1, ...middle, p2])).filter(isSimpleRoute);
   const cost = (points: RoutePoint[]) => routeLength(points) + points.length * 12
     + (manualControl ? projectOntoRoute(points, manualControl).distance * 2 : 0);
-  valid.sort((a, b) => cost(a) - cost(b));
-  const points = valid[0] ?? proposed.points;
+  let points = proposed.points;
+  let lowestCost = Infinity;
+  for (const candidate of valid) {
+    const candidateCost = cost(candidate);
+    if (candidateCost < lowestCost) { points = candidate; lowestCost = candidateCost; }
+  }
   return { points, path: roundedOrthogonalPath(points), control: pointAlongRoute(points, routeLength(points) / 2) };
+}
+
+function explicitPairedPort(def: PartDef, source: PortDef): PortDef | undefined {
+  const opposite: Partial<Record<PortType, PortType>> = { 'pwr+': 'pwr-', 'pwr-': 'pwr+', canH: 'canL', canL: 'canH' };
+  if (!opposite[source.type]) return undefined;
+  const incoming = def.ports.filter((port) => port.pairId === source.id);
+  const pair = source.pairId !== undefined ? def.ports.find((port) => port.id === source.pairId)
+    : incoming.length === 1 ? incoming[0] : undefined;
+  if (!pair || pair.type !== opposite[source.type] || (pair.pairId !== undefined && pair.pairId !== source.id)
+    || incoming.some((port) => port.id !== pair.id)
+    || def.ports.some((port) => port.id !== source.id && port.pairId === pair.id)) return undefined;
+  return pair;
 }
 
 export function pairedCablePort(def: PartDef, portId: string): PortDef | undefined {
   if (def.id === 'battery12v') return undefined;
   const source = def.ports.find((port) => port.id === portId);
   if (!source) return undefined;
+  if (source.pairId !== undefined || def.ports.some((port) => port.pairId === portId)) return explicitPairedPort(def, source);
   if (source.type === 'pwr+' || source.type === 'pwr-') {
     const pair = pairedPowerPort(def, portId);
     return pair && pairedPowerPort(def, pair.id)?.id === portId ? pair : undefined;
@@ -1340,7 +1369,8 @@ export function pairedCablePort(def: PartDef, portId: string): PortDef | undefin
   if (source.type !== 'canH' && source.type !== 'canL') return undefined;
   const otherType = source.type === 'canH' ? 'canL' : 'canH';
   const otherId = source.id.replace(/[HL]$/, source.type === 'canH' ? 'L' : 'H');
-  return def.ports.find((port) => port.id === otherId && port.type === otherType);
+  return def.ports.find((port) => port.id === otherId && port.type === otherType && port.pairId === undefined
+    && !def.ports.some((other) => other.pairId === port.id));
 }
 
 /** One interactive port per two-conductor connector, retaining physical IDs. */
@@ -1456,19 +1486,74 @@ export function compareWireEditors(a: Wire, b: Wire, cables: ReadonlyMap<string,
   return secondary(a) - secondary(b) || a.id.localeCompare(b.id);
 }
 
-export function connectWireEnds(wires: Wire[], from: WireEnd, to: WireEnd, parts: PlacedPart[], defs: ReadonlyMap<string, PartDef>, color: string) {
-  if (from.uid === to.uid) return wires;
+function connectionPorts(from: WireEnd, to: WireEnd, parts: PlacedPart[], defs: ReadonlyMap<string, PartDef>, resolvePairs: boolean) {
   const a = wireEndContext(from, parts, defs);
   const b = wireEndContext(to, parts, defs);
-  if (!a.def || !b.def || !a.port || !b.port) return wires;
   let portA = a.port;
   let portB = b.port;
-  if (portA.type !== portB.type) {
+  if (resolvePairs && a.def && b.def && portA && portB && portA.type !== portB.type) {
     const alternateA = pairedCablePort(a.def, portA.id);
     const alternateB = pairedCablePort(b.def, portB.id);
     if (alternateA?.type === portB.type) portA = alternateA;
     else if (alternateB?.type === portA.type) portB = alternateB;
   }
+  return { a, b, portA, portB };
+}
+
+function dataInterface(port: PortDef): string | undefined {
+  const name = `${port.id} ${port.label}`;
+  if (/usb/i.test(name)) return 'USB';
+  if (/ethernet|(?:^|[\s_-])eth\d*(?:$|[\s_-])/i.test(name)) return 'Ethernet';
+  const rs485 = name.match(/rs[\s-]*485[\s_-]*([ab])?/i);
+  if (rs485) return `RS485${rs485[1] ? ` ${rs485[1].toUpperCase()}` : ''}`;
+  return undefined;
+}
+
+/** New connections resolve merged connector polarity; saved conductors must be checked literally. */
+export function connectionIssue(from: WireEnd, to: WireEnd, parts: PlacedPart[], defs: ReadonlyMap<string, PartDef>, resolvePairs = true): string | null {
+  if (from.uid === to.uid) return '不能连接同一器件的两个端口。';
+  const { portA, portB } = connectionPorts(from, to, parts, defs, resolvePairs);
+  if (!portA || !portB) return '器件或端口不存在，请重新选择连接端口。';
+  if (portA.type !== portB.type) return `${PORT_TYPE_NAME[portA.type]} 与 ${PORT_TYPE_NAME[portB.type]} 不兼容，无法连接。`;
+  if (portA.type === 'data') {
+    const interfaceA = dataInterface(portA);
+    const interfaceB = dataInterface(portB);
+    if (interfaceA && interfaceB && interfaceA !== interfaceB) return `${interfaceA} 与 ${interfaceB} 数据接口不兼容。`;
+  }
+  return null;
+}
+
+/** Basic diagram checks only; does not infer voltage, device current, or unseen upstream protection. */
+export function wireEngineeringIssues(wire: Wire, parts: PlacedPart[], defs: ReadonlyMap<string, PartDef>): string[] {
+  const issue = connectionIssue(wire.a, wire.b, parts, defs, false);
+  const issues = issue ? [issue] : [];
+  if (wire.awg !== undefined && !WIRE_GAUGES.includes(wire.awg)) issues.push(`线规 ${wire.awg} AWG 无效。`);
+  if (issue) return issues;
+  const rule = wireGaugeRule(wire, parts, defs);
+  if (wire.awg === undefined && wire.assembly !== 'jumper' && rule.allowed.length) issues.push('线规未设置。');
+  else if (wire.awg !== undefined && WIRE_GAUGES.includes(wire.awg) && rule.allowed.length && !rule.allowed.includes(wire.awg)) {
+    issues.push(`${wire.awg} AWG 不符合「${rule.label}」的线规范围（${rule.allowed.join(' / ')} AWG）。`);
+  }
+  for (const end of [wire.a, wire.b]) {
+    const { part, def, port } = wireEndContext(end, parts, defs);
+    if (!part || !def || !port || !['pdh', 'pdp'].includes(part.partId)) continue;
+    const match = port.id.match(/^ch(\d+)[+-]$/);
+    if (!match) continue;
+    const channel = Number(match[1]);
+    const rating = part.fuses?.[channel];
+    const name = `${part.customName || def.name} CH ${channel}`;
+    if (rating === undefined) issues.push(`${name} 未设置上游保险丝 / 断路器，线规需在配置保护规格后确认。`);
+    else if (!FUSE_RATINGS.includes(rating) || !allowedFuseRatings(def, channel).includes(rating)) {
+      issues.push(`${name} 的 ${rating} A 保护规格无效或不符合槽位限制。`);
+    }
+  }
+  return issues;
+}
+
+export function connectWireEnds(wires: Wire[], from: WireEnd, to: WireEnd, parts: PlacedPart[], defs: ReadonlyMap<string, PartDef>, color: string) {
+  if (connectionIssue(from, to, parts, defs)) return wires;
+  const { a, b, portA, portB } = connectionPorts(from, to, parts, defs, true);
+  if (!a.def || !b.def || !portA || !portB) return wires;
   const pairA = pairedCablePort(a.def, portA.id);
   const pairB = pairedCablePort(b.def, portB.id);
   const connections = [[portA, portB]];
@@ -1664,8 +1749,13 @@ export function bundleLeadRoute(junction: WorldPort, device: WorldPort, lane = 0
       return wireRoute({ ...junction, nx, ny }, device, offset, undefined, waypoints);
     });
   const cost = (route: ReturnType<typeof wireRoute>) => routeLength(route.points) + Math.max(0, compactRoute(route.points).length - 2) * 16;
-  candidates.sort((a, b) => cost(a) - cost(b));
-  return candidates[0];
+  let best = candidates[0];
+  let lowestCost = cost(best);
+  for (const candidate of candidates.slice(1)) {
+    const candidateCost = cost(candidate);
+    if (candidateCost < lowestCost) { best = candidate; lowestCost = candidateCost; }
+  }
+  return best;
 }
 
 /** One source of geometry for rendering, picking, and shared route editing. */
@@ -1687,6 +1777,8 @@ export function buildWireGeometry(
       group.push({ wire, a, b });
       groups.set(key, group);
     } else {
+      // Paired conductors share their primary wire's final geometry below.
+      if (cables.has(wire.id) && cables.get(wire.id)![0].id !== wire.id) continue;
       const route = wireRoute(a, b, getLane(wire), wire.control, wire.waypoints);
       routes.set(wire.id, { ...route, visiblePaths: [route.path], visiblePoints: [route.points], editorWire: wire });
     }
@@ -1720,6 +1812,7 @@ export function buildWireGeometry(
     const entryLanes = fanoutLanes(start, 'from');
     const exitLanes = fanoutLanes(end, 'to');
     oriented.forEach((item) => {
+      if (cables.has(item.wire.id) && cables.get(item.wire.id)![0].id !== item.wire.id) return;
       const { from, to } = item;
       const entry = { ...start, nx: -start.nx, ny: -start.ny };
       const cableId = cables.get(item.wire.id)?.[0].id ?? item.wire.id;

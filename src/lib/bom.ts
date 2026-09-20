@@ -1,7 +1,7 @@
 import {
   WORLD_UNITS_PER_MM, WIRE_COLORS, WIRE_TERMINAL_OPTIONS, FUSE_RATINGS, allowedFuseRatings, anchorWireBundles, buildWireGeometry,
   cablePort, cableInlineConnectors, defaultTerminalForPort, pairedWireGroups, partDimensions, partSize, portWorld,
-  routeLength, wireRoutingLane, wireWaypoints,
+  routeLength, wireEngineeringIssues, wireRoutingLane, wireWaypoints,
 } from './wiring.ts';
 import type { CanvasBackground, PartDef, PlacedPart, ViewTransform, Wire, WireEnd, WireTerminalType } from './wiring.ts';
 
@@ -131,6 +131,13 @@ export function buildBom(project: string, pages: BomPage[], defs: ReadonlyMap<st
     }
     const cables = pairedWireGroups(page.wires, page.parts, defs);
     const layout = buildWireGeometry(page.wires, getPort, (wire) => wireRoutingLane(wire, cables, (end) => context(end).port), cables);
+    const wiresByEditor = new Map<string, Wire[]>();
+    for (const wire of page.wires) {
+      const editorId = layout.routes.get(wire.id)?.editorWire.id ?? wire.id;
+      const members = wiresByEditor.get(editorId) ?? [];
+      members.push(wire);
+      wiresByEditor.set(editorId, members);
+    }
     const seenTerminals = new Set<string>();
     const addTerminal = (type: WireTerminalType, id: string, count: number, awg: Wire['awg'], notes: string[]) => {
       if (type === 'none' || seenTerminals.has(id)) return;
@@ -173,7 +180,9 @@ export function buildBom(project: string, pages: BomPage[], defs: ReadonlyMap<st
       const color = WIRE_COLORS.find((color) => color.c.toLowerCase() === wire.color.toLowerCase())?.n ?? wire.color;
       const itemKey = jumper ? keyOf('jumper', aType, bType) : keyOf('wire', wire.color.toLowerCase(), wire.awg ?? null);
       const notes = [lengthM === null ? '端口缺失或路径无效，未估算线长' : '正交中心线平面估算'];
-      if (!jumper && !wire.awg) notes.push('线规未设置');
+      const issues = wireEngineeringIssues(wire, page.parts, defs);
+      notes.push(...issues);
+      report.warnings.push(...issues.map((issue) => `${pageName}：导线 ${wire.id}：${issue}`));
       if (context(wire.a).port?.type === 'canH' || context(wire.a).port?.type === 'canL') notes.push('CAN 单芯长度；绞合及运动增量需另核对');
       if (lengthM === null) report.warnings.push(`${pageName}：导线 ${wire.id} 无法估算长度。`);
       if (!jumper || !cable || cable[0].id === wire.id) {
@@ -196,7 +205,7 @@ export function buildBom(project: string, pages: BomPage[], defs: ReadonlyMap<st
       const editor = route?.editorWire ?? wire;
       if (!handledEditors.has(editor.id)) {
         handledEditors.add(editor.id);
-        const members = page.wires.filter((wire) => (layout.routes.get(wire.id)?.editorWire.id ?? wire.id) === editor.id);
+        const members = wiresByEditor.get(editor.id) ?? [wire];
         for (const point of wireWaypoints(editor)) {
           const type = point.terminal ?? 'wago';
           if (singlePin(type)) {

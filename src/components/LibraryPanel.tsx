@@ -32,6 +32,7 @@ export default function LibraryPanel({ defs, onAdd, onDeleteCustom, onOpenCustom
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="搜索元件"
+            aria-label="搜索元件"
             className="min-w-0 flex-1 bg-transparent text-xs text-slate-700 outline-none placeholder:text-slate-400"
           />
         </label>
@@ -89,14 +90,20 @@ function PartCard({
 }) {
   return (
     <div
-      className="group relative flex min-h-12 items-center gap-2 rounded-md px-2 py-1.5 mb-0.5 hover:bg-sky-50 cursor-pointer transition-colors"
-      onClick={() => onAdd(def.id)}
-      title={`添加 ${def.name}`}
+      className="group relative flex min-h-12 items-center rounded-md mb-0.5 hover:bg-sky-50 focus-within:bg-sky-50 transition-colors"
     >
-      <div className="w-12 h-10 flex items-center justify-center bg-slate-100 rounded overflow-hidden shrink-0 p-1">
-        <PartArtwork def={def} width="100%" height="100%" className="max-h-full max-w-full" />
-      </div>
-      <div className="min-w-0 flex-1 pr-11 text-xs text-slate-700 leading-tight">{def.name}</div>
+      <button
+        type="button"
+        onClick={() => onAdd(def.id)}
+        title={`添加 ${def.name}`}
+        aria-label={`添加 ${def.name}`}
+        className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+      >
+        <span className="w-12 h-10 flex items-center justify-center bg-slate-100 rounded overflow-hidden shrink-0 p-1" aria-hidden="true">
+          <PartArtwork def={def} width="100%" height="100%" className="max-h-full max-w-full" />
+        </span>
+        <span className="min-w-0 flex-1 pr-11 text-xs text-slate-700 leading-tight">{def.name}</span>
+      </button>
       {(def.productUrl || def.docsUrl) && (
         <div className="absolute bottom-1 right-1 flex items-center gap-0.5 opacity-70 transition-opacity group-hover:opacity-100">
           {def.productUrl && (
@@ -129,12 +136,13 @@ function PartCard({
       )}
       {onDelete && (
         <button
-          className="absolute right-1 top-1 hidden h-6 w-6 items-center justify-center rounded group-hover:flex text-slate-400 hover:bg-red-50 hover:text-red-500"
+          className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded opacity-60 group-hover:opacity-100 focus-visible:opacity-100 text-slate-400 hover:bg-red-50 hover:text-red-500"
           onClick={(e) => {
             e.stopPropagation();
             onDelete(def.id);
           }}
           title="删除此自定义板卡"
+          aria-label={`删除自定义板卡 ${def.name}`}
         >
           <X className="h-3.5 w-3.5" aria-hidden="true" />
         </button>

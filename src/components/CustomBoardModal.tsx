@@ -1,6 +1,9 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PartDef, PortDef, PortType } from '../lib/wiring';
 import { PORT_TYPE_COLOR, PORT_TYPE_NAME, uid } from '../lib/wiring';
+import { oppositePairType, pairCustomPorts, prepareCustomImage } from '../lib/customBoard';
+import { imageDisplaySize } from '../lib/imageSize';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui/dialog';
 
 interface Props {
   onClose: () => void;
@@ -18,22 +21,32 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
   const [nextType, setNextType] = useState<PortType>('signal');
   const [productUrl, setProductUrl] = useState('');
   const [docsUrl, setDocsUrl] = useState('');
+  const [imageError, setImageError] = useState('');
+  const [loadingImage, setLoadingImage] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
+  const uploadId = useRef(0);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
 
-  const onFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const data = reader.result as string;
-      const img = new Image();
-      img.onload = () => {
-        setImgData(data);
-        setImgSize({ w: img.naturalWidth, h: img.naturalHeight });
-        setPorts([]);
-        setName(file.name.replace(/\.[^.]+$/, '') || '自定义板卡');
-      };
-      img.src = data;
-    };
-    reader.readAsDataURL(file);
+  useEffect(() => {
+    return () => { uploadId.current += 1; };
+  }, []);
+
+  const onFile = async (file: File) => {
+    const requestId = ++uploadId.current;
+    setLoadingImage(true);
+    setImageError('');
+    try {
+      const image = await prepareCustomImage(file);
+      if (requestId !== uploadId.current) return;
+      setImgData(image.data);
+      setImgSize({ w: image.w, h: image.h });
+      setPorts([]);
+      setName(file.name.replace(/\.[^.]+$/, '') || '自定义板卡');
+    } catch (error) {
+      if (requestId === uploadId.current) setImageError(error instanceof Error ? error.message : '图片导入失败，请重试。');
+    } finally {
+      if (requestId === uploadId.current) setLoadingImage(false);
+    }
   };
 
   const onImageClick = (e: React.MouseEvent) => {
@@ -49,7 +62,16 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
   };
 
   const save = () => {
-    if (!imgData || !imgSize) return;
+    if (!imgData || !imgSize || loadingImage) return;
+    for (const value of [productUrl.trim(), docsUrl.trim()]) {
+      if (!value) continue;
+      try {
+        if (!['http:', 'https:'].includes(new URL(value).protocol)) throw new Error();
+      } catch {
+        setImageError('产品页和文档链接须为有效的 http:// 或 https:// 地址。');
+        return;
+      }
+    }
     onSave({
       id: uid(),
       name: name.trim() || '自定义板卡',
@@ -57,7 +79,7 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
       imgData,
       w: imgSize.w,
       h: imgSize.h,
-      displayWidth: 200,
+      displayWidth: imageDisplaySize(imgSize.w, imgSize.h, 200).w,
       ports,
       custom: true,
       productUrl: productUrl.trim() || undefined,
@@ -67,26 +89,37 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-6" onClick={onClose}>
-      <div
-        className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-full flex flex-col"
-        onClick={(e) => e.stopPropagation()}
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent
+        showCloseButton={false}
+        className="bg-white rounded-xl shadow-2xl w-[calc(100%-2rem)] sm:max-w-3xl max-h-[calc(100dvh-2rem)] flex flex-col gap-0 p-0"
+        onOpenAutoFocus={() => { returnFocusRef.current = document.activeElement as HTMLElement | null; }}
+        onCloseAutoFocus={(event) => { event.preventDefault(); returnFocusRef.current?.focus(); }}
       >
         <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200">
-          <div className="font-semibold text-slate-800">导入自定义器件</div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-lg leading-none">✕</button>
+          <DialogTitle className="font-semibold text-base text-slate-800">导入自定义器件</DialogTitle>
+          <button onClick={onClose} aria-label="关闭自定义器件窗口" className="h-8 w-8 text-slate-400 hover:text-slate-600 text-lg leading-none">✕</button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
+          <DialogDescription className="text-xs text-slate-500">导入图片后可标记端口，再保存到自定义元件库。图片自动缩小至 2048 像素以内并压缩。</DialogDescription>
+          {imageError && <div role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-700">{imageError}</div>}
+          {loadingImage && <div role="status" className="text-sm text-sky-700">正在处理图片…</div>}
           {!imgData ? (
-            <label className="block border-2 border-dashed border-slate-300 rounded-xl py-14 text-center cursor-pointer hover:border-sky-400 transition-colors">
+            <label className="relative block border-2 border-dashed border-slate-300 rounded-xl py-14 text-center cursor-pointer hover:border-sky-400 focus-within:border-sky-500 transition-colors">
               <div className="text-slate-500 text-sm">点击导入器件图片（PNG / JPG / WEBP）</div>
-              <div className="mt-1 text-xs text-slate-400">导入后可选地标记接线点，并保存到自定义元件库</div>
+              <div className="mt-1 text-xs text-slate-400">文件不超过 10 MB，压缩后不超过 750 KB</div>
               <input
                 type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
+                accept="image/png,image/jpeg,image/webp"
+                aria-label="选择器件图片"
+                disabled={loadingImage}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  if (file) void onFile(file);
+                }}
               />
             </label>
           ) : (
@@ -97,6 +130,8 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
                   onChange={(e) => setName(e.target.value)}
                   className="border border-slate-300 rounded px-2 py-1 text-sm w-48"
                   placeholder="板卡名称"
+                  aria-label="板卡名称"
+                  maxLength={120}
                 />
                 <div className="flex items-center gap-1.5 text-xs text-slate-500">
                   新端口类型：
@@ -104,6 +139,7 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
                     <button
                       key={t}
                       onClick={() => setNextType(t)}
+                      aria-pressed={nextType === t}
                       className={`px-2 py-0.5 rounded-full border text-[11px] ${
                         nextType === t ? 'border-sky-500 bg-sky-50 text-sky-700' : 'border-slate-200 text-slate-500'
                       }`}
@@ -123,6 +159,7 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
                   onChange={(event) => setProductUrl(event.target.value)}
                   className="rounded border border-slate-300 px-2 py-1 text-xs"
                   placeholder="商店/产品页链接（可选）"
+                  aria-label="商店或产品页链接"
                   type="url"
                 />
                 <input
@@ -130,6 +167,7 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
                   onChange={(event) => setDocsUrl(event.target.value)}
                   className="rounded border border-slate-300 px-2 py-1 text-xs"
                   placeholder="供应商文档链接（可选）"
+                  aria-label="供应商文档链接"
                   type="url"
                 />
               </div>
@@ -139,6 +177,7 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
                   <img
                     ref={imgRef}
                     src={imgData}
+                    alt="自定义器件：点击图片标记端口"
                     className="max-h-72 block cursor-crosshair select-none"
                     draggable={false}
                     onClick={onImageClick}
@@ -154,13 +193,15 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
               </div>
               <div className="space-y-1">
                 {ports.map((pt, i) => (
-                  <div key={pt.id} className="flex items-center gap-2 text-xs">
+                  <div key={pt.id} className="flex flex-wrap items-center gap-2 text-xs">
                     <span
                       className="w-2.5 h-2.5 rounded-full shrink-0"
                       style={{ background: PORT_TYPE_COLOR[pt.type] }}
                     />
                     <input
                       value={pt.label}
+                      aria-label={`端口 ${i + 1} 名称`}
+                      maxLength={80}
                       onChange={(e) =>
                         setPorts((ps) => ps.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))
                       }
@@ -168,9 +209,10 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
                     />
                     <select
                       value={pt.type}
+                      aria-label={`端口 ${i + 1} 类型`}
                       onChange={(e) =>
                         setPorts((ps) =>
-                          ps.map((x, j) => (j === i ? { ...x, type: e.target.value as PortType } : x)),
+                          pairCustomPorts(ps, pt.id).map((x, j) => (j === i ? { ...x, type: e.target.value as PortType } : x)),
                         )
                       }
                       className="border border-slate-300 rounded px-1 py-0.5"
@@ -181,18 +223,33 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
                         </option>
                       ))}
                     </select>
+                    {oppositePairType(pt.type) && (
+                      <select
+                        aria-label={`端口 ${i + 1} 配对端口`}
+                        value={pt.pairId ?? ''}
+                        onChange={(event) => setPorts((ps) => pairCustomPorts(ps, pt.id, event.target.value || undefined))}
+                        className="max-w-40 rounded border border-slate-300 px-1 py-0.5"
+                      >
+                        <option value="">未指定配对</option>
+                        {ports.filter((candidate) => candidate.type === oppositePairType(pt.type)).map((candidate) => (
+                          <option key={candidate.id} value={candidate.id}>配对：{candidate.label}</option>
+                        ))}
+                      </select>
+                    )}
                     <span className="text-slate-400">
                       ({(pt.x * 100).toFixed(0)}%, {(pt.y * 100).toFixed(0)}%)
                     </span>
                     <button
                       className="text-slate-400 hover:text-red-500 ml-auto"
-                      onClick={() => setPorts((ps) => ps.filter((_, j) => j !== i))}
+                      aria-label={`删除端口 ${pt.label}`}
+                      onClick={() => setPorts((ps) => pairCustomPorts(ps, pt.id).filter((_, j) => j !== i))}
                     >
                       删除
                     </button>
                   </div>
                 ))}
               </div>
+              {ports.some((port) => oppositePairType(port.type)) && <p className="text-xs text-slate-500">将 CAN H/L 或电源正负极设为一对，可在画布上一并连接。每个端口只能有一个配对端口。</p>}
             </>
           )}
         </div>
@@ -203,13 +260,13 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
           </button>
           <button
             onClick={save}
-            disabled={!imgData}
+            disabled={!imgData || loadingImage}
             className="px-4 py-1.5 text-sm rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             保存到元件库
           </button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

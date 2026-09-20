@@ -8,6 +8,7 @@ interface Props {
   height: number | string;
   fuses?: Record<number, FuseRating>;
   onFuseClick?: (channel: number) => void;
+  canActivateFuse?: () => boolean;
   stretchToFit?: boolean;
   className?: string;
   style?: CSSProperties;
@@ -129,10 +130,12 @@ function ImageFuseSlots({
   def,
   fuses,
   onFuseClick,
+  canActivateFuse,
 }: {
   def: PartDef;
   fuses?: Record<number, FuseRating>;
   onFuseClick?: (channel: number) => void;
+  canActivateFuse?: () => boolean;
 }) {
   if (!def.fuseSlots) return null;
   return (
@@ -147,14 +150,26 @@ function ImageFuseSlots({
         return (
           <g
             key={slot.channel}
+            role={onFuseClick ? 'button' : undefined}
+            tabIndex={onFuseClick ? 0 : undefined}
+            aria-label={onFuseClick ? `CH ${slot.channel} 保险丝：${rating ? `${rating}A` : '空槽'}，更改额定值` : undefined}
             onPointerDown={
               onFuseClick
                 ? (event) => {
+                    if (event.button !== 0 || canActivateFuse?.() === false) return;
                     event.stopPropagation();
+                    event.currentTarget.focus();
                     onFuseClick(slot.channel);
                   }
                 : undefined
             }
+            onKeyDown={onFuseClick ? (event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                event.stopPropagation();
+                if (!event.repeat) onFuseClick(slot.channel);
+              }
+            } : undefined}
             style={{ cursor: onFuseClick ? 'pointer' : 'default' }}
           >
             {fuseImage ? (
@@ -609,7 +624,7 @@ function renderVector(def: PartDef) {
   }
 }
 
-export default function PartArtwork({ def, width, height, fuses, onFuseClick, stretchToFit = false, className, style }: Props) {
+export default function PartArtwork({ def, width, height, fuses, onFuseClick, canActivateFuse, stretchToFit = false, className, style }: Props) {
   return (
     <svg
       width={width}
@@ -623,12 +638,12 @@ export default function PartArtwork({ def, width, height, fuses, onFuseClick, st
       {def.visual === 'vector' ? (
         <>
           {renderVector(def)}
-          <ImageFuseSlots def={def} fuses={fuses} onFuseClick={onFuseClick} />
+          <ImageFuseSlots def={def} fuses={fuses} onFuseClick={onFuseClick} canActivateFuse={canActivateFuse} />
         </>
       ) : (
         <>
           <image href={partImageSrc(def)} width={def.w} height={def.h} preserveAspectRatio="xMidYMid meet" />
-          <ImageFuseSlots def={def} fuses={fuses} onFuseClick={onFuseClick} />
+          <ImageFuseSlots def={def} fuses={fuses} onFuseClick={onFuseClick} canActivateFuse={canActivateFuse} />
         </>
       )}
     </svg>

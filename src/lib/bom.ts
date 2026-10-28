@@ -1,7 +1,7 @@
 import {
   WORLD_UNITS_PER_MM, WIRE_COLORS, WIRE_TERMINAL_OPTIONS, FUSE_RATINGS, allowedFuseRatings, anchorWireBundles, buildWireGeometry,
   cablePort, cableInlineConnectors, defaultTerminalForPort, pairedWireGroups, partDimensions, partSize, portWorld,
-  routeLength, wireEngineeringIssues, wireRoutingLane, wireWaypoints,
+  routeLength, wireEngineeringIssues, wireRoutingLane,
 } from './wiring.ts';
 import type { CanvasBackground, PartDef, PlacedPart, ViewTransform, Wire, WireEnd, WireTerminalType } from './wiring.ts';
 
@@ -39,7 +39,7 @@ export interface BomLine {
   cableId: string;
   from: string;
   to: string;
-  kind: '现场导线' | '成品线' | '拖链' | '束线管';
+  kind: '气管' | '现场导线' | '成品线' | '拖链' | '束线管';
   color: string;
   awg: number | null;
   lengthM: number | null;
@@ -174,6 +174,13 @@ export function buildBom(project: string, pages: BomPage[], defs: ReadonlyMap<st
       const length = route ? routeLength(route.points) / WORLD_UNITS_PER_MM / 1000 : null;
       const lengthM = length !== null && Number.isFinite(length) ? length : null;
       const stockM = lengthM === null ? null : estimateStockLength(lengthM, options);
+      if (context(wire.a).port?.type === 'air') {
+        const specification = `外径 ${wire.tubeOdMm ?? 6.35} mm · ${wire.pressureSide === 'high' ? '高压侧' : '工作侧'}`;
+        const itemKey = keyOf('tube', specification, wire.color);
+        add({key:itemKey, category:'气管', name:'气动管', specification, quantity:stockM, unit:'m', pages:[pageName], notes:['平面中心线估算含预留；实际压力等级需核对'], source:''});
+        report.lines.push({page:pageName,id:wire.id,cableId:'',from:endName(wire.a),to:endName(wire.b),kind:'气管',color:wire.color,awg:null,lengthM,stockM,terminalA:'',terminalB:'',notes:specification,itemKey});
+        continue;
+      }
       const aType = wire.terminalA ?? defaultTerminalForPort(context(wire.a).port);
       const bType = wire.terminalB ?? defaultTerminalForPort(context(wire.b).port);
       const jumper = wire.assembly === 'jumper';
@@ -202,11 +209,18 @@ export function buildBom(project: string, pages: BomPage[], defs: ReadonlyMap<st
             explicit === undefined ? ['按默认端子估算，需确认实际压接方式'] : ['按已配置端子计数']);
         }
       }
+      for (const point of [...(wire.bundleLeadIn ?? []), ...(wire.bundleLeadOut ?? [])]) {
+        if (point.kind === 'guide') continue;
+        const type = point.terminal ?? 'wago';
+        addTerminal(type, keyOf('lead', singlePin(type) ? wire.id : cableId, point.id), singlePin(type) ? 2 : 1,
+          wire.awg, ['引入/引出段接点按所属线缆计数']);
+      }
       const editor = route?.editorWire ?? wire;
       if (!handledEditors.has(editor.id)) {
         handledEditors.add(editor.id);
         const members = wiresByEditor.get(editor.id) ?? [wire];
-        for (const point of wireWaypoints(editor)) {
+        for (const point of editor.waypoints ?? []) {
+          if (point.kind === 'guide') continue;
           const type = point.terminal ?? 'wago';
           if (singlePin(type)) {
             for (const member of members) addTerminal(type, keyOf('middle', editor.id, point.id, member.id), 2, member.awg, ['中间断点按每芯两侧压接计数']);

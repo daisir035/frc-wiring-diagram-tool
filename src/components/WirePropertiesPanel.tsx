@@ -38,6 +38,8 @@ interface Props {
   onRemoveInline: (id: string) => void;
   onClearInline: () => void;
   onWaypointTerminalChange: (waypointId: string, terminal: WireTerminalType) => void;
+  onAddGuide: () => void;
+  onToggleWaypointLock: (id: string) => void;
   onRemoveWaypoint: (waypointId: string) => void;
   onClearWaypoints: () => void;
   onClose: () => void;
@@ -107,10 +109,11 @@ function TerminalSelect({
 
 export default function WirePropertiesPanel({ wire, cableSize, parts, partDefs, rule, bundleSize, onChange, onRoutingStyleChange,
   inlineConnectors, inlineSupported, inlineKind, onInlineKindChange, inlinePlacement, onAddInline, onRemoveInline, onClearInline,
-  onWaypointTerminalChange, onRemoveWaypoint, onClearWaypoints, onClose }: Props) {
+  onWaypointTerminalChange, onAddGuide, onToggleWaypointLock, onRemoveWaypoint, onClearWaypoints, onClose }: Props) {
   const waypoints = wireWaypoints(wire);
   const a = endInfo(wire, 'a', parts, partDefs);
   const b = endInfo(wire, 'b', parts, partDefs);
+  const pneumatic = a.port?.type === 'air';
   const assembly = wire.assembly ?? 'field';
   const terminalA = wire.terminalA ?? defaultTerminalForPort(a.port);
   const terminalB = wire.terminalB ?? defaultTerminalForPort(b.port);
@@ -131,7 +134,7 @@ export default function WirePropertiesPanel({ wire, cableSize, parts, partDefs, 
       <div className="flex h-12 items-center gap-2 border-b border-slate-200 px-3">
         <Cable className="h-4 w-4 text-sky-600" aria-hidden="true" />
         <div className="min-w-0 flex-1">
-          <div className="text-xs font-semibold text-slate-800">{cableSize > 1 ? a.port?.type === 'canH' ? 'CAN 双芯线缆' : '电源双芯线缆' : '导线属性'}</div>
+          <div className="text-xs font-semibold text-slate-800">{pneumatic ? '气管属性' : cableSize > 1 ? a.port?.type === 'canH' ? 'CAN 双芯线缆' : '电源双芯线缆' : '导线属性'}</div>
           <div className="truncate text-[10px] text-slate-400">{a.label} → {b.label}</div>
         </div>
         <button
@@ -144,6 +147,23 @@ export default function WirePropertiesPanel({ wire, cableSize, parts, partDefs, 
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 pb-4">
+        <section className="space-y-2 border-b py-3 text-xs">
+          <label className="block">路径模式
+            <select aria-label="路径模式" className="ml-2 rounded border p-1" value={wire.pathMode ?? 'orthogonal'} onChange={e => onChange({ pathMode: e.target.value as Wire['pathMode'] })}>
+              <option value="orthogonal">正交布线</option><option value="free">自由路径</option>
+            </select>
+          </label>
+          <label className="block">圆角半径（mm）
+            <input aria-label="圆角半径" className="ml-2 w-20 rounded border p-1" type="number" min="0" max="1000" value={wire.cornerRadius ?? 8} onChange={e => { const n = Number(e.target.value); if (Number.isFinite(n) && n >= 0 && n <= 1000) onChange({ cornerRadius: n }); }} />
+          </label>
+          <button className="rounded border px-2 py-1" onClick={onAddGuide}>添加路径固定点</button>
+          <p className="text-[10px] text-slate-500">双击线路可在鼠标处加点。拖动空心点调整；锁定后移动器件也会保持位置。</p>
+          {waypoints.filter(p => p.kind === 'guide').map((p, i) => <div key={p.id} className="flex items-center gap-2">
+            <span>路径点 {i + 1}</span><button className="rounded border p-1" onClick={() => onToggleWaypointLock(p.id)}>{p.locked ? '解锁' : '锁定'}</button>
+            <button className="rounded border p-1" onClick={() => onRemoveWaypoint(p.id)}>删除</button>
+          </div>)}
+        </section>
+        {!pneumatic && <>
         <section className="border-b border-slate-100 py-3">
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className="text-xs font-semibold text-slate-700">线内接点</span>
@@ -176,6 +196,12 @@ export default function WirePropertiesPanel({ wire, cableSize, parts, partDefs, 
             </button>
           </div>)}
         </section>
+        </>}
+        {pneumatic ? <section className="space-y-2 border-b py-3 text-xs">
+          <label className="block">气管外径（mm）<input aria-label="气管外径" className="ml-2 w-20 rounded border p-1" type="number" min="0.1" max="100" step="0.01" value={wire.tubeOdMm ?? 6.35} onChange={e => { const n=Number(e.target.value); if(n>=0.1 && n<=100) onChange({tubeOdMm:n}); }}/></label>
+          <label className="block">压力侧 <select aria-label="压力侧" className="rounded border p-1" value={wire.pressureSide ?? 'working'} onChange={e=>onChange({pressureSide:e.target.value as Wire['pressureSide'],color:e.target.value==='high'?'#16a34a':'#0ea5e9'})}><option value="high">高压储气侧</option><option value="working">调压后工作侧</option></select></label>
+          <p className="text-slate-500">气管不使用 AWG。分支请添加三通或分气块；实际承压等级以气管规格为准。</p>
+        </section> : <>
         <section className="border-b border-slate-100 py-3">
           <div className="mb-2 flex items-center gap-2">
             <Ruler className="h-4 w-4 text-amber-600" aria-hidden="true" />
@@ -222,6 +248,7 @@ export default function WirePropertiesPanel({ wire, cableSize, parts, partDefs, 
           <div className="mt-2 text-[9px] leading-4 text-slate-400">参考 Team 3255 Wiring Cheat Sheet 与 2026 FRC 手册 R622；仍需核对器件端子可接受线径。</div>
         </section>
 
+        </>}
         <section className="border-b border-slate-100 py-3">
           <div className="mb-2 flex items-center gap-2">
             <Shield className="h-4 w-4 text-violet-600" aria-hidden="true" />
@@ -253,7 +280,7 @@ export default function WirePropertiesPanel({ wire, cableSize, parts, partDefs, 
             </div>
             {waypoints.length > 0 && (
               <div className="mt-2 space-y-2">
-                {waypoints.map((waypoint, index) => (
+                {waypoints.filter(point => point.kind !== 'guide').map((waypoint, index) => (
                   <div key={waypoint.id} className="rounded border border-violet-100 bg-white p-2">
                     <div className="mb-1 flex items-center justify-between gap-2">
                       <span className="text-[10px] font-semibold text-violet-700">中间端子 {index + 1}</span>
@@ -277,6 +304,7 @@ export default function WirePropertiesPanel({ wire, cableSize, parts, partDefs, 
           </div>}
         </section>
 
+        {!pneumatic && <>
         <section className="py-3">
           <div className="mb-2 flex items-center gap-2">
             <Plug className="h-4 w-4 text-violet-600" aria-hidden="true" />
@@ -302,6 +330,7 @@ export default function WirePropertiesPanel({ wire, cableSize, parts, partDefs, 
             </div>
           )}
         </section>
+        </>}
       </div>
     </aside>
   );

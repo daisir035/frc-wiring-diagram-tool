@@ -3,10 +3,10 @@ import { cableConductorPaths } from '../lib/cableGeometry';
 import type { CableEndAlignment } from '../lib/cableGeometry';
 import type { RoutePoint } from '../lib/wiring';
 
-export default function CableConductors({ points, colors, twisted, startAxis, endAxis, polarity }: {
-  points: RoutePoint[]; colors: [string, string]; twisted: boolean;
+export default function CableConductors({ points, colors, twisted, startAxis, endAxis, polarity, radius = 8 }: {
+  points: RoutePoint[]; colors: [string, string]; twisted: boolean; radius?: number;
 } & CableEndAlignment) {
-  const geometry = useMemo(() => cableConductorPaths(points, twisted, { startAxis, endAxis, polarity }), [points, twisted, startAxis, endAxis, polarity]);
+  const geometry = useMemo(() => cableConductorPaths(points, twisted, { startAxis, endAxis, polarity }, radius), [points, twisted, startAxis, endAxis, polarity, radius]);
   return (
     <g data-cable-style={twisted ? 'twisted' : 'parallel'} fill="none" strokeLinecap="round" strokeLinejoin="round">
       {geometry.paths.map((path, index) => <path key={`outline-${index}`} d={path} stroke="#fff" strokeWidth={4.6} />)}

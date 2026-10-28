@@ -1,5 +1,5 @@
 import { GitMerge, Shield, X } from 'lucide-react';
-import type { WireRoutingStyle } from '../lib/wiring';
+import type { Wire, WireRoutingStyle } from '../lib/wiring';
 
 interface PickerProps {
   value?: WireRoutingStyle;
@@ -64,13 +64,16 @@ export function WireRoutingStylePicker({ value, onChange }: PickerProps) {
 }
 
 interface Props {
+  pathMode?: Wire['pathMode'];
+  cornerRadius?: number;
+  onGeometryChange: (changes: Partial<Wire>) => void;
   wireCount: number;
   value?: WireRoutingStyle;
   onChange: (value: WireRoutingStyle) => void;
   onClose: () => void;
 }
 
-export default function WireBundlePanel({ wireCount, value, onChange, onClose }: Props) {
+export default function WireBundlePanel({ pathMode, cornerRadius, onGeometryChange, wireCount, value, onChange, onClose }: Props) {
   return (
     <aside className="absolute inset-y-0 right-0 z-30 flex h-full w-72 shrink-0 flex-col border-l border-slate-200 bg-white shadow-xl lg:static lg:z-auto lg:shadow-none">
       <div className="flex h-12 items-center gap-2 border-b border-slate-200 px-3">
@@ -92,6 +95,11 @@ export default function WireBundlePanel({ wireCount, value, onChange, onClose }:
         <div className="mb-2 flex items-center gap-2">
           <Shield className="h-4 w-4 text-violet-600" aria-hidden="true" />
           <span className="text-xs font-semibold text-slate-700">线路保护方式</span>
+        </div>
+        <div className="mb-3 space-y-2 text-xs">
+          <label className="block">主干路径 <select aria-label="线束路径模式" value={pathMode ?? 'orthogonal'} onChange={e=>onGeometryChange({pathMode:e.target.value as Wire['pathMode']})}><option value="orthogonal">正交</option><option value="free">自由</option></select></label>
+          <label className="block">圆角（mm）<input aria-label="线束圆角" className="ml-2 w-20 rounded border" type="number" min="0" max="1000" value={cornerRadius ?? 8} onChange={e=>{const n=Number(e.target.value);if(n>=0 && n<=1000)onGeometryChange({cornerRadius:n});}}/></label>
+          <p>双击主干加点，点击单根线路可锁定或删除路径点。</p>
         </div>
         <WireRoutingStylePicker value={value} onChange={onChange} />
       </div>

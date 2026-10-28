@@ -1,3 +1,4 @@
+import { CYLINDER_PARTS } from '../lib/pneumatics';
 import {
   BookOpen,
   CircuitBoard,
@@ -90,6 +91,16 @@ export default function PropertiesPanel({ part, def, onPartChange, onFuseChange,
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 pb-4">
+        {def.cylinder && <section className="space-y-2 border-b py-3 text-xs">
+          <label className="block">缸径 / 行程（AndyMark）
+            <select aria-label="气缸型号" disabled={part.locked} className="mt-1 w-full rounded border p-2" value={def.id} onChange={e => onPartChange({ partId: e.target.value, sizeMm: undefined })}>
+              {CYLINDER_PARTS.map(c => <option key={c.id} value={c.id}>{c.cylinder!.boreMm} mm × {c.cylinder!.strokeMm} mm · {c.id}</option>)}
+            </select>
+          </label>
+          <p>缸径 {def.cylinder.boreMm} mm · 行程 {def.cylinder.strokeMm} mm</p>
+          <p>{def.cylinder.retractedMm ? `收缩总长 ${def.cylinder.retractedMm.toFixed(2)} mm；外径 21.844 mm` : '厂家仅公布缸径和行程；外形为参考尺寸，可在下方按实物校准。'}</p>
+          <a href={def.productUrl} target="_blank" rel="noreferrer" className="text-sky-700 underline">AndyMark 产品与尺寸来源</a>
+        </section>}
         <section className="border-b border-slate-100 py-3">
           <div className="mb-2 flex items-center gap-2">
             <Ruler className="h-4 w-4 text-sky-600" aria-hidden="true" />

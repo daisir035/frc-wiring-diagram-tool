@@ -166,3 +166,11 @@ test('empty reports export valid tables without broken ranges', async () => {
   assert.equal(workbook.worksheets.length, 4);
   assert.equal(workbook.getWorksheet('BOM 汇总').rowCount, 5);
 });
+
+test('bundle lead terminals are counted per member rather than representative', () => {
+ const first=wire('one','pwr+','#f00',{terminalA:'none',terminalB:'none',routingStyle:'conduit',bundleId:'bundle',bundleReversed:false,bundleEndpoints:{entry:{x:100,y:50,nx:-1,ny:0},exit:{x:900,y:50,nx:1,ny:0}},bundleLeadIn:[{id:'f',x:40,y:20,terminal:'ferrule'}]});
+ const second={...first,id:'two',a:{uid:'a',portId:'eth'},b:{uid:'b',portId:'eth'},bundleLeadIn:[{id:'w',x:50,y:100,terminal:'wago'}]};
+ const report=run([page([first,second])]);
+ assert.equal(count(report,'WAGO 接线端子'),1);
+ assert.equal(count(report,'管型冷压端子'),2);
+});

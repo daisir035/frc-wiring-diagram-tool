@@ -332,3 +332,14 @@ test('legacy custom images with tall display ratios are retained rather than dis
   state.customParts = [{ ...custom(), w: 1, h: 2048, displayWidth: 200 }];
   assert.equal(parseSavedState(state).customParts[0].displayWidth, 200);
 });
+
+test('route guide properties round trip and invalid radius or lock are rejected', () => {
+ const state = workspace();
+ Object.assign(activePage(state).wires[0], { pathMode: 'free', cornerRadius: 24, waypoints: [{id:'guide', x:12,y:35,kind:'guide',locked:true}] });
+ assert.deepEqual(activePage(parseSavedState(state)).wires[0].waypoints, activePage(state).wires[0].waypoints);
+ activePage(state).wires[0].cornerRadius = -1;
+ rejects(state, /cornerRadius/);
+ activePage(state).wires[0].cornerRadius = 8;
+ activePage(state).wires[0].waypoints[0].locked = 'yes';
+ rejects(state, /locked/);
+});

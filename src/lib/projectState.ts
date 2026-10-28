@@ -249,6 +249,9 @@ function waypoints(value: unknown, path: string) {
     const source = point(value, pointPath);
     unique(identifier(source.id, `${pointPath}.id`), ids, `${pointPath}.id`);
     optional(source, 'terminal', pointPath, terminal);
+    optional(source, 'kind', pointPath, (v, p) => member(v, ['guide', 'terminal'], p));
+    optional(source, 'locked', pointPath, boolean);
+    optional(source, 'cornerRadius', pointPath, (v,p) => number(v,p,0,1000));
   });
 }
 
@@ -272,6 +275,10 @@ function validateWire(value: unknown, path: string): Wire {
   optional(source, 'assembly', path, (value, path) => member(value, ['field', 'jumper'], path));
   optional(source, 'terminalA', path, terminal);
   optional(source, 'terminalB', path, terminal);
+  optional(source, 'tubeOdMm', path, (v, p) => number(v, p, 0.1, 100));
+  optional(source, 'pressureSide', path, (v, p) => member(v, ['high', 'working'], p));
+  optional(source, 'pathMode', path, (v, p) => member(v, ['orthogonal', 'free'], p));
+  optional(source, 'cornerRadius', path, (v, p) => number(v, p, 0, 1000));
   optional(source, 'routingStyle', path, (value, path) => member(value, ['standard', 'drag-chain', 'conduit'], path));
   optional(source, 'bundleId', path, identifier);
   optional(source, 'bundleStart', path, fraction);

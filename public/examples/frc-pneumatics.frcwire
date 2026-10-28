@@ -1,0 +1,910 @@
+{
+  "format": "frc-wiresheet-source",
+  "version": 2,
+  "savedAt": "2026-10-28T00:00:00.000Z",
+  "customParts": [],
+  "project": {
+    "id": "pneumatics-demo",
+    "name": "FRC 气动系统示例",
+    "activePageId": "air-system",
+    "pages": [
+      {
+        "id": "air-system",
+        "name": "高压侧、工作侧与电气控制",
+        "parts": [
+          {
+            "uid": "comp",
+            "partId": "pneumatic-compressor",
+            "x": 100,
+            "y": 100,
+            "rot": 0,
+            "customName": "压缩机"
+          },
+          {
+            "uid": "relief",
+            "partId": "pneumatic-relief",
+            "x": 205,
+            "y": 20,
+            "rot": 0,
+            "customName": "安全阀 · 硬接头"
+          },
+          {
+            "uid": "tank",
+            "partId": "pneumatic-tank",
+            "x": 350,
+            "y": 100,
+            "rot": 0,
+            "customName": "储气罐 · 高压侧"
+          },
+          {
+            "uid": "high",
+            "partId": "pneumatic-manifold",
+            "x": 580,
+            "y": 100,
+            "rot": 0,
+            "customName": "高压分气块"
+          },
+          {
+            "uid": "switch",
+            "partId": "pneumatic-pressure-switch",
+            "x": 560,
+            "y": 235,
+            "rot": 0,
+            "customName": "压力开关"
+          },
+          {
+            "uid": "gaugeH",
+            "partId": "pneumatic-gauge",
+            "x": 680,
+            "y": 235,
+            "rot": 0,
+            "customName": "储气压力表"
+          },
+          {
+            "uid": "vent",
+            "partId": "pneumatic-vent",
+            "x": 785,
+            "y": 245,
+            "rot": 0,
+            "customName": "手动泄压"
+          },
+          {
+            "uid": "reg",
+            "partId": "pneumatic-regulator",
+            "x": 820,
+            "y": 90,
+            "rot": 0,
+            "customName": "主调压阀"
+          },
+          {
+            "uid": "work",
+            "partId": "pneumatic-manifold",
+            "x": 980,
+            "y": 100,
+            "rot": 0,
+            "customName": "工作侧分气块"
+          },
+          {
+            "uid": "gaugeL",
+            "partId": "pneumatic-gauge",
+            "x": 1110,
+            "y": 220,
+            "rot": 0,
+            "customName": "工作压力表"
+          },
+          {
+            "uid": "valve",
+            "partId": "pneumatic-double-solenoid",
+            "x": 1000,
+            "y": 380,
+            "rot": 0,
+            "customName": "双电磁阀"
+          },
+          {
+            "uid": "cylinder",
+            "partId": "am-2034_4",
+            "x": 960,
+            "y": 540,
+            "rot": 0,
+            "customName": "气缸 · Ø19.05 / 行程101.6 mm"
+          },
+          {
+            "uid": "valve2",
+            "partId": "pneumatic-single-solenoid",
+            "x": 1300,
+            "y": 380,
+            "rot": 0,
+            "customName": "单电磁阀"
+          },
+          {
+            "uid": "cylinder2",
+            "partId": "am-2034_2",
+            "x": 1280,
+            "y": 540,
+            "rot": 0,
+            "customName": "气缸 · Ø19.05 / 行程50.8 mm"
+          },
+          {
+            "uid": "ph",
+            "partId": "ph",
+            "x": 600,
+            "y": 530,
+            "rot": 0,
+            "customName": "Pneumatic Hub"
+          },
+          {
+            "uid": "rio",
+            "partId": "roborio",
+            "x": 330,
+            "y": 530,
+            "rot": 0,
+            "customName": "roboRIO"
+          },
+          {
+            "uid": "pdh",
+            "partId": "pdh",
+            "x": 100,
+            "y": 530,
+            "rot": 0,
+            "customName": "配电 PDH",
+            "fuses": {
+              "0": 20,
+              "1": 10
+            }
+          }
+        ],
+        "wires": [
+          {
+            "id": "line-0",
+            "a": {
+              "uid": "comp",
+              "portId": "relief"
+            },
+            "b": {
+              "uid": "relief",
+              "portId": "air"
+            },
+            "color": "#16a34a",
+            "tubeOdMm": 6.35,
+            "pressureSide": "high",
+            "assembly": "field",
+            "cornerRadius": 16
+          },
+          {
+            "id": "line-1",
+            "a": {
+              "uid": "comp",
+              "portId": "air"
+            },
+            "b": {
+              "uid": "tank",
+              "portId": "in"
+            },
+            "color": "#16a34a",
+            "tubeOdMm": 6.35,
+            "pressureSide": "high",
+            "assembly": "field",
+            "cornerRadius": 16
+          },
+          {
+            "id": "line-2",
+            "a": {
+              "uid": "tank",
+              "portId": "out"
+            },
+            "b": {
+              "uid": "high",
+              "portId": "in"
+            },
+            "color": "#16a34a",
+            "tubeOdMm": 6.35,
+            "pressureSide": "high",
+            "assembly": "field",
+            "cornerRadius": 16
+          },
+          {
+            "id": "line-3",
+            "a": {
+              "uid": "high",
+              "portId": "out0"
+            },
+            "b": {
+              "uid": "switch",
+              "portId": "air"
+            },
+            "color": "#16a34a",
+            "tubeOdMm": 6.35,
+            "pressureSide": "high",
+            "assembly": "field",
+            "cornerRadius": 16,
+            "waypoints": [
+              {
+                "id": "line-3-guide-0",
+                "x": 591,
+                "y": 310,
+                "kind": "guide"
+              },
+              {
+                "id": "line-3-guide-1",
+                "x": 577.5,
+                "y": 310,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "line-4",
+            "a": {
+              "uid": "high",
+              "portId": "out1"
+            },
+            "b": {
+              "uid": "gaugeH",
+              "portId": "air"
+            },
+            "color": "#16a34a",
+            "tubeOdMm": 6.35,
+            "pressureSide": "high",
+            "assembly": "field",
+            "cornerRadius": 16,
+            "waypoints": [
+              {
+                "id": "line-4-guide-0",
+                "x": 613,
+                "y": 335,
+                "kind": "guide"
+              },
+              {
+                "id": "line-4-guide-1",
+                "x": 704,
+                "y": 335,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "line-5",
+            "a": {
+              "uid": "high",
+              "portId": "out2"
+            },
+            "b": {
+              "uid": "vent",
+              "portId": "air"
+            },
+            "color": "#16a34a",
+            "tubeOdMm": 6.35,
+            "pressureSide": "high",
+            "assembly": "field",
+            "cornerRadius": 16,
+            "waypoints": [
+              {
+                "id": "line-5-guide-0",
+                "x": 635,
+                "y": 350,
+                "kind": "guide"
+              },
+              {
+                "id": "line-5-guide-1",
+                "x": 870,
+                "y": 350,
+                "kind": "guide"
+              },
+              {
+                "id": "line-5-guide-2",
+                "x": 870,
+                "y": 259,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "line-6",
+            "a": {
+              "uid": "high",
+              "portId": "out3"
+            },
+            "b": {
+              "uid": "reg",
+              "portId": "in"
+            },
+            "color": "#16a34a",
+            "tubeOdMm": 6.35,
+            "pressureSide": "high",
+            "assembly": "field",
+            "cornerRadius": 16,
+            "waypoints": [
+              {
+                "id": "line-6-guide-0",
+                "x": 657,
+                "y": 175,
+                "kind": "guide"
+              },
+              {
+                "id": "line-6-guide-1",
+                "x": 925,
+                "y": 175,
+                "kind": "guide"
+              },
+              {
+                "id": "line-6-guide-2",
+                "x": 925,
+                "y": 138.75,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "line-7",
+            "a": {
+              "uid": "reg",
+              "portId": "out"
+            },
+            "b": {
+              "uid": "work",
+              "portId": "in"
+            },
+            "color": "#0ea5e9",
+            "tubeOdMm": 6.35,
+            "pressureSide": "working",
+            "assembly": "field",
+            "cornerRadius": 16,
+            "waypoints": [
+              {
+                "id": "line-7-guide-0",
+                "x": 780,
+                "y": 139,
+                "kind": "guide"
+              },
+              {
+                "id": "line-7-guide-1",
+                "x": 780,
+                "y": 65,
+                "kind": "guide"
+              },
+              {
+                "id": "line-7-guide-2",
+                "x": 940,
+                "y": 65,
+                "kind": "guide"
+              },
+              {
+                "id": "line-7-guide-3",
+                "x": 940,
+                "y": 117.5,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "line-8",
+            "a": {
+              "uid": "work",
+              "portId": "out0"
+            },
+            "b": {
+              "uid": "gaugeL",
+              "portId": "air"
+            },
+            "color": "#0ea5e9",
+            "tubeOdMm": 6.35,
+            "pressureSide": "working",
+            "assembly": "field",
+            "cornerRadius": 16,
+            "waypoints": [
+              {
+                "id": "line-8-guide-0",
+                "x": 991,
+                "y": 305,
+                "kind": "guide"
+              },
+              {
+                "id": "line-8-guide-1",
+                "x": 1134,
+                "y": 305,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "line-9",
+            "a": {
+              "uid": "work",
+              "portId": "out1"
+            },
+            "b": {
+              "uid": "valve",
+              "portId": "p"
+            },
+            "color": "#0ea5e9",
+            "tubeOdMm": 6.35,
+            "pressureSide": "working",
+            "assembly": "field",
+            "cornerRadius": 16,
+            "waypoints": [
+              {
+                "id": "line-9-guide-0",
+                "x": 1013,
+                "y": 330,
+                "kind": "guide"
+              },
+              {
+                "id": "line-9-guide-1",
+                "x": 930,
+                "y": 330,
+                "kind": "guide"
+              },
+              {
+                "id": "line-9-guide-2",
+                "x": 930,
+                "y": 470,
+                "kind": "guide"
+              },
+              {
+                "id": "line-9-guide-3",
+                "x": 1050,
+                "y": 470,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "line-10",
+            "a": {
+              "uid": "work",
+              "portId": "out2"
+            },
+            "b": {
+              "uid": "valve2",
+              "portId": "p"
+            },
+            "color": "#0ea5e9",
+            "tubeOdMm": 6.35,
+            "pressureSide": "working",
+            "assembly": "field",
+            "cornerRadius": 16,
+            "waypoints": [
+              {
+                "id": "line-10-guide-0",
+                "x": 1035,
+                "y": 190,
+                "kind": "guide"
+              },
+              {
+                "id": "line-10-guide-1",
+                "x": 1440,
+                "y": 190,
+                "kind": "guide"
+              },
+              {
+                "id": "line-10-guide-2",
+                "x": 1440,
+                "y": 470,
+                "kind": "guide"
+              },
+              {
+                "id": "line-10-guide-3",
+                "x": 1350,
+                "y": 470,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "line-11",
+            "a": {
+              "uid": "valve",
+              "portId": "a"
+            },
+            "b": {
+              "uid": "cylinder",
+              "portId": "a"
+            },
+            "color": "#0ea5e9",
+            "tubeOdMm": 6.35,
+            "pressureSide": "working",
+            "assembly": "field",
+            "cornerRadius": 16,
+            "waypoints": [
+              {
+                "id": "line-11-guide-0",
+                "x": 1030,
+                "y": 360,
+                "kind": "guide"
+              },
+              {
+                "id": "line-11-guide-1",
+                "x": 1230,
+                "y": 360,
+                "kind": "guide"
+              },
+              {
+                "id": "line-11-guide-2",
+                "x": 1230,
+                "y": 510,
+                "kind": "guide"
+              },
+              {
+                "id": "line-11-guide-3",
+                "x": 1137.038,
+                "y": 510,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "line-12",
+            "a": {
+              "uid": "valve",
+              "portId": "b"
+            },
+            "b": {
+              "uid": "cylinder",
+              "portId": "b"
+            },
+            "color": "#0ea5e9",
+            "tubeOdMm": 6.35,
+            "pressureSide": "working",
+            "assembly": "field",
+            "cornerRadius": 16,
+            "waypoints": [
+              {
+                "id": "line-12-guide-0",
+                "x": 1070,
+                "y": 345,
+                "kind": "guide"
+              },
+              {
+                "id": "line-12-guide-1",
+                "x": 910,
+                "y": 345,
+                "kind": "guide"
+              },
+              {
+                "id": "line-12-guide-2",
+                "x": 910,
+                "y": 505,
+                "kind": "guide"
+              },
+              {
+                "id": "line-12-guide-3",
+                "x": 1013.975,
+                "y": 505,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "line-13",
+            "a": {
+              "uid": "valve2",
+              "portId": "a"
+            },
+            "b": {
+              "uid": "cylinder2",
+              "portId": "a"
+            },
+            "color": "#0ea5e9",
+            "tubeOdMm": 6.35,
+            "pressureSide": "working",
+            "assembly": "field",
+            "cornerRadius": 16,
+            "waypoints": [
+              {
+                "id": "line-13-guide-0",
+                "x": 1330,
+                "y": 360,
+                "kind": "guide"
+              },
+              {
+                "id": "line-13-guide-1",
+                "x": 1500,
+                "y": 360,
+                "kind": "guide"
+              },
+              {
+                "id": "line-13-guide-2",
+                "x": 1500,
+                "y": 510,
+                "kind": "guide"
+              },
+              {
+                "id": "line-13-guide-3",
+                "x": 1415.382,
+                "y": 510,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "line-14",
+            "a": {
+              "uid": "valve2",
+              "portId": "b"
+            },
+            "b": {
+              "uid": "cylinder2",
+              "portId": "b"
+            },
+            "color": "#0ea5e9",
+            "tubeOdMm": 6.35,
+            "pressureSide": "working",
+            "assembly": "field",
+            "cornerRadius": 16,
+            "waypoints": [
+              {
+                "id": "line-14-guide-0",
+                "x": 1370,
+                "y": 345,
+                "kind": "guide"
+              },
+              {
+                "id": "line-14-guide-1",
+                "x": 1260,
+                "y": 345,
+                "kind": "guide"
+              },
+              {
+                "id": "line-14-guide-2",
+                "x": 1260,
+                "y": 505,
+                "kind": "guide"
+              },
+              {
+                "id": "line-14-guide-3",
+                "x": 1321.275,
+                "y": 505,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "line-15",
+            "a": {
+              "uid": "ph",
+              "portId": "compressor+"
+            },
+            "b": {
+              "uid": "comp",
+              "portId": "power+"
+            },
+            "color": "#dc2626",
+            "assembly": "field",
+            "awg": 18,
+            "cornerRadius": 16
+          },
+          {
+            "id": "line-16",
+            "a": {
+              "uid": "ph",
+              "portId": "compressor-"
+            },
+            "b": {
+              "uid": "comp",
+              "portId": "power-"
+            },
+            "color": "#1f2937",
+            "assembly": "field",
+            "awg": 18,
+            "cornerRadius": 16
+          },
+          {
+            "id": "line-17",
+            "a": {
+              "uid": "ph",
+              "portId": "switch"
+            },
+            "b": {
+              "uid": "switch",
+              "portId": "switch"
+            },
+            "color": "#2563eb",
+            "assembly": "field",
+            "awg": 22,
+            "cornerRadius": 16
+          },
+          {
+            "id": "line-18",
+            "a": {
+              "uid": "ph",
+              "portId": "switchReturn"
+            },
+            "b": {
+              "uid": "switch",
+              "portId": "return"
+            },
+            "color": "#2563eb",
+            "assembly": "field",
+            "awg": 22,
+            "cornerRadius": 16
+          },
+          {
+            "id": "line-19",
+            "a": {
+              "uid": "ph",
+              "portId": "sol0+"
+            },
+            "b": {
+              "uid": "valve",
+              "portId": "coilA+"
+            },
+            "color": "#dc2626",
+            "assembly": "field",
+            "awg": 18,
+            "cornerRadius": 16
+          },
+          {
+            "id": "line-20",
+            "a": {
+              "uid": "ph",
+              "portId": "sol0-"
+            },
+            "b": {
+              "uid": "valve",
+              "portId": "coilA-"
+            },
+            "color": "#1f2937",
+            "assembly": "field",
+            "awg": 18,
+            "cornerRadius": 16
+          },
+          {
+            "id": "line-21",
+            "a": {
+              "uid": "ph",
+              "portId": "sol1+"
+            },
+            "b": {
+              "uid": "valve",
+              "portId": "coilB+"
+            },
+            "color": "#dc2626",
+            "assembly": "field",
+            "awg": 18,
+            "cornerRadius": 16
+          },
+          {
+            "id": "line-22",
+            "a": {
+              "uid": "ph",
+              "portId": "sol1-"
+            },
+            "b": {
+              "uid": "valve",
+              "portId": "coilB-"
+            },
+            "color": "#1f2937",
+            "assembly": "field",
+            "awg": 18,
+            "cornerRadius": 16
+          },
+          {
+            "id": "line-23",
+            "a": {
+              "uid": "ph",
+              "portId": "sol2+"
+            },
+            "b": {
+              "uid": "valve2",
+              "portId": "coilA+"
+            },
+            "color": "#dc2626",
+            "assembly": "field",
+            "awg": 18,
+            "cornerRadius": 16
+          },
+          {
+            "id": "line-24",
+            "a": {
+              "uid": "ph",
+              "portId": "sol2-"
+            },
+            "b": {
+              "uid": "valve2",
+              "portId": "coilA-"
+            },
+            "color": "#1f2937",
+            "assembly": "field",
+            "awg": 18,
+            "cornerRadius": 16
+          },
+          {
+            "id": "line-25",
+            "a": {
+              "uid": "pdh",
+              "portId": "ch0+"
+            },
+            "b": {
+              "uid": "ph",
+              "portId": "vin+"
+            },
+            "color": "#dc2626",
+            "assembly": "field",
+            "awg": 18,
+            "cornerRadius": 16
+          },
+          {
+            "id": "line-26",
+            "a": {
+              "uid": "pdh",
+              "portId": "ch0-"
+            },
+            "b": {
+              "uid": "ph",
+              "portId": "vin-"
+            },
+            "color": "#1f2937",
+            "assembly": "field",
+            "awg": 18,
+            "cornerRadius": 16
+          },
+          {
+            "id": "line-27",
+            "a": {
+              "uid": "pdh",
+              "portId": "ch1+"
+            },
+            "b": {
+              "uid": "rio",
+              "portId": "vin+"
+            },
+            "color": "#dc2626",
+            "assembly": "field",
+            "awg": 18,
+            "cornerRadius": 16
+          },
+          {
+            "id": "line-28",
+            "a": {
+              "uid": "pdh",
+              "portId": "ch1-"
+            },
+            "b": {
+              "uid": "rio",
+              "portId": "vin-"
+            },
+            "color": "#1f2937",
+            "assembly": "field",
+            "awg": 18,
+            "cornerRadius": 16
+          },
+          {
+            "id": "line-29",
+            "a": {
+              "uid": "rio",
+              "portId": "canH"
+            },
+            "b": {
+              "uid": "ph",
+              "portId": "canH"
+            },
+            "color": "#eab308",
+            "assembly": "field",
+            "awg": 22,
+            "cornerRadius": 16
+          },
+          {
+            "id": "line-30",
+            "a": {
+              "uid": "rio",
+              "portId": "canL"
+            },
+            "b": {
+              "uid": "ph",
+              "portId": "canL"
+            },
+            "color": "#16a34a",
+            "assembly": "field",
+            "awg": 22,
+            "cornerRadius": 16
+          }
+        ],
+        "view": {
+          "x": 30,
+          "y": 40,
+          "k": 0.72
+        }
+      }
+    ]
+  }
+}

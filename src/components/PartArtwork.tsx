@@ -588,7 +588,33 @@ function LeverTerminal({ def }: { def: PartDef }) {
   );
 }
 
+// Atlas isolated from the FIRST manual illustrations; boxes exclude labels and pipes.
+const PNEUMATIC_BOXES = [
+  [25,195,260,215], [310,240,370,130], [690,210,285,210], [1010,185,240,250],
+  [88,520,170,265], [440,520,105,265], [670,570,195,180], [900,580,325,165],
+  [25,935,290,140], [320,915,390,170], [730,905,220,185], [975,935,260,140],
+];
+
+function PneumaticArtwork({def}: {def: PartDef}) {
+  if (def.cylinder) {
+    const {w,h} = def;
+    const compact = def.cylinder.family === 'compact';
+    return <g>
+      <rect x={0} y={h * 0.42} width={w * 0.25} height={h * 0.16} fill="#cbd5e1" stroke="#475569" strokeWidth={0.6}/>
+      <rect x={w * 0.19} y={0.5} width={w * 0.75} height={h-1} rx={compact ? 1 : h*0.15} fill="#cbd5e1" stroke="#475569" strokeWidth={0.8}/>
+      <rect x={w * 0.22} y={1} width={Math.min(8,w*0.12)} height={h-2} fill="#64748b"/>
+      <rect x={w * 0.88} y={1} width={Math.min(8,w*0.08)} height={h-2} fill="#64748b"/>
+      <VectorPortPads def={def}/>
+    </g>;
+  }
+  const box = PNEUMATIC_BOXES[def.artworkCell ?? -1];
+  return box ? <><svg width={def.w} height={def.h} viewBox={box.join(' ')} preserveAspectRatio="none" overflow="hidden">
+    <image href={partAssetSrc('pneumatic-atlas.png')} width={1280} height={1280}/>
+  </svg><VectorPortPads def={def}/></> : null;
+}
+
 function renderVector(def: PartDef) {
+  if (def.artworkCell !== undefined) return <PneumaticArtwork def={def}/>;
   switch (def.id) {
     case 'pdp': return <PdpArtwork def={def} />;
     case 'roborio': return <RoboRIO def={def} />;
@@ -642,7 +668,9 @@ export default function PartArtwork({ def, width, height, fuses, onFuseClick, ca
         </>
       ) : (
         <>
-          <image href={partImageSrc(def)} width={def.w} height={def.h} preserveAspectRatio="xMidYMid meet" />
+          {def.id === 'ph' ? <svg x={(def.w - def.h * 220 / 505) / 2} width={def.h * 220 / 505} height={def.h} viewBox="265 0 220 505" preserveAspectRatio="none" overflow="hidden">
+            <image href={partImageSrc(def)} width={755} height={551}/>
+          </svg> : <image href={partImageSrc(def)} width={def.w} height={def.h} preserveAspectRatio="xMidYMid meet" />}
           <ImageFuseSlots def={def} fuses={fuses} onFuseClick={onFuseClick} canActivateFuse={canActivateFuse} />
         </>
       )}

@@ -26,8 +26,9 @@ test('single-conductor connections reject every mismatched electrical type witho
     const from = end('left', 'output');
     const to = end('right', 'input');
     const result = connectWireEnds(wires, from, to, singleParts, singleDefs, '#2563eb');
-    assert.equal(connectionIssue(from, to, singleParts, singleDefs) === null, a === b, `${a} → ${b}`);
-    if (a === b) assert.equal(result.length, 1);
+    const compatible = a === b && a !== 'airExhaust';
+    assert.equal(connectionIssue(from, to, singleParts, singleDefs) === null, compatible, `${a} → ${b}`);
+    if (compatible) assert.equal(result.length, 1);
     else assert.equal(result, wires);
     assert.equal(wires.length, 0);
   }

@@ -1,3 +1,4 @@
+import { PNEUMATIC_PARTS } from './pneumatics.ts';
 // FRC 接线图工具 - 类型、端口和内置元件定义
 
 export type PortType =
@@ -9,7 +10,9 @@ export type PortType =
   | 'data'
   | 'phaseA'
   | 'phaseB'
-  | 'phaseC';
+  | 'phaseC'
+  | 'air'
+  | 'airExhaust';
 
 export type PortSide = 'left' | 'right' | 'top' | 'bottom';
 export type FuseRating = 10 | 20 | 30 | 40;
@@ -50,6 +53,10 @@ export interface PortDef {
 }
 
 export interface PartDef {
+  artworkCell?: number;
+  footprintMm?: { w: number; h: number };
+  dimensionSource?: string;
+  cylinder?: { boreMm: number; strokeMm: number; retractedMm?: number; family: 'smc' | 'compact' };
   id: string;
   name: string;
   category: string;
@@ -117,6 +124,10 @@ export interface WireEnd {
 }
 
 export interface WireWaypoint {
+  /** Preserve sharp jacket junctions when detaching a bundle. */
+  cornerRadius?: number;
+  kind?: 'guide' | 'terminal';
+  locked?: boolean;
   id: string;
   x: number;
   y: number;
@@ -140,6 +151,10 @@ export interface InlineConnector {
 }
 
 export interface Wire {
+  tubeOdMm?: number;
+  pressureSide?: 'high' | 'working';
+  pathMode?: 'orthogonal' | 'free';
+  cornerRadius?: number;
   id: string;
   a: WireEnd;
   b: WireEnd;
@@ -195,6 +210,8 @@ export const PORT_TYPE_COLOR: Record<PortType, string> = {
   phaseA: '#f59e0b',
   phaseB: '#0ea5e9',
   phaseC: '#a855f7',
+  air: '#16a34a',
+  airExhaust: '#94a3b8',
 };
 
 export const PORT_TYPE_NAME: Record<PortType, string> = {
@@ -207,6 +224,8 @@ export const PORT_TYPE_NAME: Record<PortType, string> = {
   phaseA: '三相 A',
   phaseB: '三相 B',
   phaseC: '三相 C',
+  air: '气路',
+  airExhaust: '排气口',
 };
 
 export const WIRE_COLORS = [
@@ -285,6 +304,7 @@ export function wireGaugeRule(
   const contexts = [a, b];
   const partIds = contexts.map((context) => context.part?.partId ?? '');
   const portTypes = contexts.map((context) => context.port?.type);
+  if (portTypes.some(type => type === 'air' || type === 'airExhaust')) return { id: 'pneumatic', label: '气管', allowed: [], note: '按管外径和额定压力选择气管，不适用 AWG。' };
 
   const mainPower = contexts.some((context) =>
     context.part?.partId === 'battery12v' ||
@@ -439,7 +459,7 @@ export function wireGaugeRule(
 }
 
 export function defaultTerminalForPort(port?: PortDef): WireTerminalType {
-  if (!port) return 'none';
+  if (!port || port.type === 'air' || port.type === 'airExhaust') return 'none';
   const name = `${port.id} ${port.label}`.toLocaleLowerCase();
   if (name.includes('ethernet') || name.includes('eth')) return 'rj45';
   if (name.includes('usb')) return 'usb';
@@ -956,6 +976,7 @@ const canivore = imagePart('CANivore.png', {
 });
 
 export const BUILTIN_PARTS: PartDef[] = [
+  ...PNEUMATIC_PARTS,
   roboRIO,
   canivore,
   pdp,
@@ -1051,8 +1072,8 @@ export function isPhysicalSize(value: unknown): value is { w: number; h: number 
 export function partDimensions(def: PartDef, part?: Pick<PlacedPart, 'sizeMm'>) {
   const fallback = { w: def.displayWidth, h: def.displayWidth * def.h / def.w };
   const measured = isPhysicalSize(part?.sizeMm);
-  const dimensions = measured ? part!.sizeMm! : (!def.custom && PART_FOOTPRINTS_MM[def.id]) || fallback;
-  const source = !def.custom ? VERIFIED_DIMENSION_SOURCES[def.id] : undefined;
+  const dimensions = measured ? part!.sizeMm! : (!def.custom && (def.footprintMm ?? PART_FOOTPRINTS_MM[def.id])) || fallback;
+  const source = !def.custom ? def.dimensionSource ?? VERIFIED_DIMENSION_SOURCES[def.id] : undefined;
   return { ...dimensions, status: measured ? 'measured' as const : source ? 'verified' as const : 'reference' as const,
     source: measured ? undefined : source };
 }
@@ -1094,7 +1115,7 @@ export function portWorld(part: PlacedPart, def: PartDef, port: PortDef): WorldP
   };
 }
 
-export type RoutePoint = { x: number; y: number };
+export type RoutePoint = { x: number; y: number; cornerRadius?: number };
 
 export function roundedOrthogonalPath(points: RoutePoint[], radius = 8): string {
   const filtered = points.filter((point, index) => {
@@ -1120,7 +1141,8 @@ export function roundedOrthogonalPath(points: RoutePoint[], radius = 8): string 
     const next = compact[i + 1];
     const incoming = Math.hypot(current.x - prev.x, current.y - prev.y);
     const outgoing = Math.hypot(next.x - current.x, next.y - current.y);
-    const r = Math.min(radius, incoming / 2, outgoing / 2);
+    const r = Math.max(0, Math.min(current.cornerRadius ?? (Number.isFinite(radius) ? radius : 8), incoming / 2, outgoing / 2));
+    if (!r) { d += ` L ${current.x} ${current.y}`; continue; }
     const before = {
       x: current.x + ((prev.x - current.x) / incoming) * r,
       y: current.y + ((prev.y - current.y) / incoming) * r,
@@ -1272,7 +1294,7 @@ export function compactRoute(points: RoutePoint[]): RoutePoint[] {
     const a = result.at(-2);
     if (a && b && Math.abs((b.x - a.x) * (point.y - b.y) - (b.y - a.y) * (point.x - b.x)) < 0.0001
       && (b.x - a.x) * (point.x - b.x) + (b.y - a.y) * (point.y - b.y) > 0) result.pop();
-    result.push({ x: point.x, y: point.y });
+    result.push({ x: point.x, y: point.y, ...(point.cornerRadius === undefined ? {} : {cornerRadius:point.cornerRadius}) });
   }
   return result;
 }
@@ -1515,6 +1537,7 @@ export function connectionIssue(from: WireEnd, to: WireEnd, parts: PlacedPart[],
   const { portA, portB } = connectionPorts(from, to, parts, defs, resolvePairs);
   if (!portA || !portB) return '器件或端口不存在，请重新选择连接端口。';
   if (portA.type !== portB.type) return `${PORT_TYPE_NAME[portA.type]} 与 ${PORT_TYPE_NAME[portB.type]} 不兼容，无法连接。`;
+  if (portA.type === 'airExhaust') return '排气口应通向大气，不能作为供气口连接。';
   if (portA.type === 'data') {
     const interfaceA = dataInterface(portA);
     const interfaceB = dataInterface(portB);
@@ -1554,6 +1577,8 @@ export function connectWireEnds(wires: Wire[], from: WireEnd, to: WireEnd, parts
   if (connectionIssue(from, to, parts, defs)) return wires;
   const { a, b, portA, portB } = connectionPorts(from, to, parts, defs, true);
   if (!a.def || !b.def || !portA || !portB) return wires;
+  if (portA.type === 'air' && wires.some(w => [w.a, w.b].some(e =>
+    (e.uid === from.uid && e.portId === from.portId) || (e.uid === to.uid && e.portId === to.portId)))) return wires;
   const pairA = pairedCablePort(a.def, portA.id);
   const pairB = pairedCablePort(b.def, portB.id);
   const connections = [[portA, portB]];
@@ -1567,6 +1592,7 @@ export function connectWireEnds(wires: Wire[], from: WireEnd, to: WireEnd, parts
     const jumper = left.type === 'data' && right.type === 'data';
     const wire: Wire = {
       id: uid(), a, b, color: left.type === right.type ? PORT_TYPE_COLOR[left.type] : color,
+      ...(left.type === 'air' ? { tubeOdMm: 6.35, pressureSide: 'working' as const } : {}),
       assembly: jumper ? 'jumper' : 'field',
       terminalA: jumper ? defaultTerminalForPort(left) : undefined,
       terminalB: jumper ? defaultTerminalForPort(right) : undefined,
@@ -1641,6 +1667,7 @@ export function projectOntoRoute(points: RoutePoint[], point: RoutePoint) {
 }
 
 export interface WireGeometry {
+  vertices?: RoutePoint[];
   path: string;
   visiblePaths: string[];
   visiblePoints: RoutePoint[][];
@@ -1719,16 +1746,87 @@ export function wireWaypoints(wire: Wire) {
   return [...(wire.bundleLeadIn ?? []), ...(wire.waypoints ?? []), ...(wire.bundleLeadOut ?? [])];
 }
 
+/** Trunk points are shared; lead points belong to the individual cable. */
+export function updateWireWaypoints(wires: Wire[], wireId: string, update: (points: WireWaypoint[]) => WireWaypoint[],
+  cables: ReadonlyMap<string, Wire[]> = new Map(), newPointField: 'waypoints' | 'bundleLeadIn' | 'bundleLeadOut' = 'waypoints') {
+  const target = wires.find(w => w.id === wireId);
+  if (!target) return wires;
+  const before = new Set(target.bundleLeadIn?.map(p=>p.id));
+  const after = new Set(target.bundleLeadOut?.map(p=>p.id));
+  const existing = new Set(wireWaypoints(target).map(p=>p.id));
+  const next = update(wireWaypoints(target));
+  for (const p of next) if (!existing.has(p.id)) {
+    if (newPointField === 'bundleLeadIn') before.add(p.id);
+    if (newPointField === 'bundleLeadOut') after.add(p.id);
+  }
+  const fields = {
+    bundleLeadIn: next.filter(p=>before.has(p.id)),
+    bundleLeadOut: next.filter(p=>after.has(p.id)),
+    waypoints: next.filter(p=>!before.has(p.id) && !after.has(p.id)),
+  };
+  const changed = (field: keyof typeof fields) => JSON.stringify(target[field] ?? []) !== JSON.stringify(fields[field]);
+  const cableIds = new Set((cables.get(wireId) ?? [target]).map(w=>w.id));
+  return wires.map(w => {
+    const sameCable = cableIds.has(w.id);
+    const sameTrunk = sameCable || Boolean(target.bundleId && w.bundleId === target.bundleId);
+    const patch: Partial<Wire> = {};
+    if (sameCable) for (const field of ['bundleLeadIn','bundleLeadOut'] as const) if(changed(field)) patch[field]=fields[field];
+    if (sameTrunk && changed('waypoints')) { patch.waypoints=fields.waypoints; patch.control=undefined; }
+    return Object.keys(patch).length ? {...w,...patch} : w;
+  });
+}
+
+export function sampleRoundedRoute(input: RoutePoint[], radius = 8) {
+  const points = compactRoute(input);
+  if (points.length < 2) return points;
+  const samples: RoutePoint[] = [points[0]];
+  const lineTo = (to: RoutePoint) => {
+    const from = samples.at(-1)!;
+    const count = Math.max(1, Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / 2));
+    for (let i = 1; i <= count; i++) samples.push({ x: from.x + (to.x - from.x) * i / count, y: from.y + (to.y - from.y) * i / count });
+  };
+  for (let i = 1; i < points.length - 1; i++) {
+    const a = points[i - 1];
+    const b = points[i];
+    const c = points[i + 1];
+    const incoming = Math.hypot(b.x - a.x, b.y - a.y);
+    const outgoing = Math.hypot(c.x - b.x, c.y - b.y);
+    const r = Math.max(0, Math.min(b.cornerRadius ?? radius, incoming / 2, outgoing / 2));
+    const before = { x: b.x + (a.x - b.x) * r / incoming, y: b.y + (a.y - b.y) * r / incoming };
+    const after = { x: b.x + (c.x - b.x) * r / outgoing, y: b.y + (c.y - b.y) * r / outgoing };
+    lineTo(before);
+    const count = Math.max(4, Math.ceil(r * 2));
+    for (let step = 1; step <= count; step++) {
+      const t = step / count;
+      samples.push({ x: (1 - t) ** 2 * before.x + 2 * (1 - t) * t * b.x + t * t * after.x,
+        y: (1 - t) ** 2 * before.y + 2 * (1 - t) * t * b.y + t * t * after.y });
+    }
+  }
+  lineTo(points.at(-1)!);
+  return samples;
+}
+
+/** Explicit guides are world-space anchors; free routes never insert elbows. */
+export function editableWireRoute(wire: Wire, a: WorldPort, b: WorldPort, lane = 0) {
+  const route = wire.pathMode === 'free'
+    ? (() => {
+        const points = [a, ...(wire.waypoints?.length ? wire.waypoints : wire.control ? [wire.control] : []), b];
+        return { points, control: pointAlongRoute(points, routeLength(points) / 2) };
+      })()
+    : wireRoute(a, b, lane, wire.control, wire.waypoints);
+  return { ...route, path: roundedOrthogonalPath(route.points, wire.cornerRadius ?? 8) };
+}
+
 function bundleRoute(wire: Wire, a: WorldPort, b: WorldPort) {
   const inward = (port: WorldPort): WorldPort => ({ ...port, nx: -port.nx, ny: -port.ny });
   if (wire.bundleEndpoints) {
     return {
-      ...wireRoute(inward(wire.bundleEndpoints.entry), inward(wire.bundleEndpoints.exit), 0, wire.control, wire.waypoints),
+      ...editableWireRoute(wire, inward(wire.bundleEndpoints.entry), inward(wire.bundleEndpoints.exit)),
       before: wire.bundleLeadIn, inside: wire.waypoints, after: wire.bundleLeadOut,
     };
   }
   // Old files used percentages. Resolve them once when materializing the ports.
-  const spine = wireRoute(a, b, 0, wire.control, wire.waypoints);
+  const spine = editableWireRoute(wire, a, b);
   const length = routeLength(spine.points);
   const { start, end } = wireBundleRange(wire);
   const before = wire.waypoints?.filter((point) => projectOntoRoute(spine.points, point).along < length * start);
@@ -1779,7 +1877,7 @@ export function buildWireGeometry(
     } else {
       // Paired conductors share their primary wire's final geometry below.
       if (cables.has(wire.id) && cables.get(wire.id)![0].id !== wire.id) continue;
-      const route = wireRoute(a, b, getLane(wire), wire.control, wire.waypoints);
+      const route = editableWireRoute(wire, a, b, getLane(wire));
       routes.set(wire.id, { ...route, visiblePaths: [route.path], visiblePoints: [route.points], editorWire: wire });
     }
   }
@@ -1797,7 +1895,7 @@ export function buildWireGeometry(
     // exactly at a bend in the original full-length route.
     const start = pointAlongRoute(trunk, 0);
     const end = pointAlongRoute(trunk, routeLength(trunk));
-    const path = roundedOrthogonalPath(trunk);
+    const path = roundedOrthogonalPath(trunk, wire.cornerRadius ?? 8);
     const oriented = items.map((item) => {
       const reversed = item.wire.bundleReversed ?? wireEndsReversed(item.a, item.b, a, b);
       return { ...item, from: reversed ? item.b : item.a, to: reversed ? item.a : item.b };
@@ -1816,13 +1914,19 @@ export function buildWireGeometry(
       const { from, to } = item;
       const entry = { ...start, nx: -start.nx, ny: -start.ny };
       const cableId = cables.get(item.wire.id)?.[0].id ?? item.wire.id;
-      const leadIn = bundleLeadRoute(entry, from, entryLanes.get(cableId) ?? getLane(item.wire), before?.slice().reverse()).points.slice().reverse();
-      const leadOut = bundleLeadRoute(end, to, exitLanes.get(cableId) ?? getLane(item.wire), after).points;
+      const memberBefore = item.wire.bundleEndpoints ? item.wire.bundleLeadIn : before;
+      const memberAfter = item.wire.bundleEndpoints ? item.wire.bundleLeadOut : after;
+      const leadIn = wire.pathMode === 'free'
+        ? [from, ...(memberBefore ?? []), entry]
+        : bundleLeadRoute(entry, from, entryLanes.get(cableId) ?? getLane(item.wire), memberBefore?.slice().reverse()).points.slice().reverse();
+      const leadOut = wire.pathMode === 'free'
+        ? [end, ...(memberAfter ?? []), to]
+        : bundleLeadRoute(end, to, exitLanes.get(cableId) ?? getLane(item.wire), memberAfter).points;
       const visiblePoints = [leadIn, leadOut];
-      const visiblePaths = visiblePoints.map((points) => roundedOrthogonalPath(points));
+      const visiblePaths = visiblePoints.map((points) => roundedOrthogonalPath(points, wire.cornerRadius ?? 8));
       routes.set(item.wire.id, {
         path: [...visiblePaths, path].join(' '), visiblePaths, visiblePoints,
-        points: [...leadIn, ...trunk, ...leadOut], control: spine.control, editorWire: wire,
+        points: [...leadIn.slice(0,-1), {...entry,cornerRadius:0}, ...trunk.slice(1,-1), {...end,cornerRadius:0}, ...leadOut.slice(1)], control: spine.control, editorWire: wire,
       });
     });
     bundles.push({ key, style: wire.routingStyle as BundleGeometry['style'], wireIds: items.map((item) => item.wire.id),
@@ -1833,7 +1937,40 @@ export function buildWireGeometry(
     const route = routes.get(cable[0].id);
     if (route) routes.set(id, route);
   }
+  // Explicit rounding shares its sampled centerline with hit testing, BOM and inline connectors.
+  const sampled = new Set<WireGeometry>();
+  for (const route of routes.values()) {
+    if (sampled.has(route) || route.editorWire.cornerRadius === undefined) continue;
+    sampled.add(route);
+    route.vertices = route.points;
+    if (route.editorWire.cornerRadius > 0) route.points = sampleRoundedRoute(route.points, route.editorWire.cornerRadius);
+  }
+  for (const bundle of bundles) {
+    const radius = routes.get(bundle.wireIds[0])?.editorWire.cornerRadius;
+    if (radius !== undefined && radius > 0) bundle.points = sampleRoundedRoute(bundle.points, radius);
+  }
   return { routes, bundles };
+}
+
+/** Freeze the full drawn centerline before removing its jacket. */
+export function detachWireBundle(wire: Wire, route: WireGeometry): Wire {
+  const points = [...(route.vertices ?? route.points)];
+  if (wire.bundleReversed) points.reverse();
+  const guides = wireWaypoints(wire);
+  const used = new Set<string>();
+  const waypoints = points.slice(1,-1).filter((p,i,all)=>i === 0 || Math.hypot(p.x-all[i-1].x,p.y-all[i-1].y)>0.01).map(p => {
+    const original = guides.find(g => !used.has(g.id) && Math.hypot(g.x-p.x,g.y-p.y)<0.01);
+    if (original) { used.add(original.id); return {...original}; }
+    return {id:uid(),x:p.x,y:p.y,kind:'guide' as const, ...(p.cornerRadius === undefined ? {} : {cornerRadius:p.cornerRadius})};
+  });
+  for (const guide of guides) if (!used.has(guide.id)) {
+    const along = projectOntoRoute(points, guide).along;
+    const index = waypoints.findIndex(p=>projectOntoRoute(points,p).along > along);
+    waypoints.splice(index < 0 ? waypoints.length : index, 0, {...guide});
+  }
+  return {...wire,routingStyle:undefined,bundleId:undefined,bundleStart:undefined,bundleEnd:undefined,
+    bundleEndpoints:undefined,bundleReversed:undefined,bundleLeadIn:undefined,bundleLeadOut:undefined,
+    control:undefined,pathMode:'free',waypoints};
 }
 
 export function anchorWireBundles(wires: Wire[], parts: PlacedPart[], defs: ReadonlyMap<string, PartDef>) {
@@ -1882,7 +2019,7 @@ export function translateWireRoutes(wires: Wire[], movedUids: Set<string>, dx: n
         exit: { ...wire.bundleEndpoints.exit, x: wire.bundleEndpoints.exit.x + dx, y: wire.bundleEndpoints.exit.y + dy },
       } : undefined,
       control: wire.control ? { x: wire.control.x + dx, y: wire.control.y + dy } : undefined,
-      waypoints: wire.waypoints?.map((point) => ({ ...point, x: point.x + dx, y: point.y + dy })),
+      waypoints: wire.waypoints?.map((point) => point.locked ? point : ({ ...point, x: point.x + dx, y: point.y + dy })),
     };
   });
 }

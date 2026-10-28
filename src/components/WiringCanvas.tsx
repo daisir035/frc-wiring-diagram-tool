@@ -25,7 +25,6 @@ import {
   inlineConnectorPosition,
   uid,
   wireRoutingLane,
-  wireWaypoints,
   partSize,
   portWorld,
   wireGaugeRule,
@@ -60,6 +59,7 @@ interface Props {
   onInlineConnectorChange: (wireId: string, connectorId: string, position: number, kind?: InlineConnectorKind) => void;
   onInlineConnectorRemove: (wireId: string, connectorId: string) => void;
   onInlinePlacementComplete: () => void;
+  onAddWireGuide: (id: string, point: { x: number; y: number }, trunk?: boolean) => void;
   onWireWaypointChange: (id: string, waypointId: string, point?: { x: number; y: number }) => void;
   onPortClick: (end: WireEnd) => void;
   onFuseClick: (uid: string, channel: number) => void;
@@ -263,6 +263,7 @@ export default function WiringCanvas(props: Props) {
     onInlineConnectorRemove,
     onInlinePlacementComplete,
     onWireWaypointChange,
+    onAddWireGuide,
     onPortClick,
     onFuseClick,
     onBackgroundClick,
@@ -577,8 +578,8 @@ export default function WiringCanvas(props: Props) {
       const point = toWorld(e.clientX, e.clientY);
       beginInteraction();
       onWireControlChange(d.wireId, {
-        x: Math.round(point.x / 4) * 4,
-        y: Math.round(point.y / 4) * 4,
+        x: wires.find(w => w.id === d.wireId)?.pathMode === 'free' ? point.x : Math.round(point.x / 4) * 4,
+        y: wires.find(w => w.id === d.wireId)?.pathMode === 'free' ? point.y : Math.round(point.y / 4) * 4,
       });
     } else if (d.kind === 'inline-connector') {
       const wire = wires.find((wire) => wire.id === d.wireId);
@@ -595,10 +596,19 @@ export default function WiringCanvas(props: Props) {
       const point = toWorld(e.clientX, e.clientY);
       beginInteraction();
       onWireWaypointChange(d.wireId, d.waypointId, {
-        x: Math.round(point.x / 4) * 4,
-        y: Math.round(point.y / 4) * 4,
+        x: wires.find(w => w.id === d.wireId)?.pathMode === 'free' ? point.x : Math.round(point.x / 4) * 4,
+        y: wires.find(w => w.id === d.wireId)?.pathMode === 'free' ? point.y : Math.round(point.y / 4) * 4,
       });
     }
+  };
+
+  const startWaypointDrag = (event: React.PointerEvent<SVGGElement>) => {
+    if (event.button !== 0 || spaceRef.current) return;
+    event.stopPropagation();
+    const { wireId, waypointId, locked } = event.currentTarget.dataset;
+    if (locked === 'true' || !wireId || !waypointId) return;
+    event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId);
+    dragRef.current = { kind: 'wire-waypoint', wireId, waypointId };
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
@@ -762,7 +772,7 @@ export default function WiringCanvas(props: Props) {
             const route = geometry.routes.get(wire.id);
             if (!route) return null;
             const editorWire = route.editorWire;
-            const editableWaypoints = wireWaypoints(editorWire);
+            const editableWaypoints = [...(wire.bundleLeadIn ?? []), ...(editorWire.waypoints ?? []), ...(wire.bundleLeadOut ?? [])].map(point => ({...point, editorId: editorWire.waypoints?.some(p => p.id === point.id) ? editorWire.id : wire.id}));
             const showEditor = editingWireIds.has(wire.id);
             const d = route.path;
             const sel = selectedWires.has(wire.id);
@@ -799,7 +809,7 @@ export default function WiringCanvas(props: Props) {
                 ))}
                 {visiblePaths.map((segment, index) => (
                   <g key={'wire-segment-' + index} style={{ pointerEvents: 'none' }}>
-                    {cable ? <CableConductors points={route.visiblePoints[index]} colors={[wire.color, cable[1].color]} twisted={commonType === 'canH'}
+                    {cable ? <CableConductors radius={editorWire.cornerRadius} points={route.visiblePoints[index]} colors={[wire.color, cable[1].color]} twisted={commonType === 'canH'}
                       polarity={cableVisuals.get(wire.id)?.polarity} {...cableVisuals.get(wire.id)?.segments[index]} /> : <>
                     <path
                       d={segment}
@@ -829,6 +839,7 @@ export default function WiringCanvas(props: Props) {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   style={{ pointerEvents: 'stroke', cursor: pendingInlineWireId === wire.id ? 'crosshair' : 'pointer' }}
+                  onDoubleClick={e => { e.stopPropagation(); onAddWireGuide(wire.id, toWorld(e.clientX, e.clientY)); }}
                   onPointerDown={(e) => {
                     if (e.button !== 0 || spaceRef.current) return;
                     e.stopPropagation();
@@ -845,7 +856,8 @@ export default function WiringCanvas(props: Props) {
                     <WireTerminalMarker port={p2} type={terminalB} color={wire.color} />
                   </>
                 )}
-                {wire.id === editorWire.id && editableWaypoints.map((waypoint, index) => {
+                {editableWaypoints.map((waypoint, index) => {
+                  if (waypoint.kind === 'guide' || (wire.id !== editorWire.id && waypoint.editorId === editorWire.id)) return null;
                   const previous = index === 0 ? p1 : editableWaypoints[index - 1];
                   const next = index === editableWaypoints.length - 1 ? p2 : editableWaypoints[index + 1];
                   const dx = next.x - previous.x;
@@ -894,6 +906,7 @@ export default function WiringCanvas(props: Props) {
                 )}
                 {showEditor && (!editorWire.waypoints || editorWire.waypoints.length === 0) && (
                   <g
+                    data-export-ignore="true"
                     transform={`translate(${route.control.x} ${route.control.y})`}
                     style={{ cursor: 'move' }}
                     onPointerDown={(e) => {
@@ -917,24 +930,23 @@ export default function WiringCanvas(props: Props) {
                 {showEditor && editableWaypoints.map((waypoint, index) => (
                   <g
                     key={waypoint.id}
+                    data-export-ignore="true"
                     transform={`translate(${waypoint.x} ${waypoint.y})`}
                     style={{ cursor: 'move' }}
-                    onPointerDown={(e) => {
-                      if (e.button !== 0 || spaceRef.current) return;
-                      e.stopPropagation();
-                      ((e.currentTarget as SVGElement).ownerSVGElement as Element | null)?.setPointerCapture?.(e.pointerId);
-                      dragRef.current = { kind: 'wire-waypoint', wireId: editorWire.id, waypointId: waypoint.id };
-                    }}
+                    data-wire-id={waypoint.editorId}
+                    data-waypoint-id={waypoint.id}
+                    data-locked={waypoint.locked ?? false}
+                    onPointerDown={startWaypointDrag}
                     onDoubleClick={(e) => {
                       if (e.button !== 0 || spaceRef.current) return;
                       e.stopPropagation();
-                      onWireWaypointChange(editorWire.id, waypoint.id, undefined);
+                      onWireWaypointChange(waypoint.editorId, waypoint.id, undefined);
                     }}
                   >
-                    <circle r={13} fill="transparent" stroke="#7c3aed" strokeWidth={1.8} strokeDasharray="4 3" />
+                    <circle r={13} fill="transparent" stroke={waypoint.locked ? '#dc2626' : '#7c3aed'} strokeWidth={1.8} strokeDasharray="4 3" />
                     <circle r={Math.max(16, 12 / view.k)} fill="transparent" />
                     <text x={14} y={-10} fontSize={9} fontWeight={700} fill="#6d28d9" pointerEvents="none">{index + 1}</text>
-                    <title>拖动调整中间端子；双击删除</title>
+                    <title>{waypoint.locked ? '固定点已锁定；在属性面板解锁' : '拖动调整路径点；双击删除'}</title>
                   </g>
                 ))}
               </g>
@@ -978,6 +990,7 @@ export default function WiringCanvas(props: Props) {
                 <g transform={`rotate(${part.rot} ${w / 2} ${h / 2})`}>
                   {sel && (
                     <rect
+                      data-export-ignore="true"
                       x={-5}
                       y={-5}
                       width={w + 10}
@@ -1127,6 +1140,7 @@ export default function WiringCanvas(props: Props) {
             <path key={`bundle-hit:${bundle.key}`} data-bundle-path={bundle.key} d={bundle.path}
               fill="none" stroke="transparent" strokeWidth={Math.max(22, 22 / view.k)} strokeLinejoin="round"
               style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+              onDoubleClick={e => { e.stopPropagation(); onAddWireGuide(bundle.wireIds[0], toWorld(e.clientX,e.clientY), true); }}
               onPointerDown={(event) => {
                 if (event.button !== 0 || spaceRef.current) return;
                 event.stopPropagation();

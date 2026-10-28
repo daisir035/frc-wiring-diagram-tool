@@ -38,6 +38,10 @@ import {
   INLINE_CONNECTOR_STYLES,
   anchorWireBundles,
   wireWaypoints,
+  projectOntoRoute,
+  buildWireGeometry,
+  detachWireBundle,
+  updateWireWaypoints,
   portWorld,
   wireGaugeRule,
   wireEndsReversed,
@@ -752,8 +756,11 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
     const affectedWires = wires.filter((wire) => affectedIds.has(wire.id)).sort((a, b) => compareWireEditors(a, b, cables));
 
     if (style === 'standard') {
+      const layout = buildWireGeometry(wires, resolveWorldPort, () => 0, cables);
       setWires((current) => current.map((wire) => {
         if (!affectedIds.has(wire.id)) return wire;
+        const geometry = layout.routes.get(wire.id);
+        if (geometry && wire.routingStyle && wire.routingStyle !== 'standard') return detachWireBundle(wire, geometry);
         const reference = wire.bundleId ? affectedWires.find((item) => item.bundleId === wire.bundleId) : wire;
         const a = resolveWorldPort(wire.a);
         const b = resolveWorldPort(wire.b);
@@ -794,8 +801,10 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
           bundleReversed: wire.bundleEndpoints && wire.bundleId === sharedWire.bundleId ? wire.bundleReversed
             : sharedWire.bundleEndpoints && sharedA && sharedB && resolveWorldPort(wire.a) && resolveWorldPort(wire.b)
               ? wireEndsReversed(resolveWorldPort(wire.a)!, resolveWorldPort(wire.b)!, sharedA, sharedB) : undefined,
-          bundleLeadIn: sharedWire.bundleLeadIn,
-          bundleLeadOut: sharedWire.bundleLeadOut,
+          bundleLeadIn: wire.bundleEndpoints ? wire.bundleLeadIn : sharedWire.bundleLeadIn,
+          bundleLeadOut: wire.bundleEndpoints ? wire.bundleLeadOut : sharedWire.bundleLeadOut,
+          pathMode: sharedWire.pathMode,
+          cornerRadius: sharedWire.cornerRadius,
           control: sharedControl,
           waypoints: sharedWaypoints?.map((point) => ({ ...point })),
         }
@@ -811,35 +820,42 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
     ));
   };
 
-  const applyWaypointsToWireGroup = (
-    wireId: string,
-    update: (waypoints: WireWaypoint[]) => WireWaypoint[],
-  ) => {
-    setWires((current) => {
-      const target = current.find((wire) => wire.id === wireId);
-      if (!target) return current;
-      const nextWaypoints = update(wireWaypoints(target));
-      const beforeIds = new Set(target.bundleLeadIn?.map((point) => point.id));
-      const afterIds = new Set(target.bundleLeadOut?.map((point) => point.id));
-      const cableIds = new Set((pairedWireGroups(current, parts, partDefs).get(wireId) ?? [target]).map((wire) => wire.id));
-      return current.map((wire) =>
-        cableIds.has(wire.id) || Boolean(target.bundleId && wire.bundleId === target.bundleId)
-          ? {
-              ...wire,
-              control: undefined,
-              bundleLeadIn: nextWaypoints.filter((point) => beforeIds.has(point.id)),
-              bundleLeadOut: nextWaypoints.filter((point) => afterIds.has(point.id)),
-              waypoints: nextWaypoints.filter((point) => !beforeIds.has(point.id) && !afterIds.has(point.id)),
-            }
-          : wire,
-      );
-    });
+  const applyWaypointsToWireGroup = (wireId: string, update: (points: WireWaypoint[]) => WireWaypoint[],
+    field: 'waypoints' | 'bundleLeadIn' | 'bundleLeadOut' = 'waypoints') => {
+    setWires(current => updateWireWaypoints(current, wireId, update, pairedWireGroups(current, parts, partDefs), field));
   };
 
   const changeWireWaypoint = (wireId: string, waypointId: string, point?: { x: number; y: number }) => {
     applyWaypointsToWireGroup(wireId, (waypoints) => point
-      ? waypoints.map((waypoint) => waypoint.id === waypointId ? { ...waypoint, ...point } : waypoint)
+      ? waypoints.map((waypoint) => waypoint.id === waypointId && !waypoint.locked ? { ...waypoint, ...point } : waypoint)
       : waypoints.filter((waypoint) => waypoint.id !== waypointId));
+  };
+
+  const addWireGuide = (wireId: string, point?: { x: number; y: number }, trunk = false) => {
+    const target = wires.find(w => w.id === wireId);
+    if (!target) return;
+    const geometry = buildWireGeometry(wires, resolveWorldPort, () => 0, cables);
+    const route = geometry.routes.get(wireId);
+    if (!route) return;
+    const editor = route.editorWire;
+    const location = point ?? route.control;
+    let field: 'waypoints' | 'bundleLeadIn' | 'bundleLeadOut' = 'waypoints';
+    const bundle = geometry.bundles.find(b => b.wireIds.includes(wireId));
+    if (bundle && point && !trunk) {
+      const trunkDistance = projectOntoRoute(bundle.points, location).distance;
+      const inDistance = projectOntoRoute(route.visiblePoints[0], location).distance;
+      const outDistance = projectOntoRoute(route.visiblePoints[1], location).distance;
+      if (inDistance < trunkDistance || outDistance < trunkDistance) field = inDistance <= outDistance ? 'bundleLeadIn' : 'bundleLeadOut';
+    }
+    const editId = field === 'waypoints' ? editor.id : wireId;
+    applyWaypointsToWireGroup(editId, points => {
+      const guide: WireWaypoint = { ...location, id: uid(), kind: 'guide' };
+      const along = projectOntoRoute(route.points, location).along;
+      const index = points.findIndex(p => projectOntoRoute(route.points, p).along > along);
+      const next = [...points];
+      next.splice(index < 0 ? next.length : index, 0, guide);
+      return next;
+    }, field);
   };
 
   const changeWireWaypointTerminal = (wireId: string, waypointId: string, terminal: WireTerminalType) => {
@@ -864,6 +880,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
     }
     const issue = connectionIssue(pendingFrom, end, parts, partDefs);
     if (issue) { setNotice(issue); return; }
+    if (wireGaugeRule({a:pendingFrom,b:end},parts,partDefs).id === 'pneumatic' && wires.some(w => [w.a,w.b].some(p => (p.uid === end.uid && p.portId === end.portId) || (p.uid === pendingFrom.uid && p.portId === pendingFrom.portId)))) { setNotice('气口已连接，请添加三通或分气块进行分支。'); return; }
     setNotice('');
     setWires((current) => connectWireEnds(current, pendingFrom, end, parts, partDefs, wireColor));
     setPendingFrom(null);
@@ -1297,6 +1314,10 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
           <CircuitBoard className="h-3.5 w-3.5" aria-hidden="true" />
           导入器件
         </ToolBtn>
+        <ToolBtn onClick={async () => {
+          try { const response = await fetch(`${import.meta.env.BASE_URL}examples/frc-pneumatics.frcwire`); if (!response.ok) throw new Error('示例下载失败'); await openSourceFile(new File([await response.text()], 'FRC 气动示例.frcwire')); }
+          catch (error) { setNotice(error instanceof Error ? error.message : '示例加载失败'); }
+        }} title="添加完整气动系统示例工程">气动示例</ToolBtn>
         <ToolBtn onClick={clearAll} disabled={parts.length === 0 && wires.length === 0 && !backgroundImage}>
           <Eraser className="h-3.5 w-3.5" aria-hidden="true" />
           清空
@@ -1581,6 +1602,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
               });
             }}
             onWireWaypointChange={changeWireWaypoint}
+            onAddWireGuide={addWireGuide}
             onPortClick={onPortClick}
             onFuseClick={cyclePartFuse}
             onBackgroundClick={() => {
@@ -1595,6 +1617,9 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
         </div>
         {selectedWires.size > 1 && !selectedWire && (
           <WireBundlePanel
+            pathMode={selectedWireItems[0]?.pathMode}
+            cornerRadius={selectedWireItems[0]?.cornerRadius}
+            onGeometryChange={changes => setWires(current => current.map(w => selectedWires.has(w.id) || Boolean(w.bundleId && selectedBundleIds.has(w.bundleId)) ? {...w,...changes} : w))}
             wireCount={selectedWires.size}
             value={selectedWireRoutingStyle}
             onChange={applyWireRoutingStyle}
@@ -1610,7 +1635,12 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
             rule={selectedWireRule}
             bundleSize={selectedWireBundleSize}
             onChange={(changes) => setWires((current) => current.map((wire) => {
-              if (wire.id !== selectedWire.id && !cables.get(selectedWire.id)?.some((item) => item.id === wire.id)) return wire;
+              if (wire.id !== selectedWire.id && !cables.get(selectedWire.id)?.some((item) => item.id === wire.id)) {
+                if (selectedWire.bundleId && wire.bundleId === selectedWire.bundleId && ('pathMode' in changes || 'cornerRadius' in changes)) {
+                  return { ...wire, ...('pathMode' in changes ? { pathMode: changes.pathMode } : {}), ...('cornerRadius' in changes ? { cornerRadius: changes.cornerRadius } : {}) };
+                }
+                return wire;
+              }
               if (wire.a.uid === selectedWire.a.uid) return { ...wire, ...changes };
               const { terminalA, terminalB, ...shared } = changes;
               return { ...wire, ...shared,
@@ -1630,6 +1660,8 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
               const ids = new Set((pairedWireGroups(current, parts, partDefs).get(selectedWire.id) ?? [selectedWire]).map((wire) => wire.id));
               return current.map((wire) => ids.has(wire.id) ? { ...wire, inlineConnectors: undefined } : wire);
             })}
+            onAddGuide={() => addWireGuide(selectedWire.id)}
+            onToggleWaypointLock={(id) => applyWaypointsToWireGroup(selectedWire.id, points => points.map(p => p.id === id ? { ...p, locked: !p.locked } : p))}
             onWaypointTerminalChange={(waypointId, terminal) => changeWireWaypointTerminal(selectedWire.id, waypointId, terminal)}
             onRemoveWaypoint={(waypointId) => changeWireWaypoint(selectedWire.id, waypointId)}
             onClearWaypoints={() => selectedWire && applyWaypointsToWireGroup(selectedWire.id, () => [])}

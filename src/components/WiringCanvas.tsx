@@ -87,7 +87,9 @@ interface Props {
 
 type DragMode =
   | { kind: 'none' }
-  | { kind: 'pan'; startX: number; startY: number; view: ViewTransform }
+  | { kind: 'pan'; startX: number; startY: number; view: ViewTransform; touch?: boolean }
+  /** Two touch points: zoom by their spread, pan by their midpoint. */
+  | { kind: 'pinch'; distance: number; mid: { x: number; y: number }; view: ViewTransform }
   | { kind: 'marquee'; startWx: number; startWy: number; additive: boolean }
   | { kind: 'parts'; uids: string[]; lastWx: number; lastWy: number; moved: boolean; additive: boolean; selectOnDrag: boolean; clickUid: string }
   | { kind: 'wire-control'; wireId: string }
@@ -375,6 +377,23 @@ export default function WiringCanvas(props: Props) {
   const portFillId = useId().replace(/:/g, '');
   const dragRef = useRef<DragMode>({ kind: 'none' });
   const spaceRef = useRef(false);
+  // Touch: active pointers for pinch, the long-press that turns a pan into a marquee, and the last tap.
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const longPressRef = useRef<number | undefined>(undefined);
+  const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
+  const [coarse, setCoarse] = useState(() => typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches);
+  /** Hit areas grow on touch so a fingertip can find ports, wires and handles. */
+  const hit = coarse ? 2.2 : 1;
+  const clearLongPress = () => { window.clearTimeout(longPressRef.current); longPressRef.current = undefined; };
+  const localPoint = (clientX: number, clientY: number) => {
+    const rect = svgRef.current?.getBoundingClientRect();
+    return { x: clientX - (rect?.left ?? 0), y: clientY - (rect?.top ?? 0) };
+  };
+  const pinchFrom = (current: ViewTransform) => {
+    const [a, b] = [...pointersRef.current.values()];
+    const mid = localPoint((a.x + b.x) / 2, (a.y + b.y) / 2);
+    return { kind: 'pinch' as const, distance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), mid, view: current };
+  };
   const pointerInsideRef = useRef(false);
   const interactionActiveRef = useRef(false);
   const interactionCallbacks = useRef({ onInteractionStart, onInteractionEnd });
@@ -662,7 +681,7 @@ export default function WiringCanvas(props: Props) {
         const world = getPort(end);
         if (!world) continue;
         const distance = Math.hypot(world.x - point.x, world.y - point.y);
-        if (distance < 16 / view.k && (!best || distance < best.distance)) best = { end, x: world.x, y: world.y, distance };
+        if (distance < 16 * hit / view.k && (!best || distance < best.distance)) best = { end, x: world.x, y: world.y, distance };
       }
     }
     return best;
@@ -694,6 +713,26 @@ export default function WiringCanvas(props: Props) {
     }
     if (e.button !== 0) return;
     const w = toWorld(e.clientX, e.clientY);
+    if (e.pointerType === 'touch') {
+      // One finger pans; a double tap zooms in; holding still turns the gesture into a marquee.
+      const tap = lastTapRef.current;
+      if (tap && e.timeStamp - tap.time < 320 && Math.hypot(tap.x - e.clientX, tap.y - e.clientY) < 30) {
+        lastTapRef.current = null;
+        const local = localPoint(e.clientX, e.clientY);
+        const k = Math.min(ZOOM_MAX, view.k * 1.8);
+        onViewChange({ k, x: local.x - (local.x - view.x) / view.k * k, y: local.y - (local.y - view.y) / view.k * k });
+        return;
+      }
+      dragRef.current = { kind: 'pan', startX: e.clientX, startY: e.clientY, view, touch: true };
+      clearLongPress();
+      longPressRef.current = window.setTimeout(() => {
+        if (dragRef.current.kind !== 'pan' || pointersRef.current.size !== 1) return;
+        navigator.vibrate?.(12);
+        dragRef.current = { kind: 'marquee', startWx: w.x, startWy: w.y, additive: true };
+        setMarquee({ x: w.x, y: w.y, w: 0, h: 0 });
+      }, 450);
+      return;
+    }
     dragRef.current = { kind: 'marquee', startWx: w.x, startWy: w.y, additive: additiveKey(e) };
     setMarquee({ x: w.x, y: w.y, w: 0, h: 0 });
   };
@@ -725,7 +764,19 @@ export default function WiringCanvas(props: Props) {
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
+    if (pointersRef.current.has(e.pointerId)) pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const d = dragRef.current;
+    if (d.kind === 'pinch') {
+      if (pointersRef.current.size < 2) return;
+      const [a, b] = [...pointersRef.current.values()];
+      const mid = localPoint((a.x + b.x) / 2, (a.y + b.y) / 2);
+      const k = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, d.view.k * Math.hypot(a.x - b.x, a.y - b.y) / d.distance));
+      const wx = (d.mid.x - d.view.x) / d.view.k;
+      const wy = (d.mid.y - d.view.y) / d.view.k;
+      onViewChange({ k, x: mid.x - wx * k, y: mid.y - wy * k });
+      return;
+    }
+    if (d.kind === 'pan' && d.touch && Math.hypot(e.clientX - d.startX, e.clientY - d.startY) > 8) clearLongPress();
     if (pendingFrom || pendingInlineWireId) setCursor(toWorld(e.clientX, e.clientY));
     if (d.kind === 'pan') {
       onViewChange({
@@ -758,7 +809,7 @@ export default function WiringCanvas(props: Props) {
         ? { x: d.origin.x + dx, y: d.origin.y + dy }
         : { w: Math.max(min.w, d.origin.w + dx), h: Math.max(min.h, d.origin.h + dy) });
     } else if (d.kind === 'wire-bend') {
-      if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < 4) return;
+      if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < 4 * hit) return;
       beginInteraction();
       const guide = onAddWireGuide(d.wireId, d.world, d.trunk);
       dragRef.current = guide ? { kind: 'wire-waypoint', ...guide } : { kind: 'none' };
@@ -825,11 +876,22 @@ export default function WiringCanvas(props: Props) {
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
+    pointersRef.current.delete(e.pointerId);
+    clearLongPress();
     const d = dragRef.current;
     dragRef.current = { kind: 'none' };
     endInteraction();
+    if (e.pointerType === 'touch') setHoveredPort(null);
+    if (d.kind === 'pan' && d.touch) {
+      // A tap on empty canvas clears the selection, like a click.
+      if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < 8) {
+        lastTapRef.current = { time: e.timeStamp, x: e.clientX, y: e.clientY };
+        onBackgroundClick();
+      }
+      return;
+    }
     if (d.kind === 'port-drag') {
-      if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < 6) return; // a click: keep waiting for the second port
+      if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < 6 * hit) return; // a click: keep waiting for the second port
       const target = snapTarget(toWorld(e.clientX, e.clientY));
       if (target) onPortClick(target.end);
       else onBackgroundClick();
@@ -919,13 +981,32 @@ export default function WiringCanvas(props: Props) {
         tabIndex={0}
         aria-label="接线图画布"
         onPointerDownCapture={(event) => {
+          if ((event.pointerType === 'touch') !== coarse) setCoarse(event.pointerType === 'touch');
+          if (event.pointerType === 'touch') {
+            pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+            if (pointersRef.current.size === 2) {
+              // A second finger always means zoom/pan: abandon whatever the first finger started.
+              event.stopPropagation();
+              event.currentTarget.setPointerCapture(event.pointerId);
+              clearLongPress();
+              setMarquee(null);
+              endInteraction();
+              dragRef.current = pinchFrom(view);
+              return;
+            }
+          }
           if (!(event.target instanceof Element && event.target.closest('[role="button"], button, a'))) event.currentTarget.focus();
         }}
         onPointerDown={onSvgPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        onPointerCancel={() => { dragRef.current = { kind: 'none' }; setMarquee(null); endInteraction(); }}
-        onLostPointerCapture={() => { dragRef.current = { kind: 'none' }; setMarquee(null); endInteraction(); }}
+        onPointerCancel={(event) => { pointersRef.current.delete(event.pointerId); clearLongPress(); dragRef.current = { kind: 'none' }; setMarquee(null); endInteraction(); }}
+        onLostPointerCapture={(event) => {
+          // Lifting one finger of a pinch must not end the other finger's gesture bookkeeping.
+          if (dragRef.current.kind === 'pinch' && pointersRef.current.size > 1) return;
+          pointersRef.current.delete(event.pointerId);
+          dragRef.current = { kind: 'none' }; setMarquee(null); endInteraction();
+        }}
         style={{ touchAction: 'none' }}
       >
         <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
@@ -944,7 +1025,7 @@ export default function WiringCanvas(props: Props) {
             </image>
           )}
 
-          <AnnotationLayer annotations={annotations} selectedId={selectedAnnotationId} legend={legend} k={view.k} onPointerDown={startAnnotationDrag} />
+          <AnnotationLayer annotations={annotations} selectedId={selectedAnnotationId} legend={legend} k={view.k / hit} onPointerDown={startAnnotationDrag} />
 
           {/* 拖链 / 束线管外套：每组只绘制一条细主干，彩色线在两端汇聚与散开 */}
           {geometry.bundles.map((visual) => {
@@ -1062,7 +1143,7 @@ export default function WiringCanvas(props: Props) {
                   d={d}
                   fill="none"
                   stroke="transparent"
-                  strokeWidth={Math.max(14, 14 / view.k)}
+                  strokeWidth={Math.max(14, 14 * hit / view.k)}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   style={{ pointerEvents: 'stroke', cursor: pendingInlineWireId === wire.id ? 'crosshair' : 'pointer' }}
@@ -1175,7 +1256,7 @@ export default function WiringCanvas(props: Props) {
                     }}
                   >
                     <circle r={13} fill="transparent" stroke={waypoint.locked ? '#dc2626' : '#7c3aed'} strokeWidth={1.8} strokeDasharray="4 3" />
-                    <circle r={Math.max(16, 12 / view.k)} fill="transparent" />
+                    <circle r={Math.max(16, 12 * hit / view.k)} fill="transparent" />
                     <text x={14} y={-10} fontSize={9} fontWeight={700} fill="#6d28d9" pointerEvents="none">{index + 1}</text>
                     <title>{waypoint.locked ? '固定点已锁定；在属性面板解锁' : '拖动调整路径点；双击删除'}</title>
                   </g>
@@ -1303,7 +1384,7 @@ export default function WiringCanvas(props: Props) {
                           data-port-uid={part.uid}
                           data-port-id={port.id}
                           cx={port.x * w} cy={port.y * h}
-                          r={Math.max(5, 10 / view.k)}
+                          r={Math.max(5, 10 * hit / view.k)}
                           fill="transparent"
                           style={{ cursor: 'crosshair', pointerEvents: 'all' }}
                         ><title>{`${displayLabel} · ${port.label}`}</title></circle>
@@ -1391,7 +1472,7 @@ export default function WiringCanvas(props: Props) {
           {/* 框选矩形 */}
           {geometry.bundles.map((bundle) => (
             <path key={`bundle-hit:${bundle.key}`} data-bundle-path={bundle.key} d={bundle.path}
-              fill="none" stroke="transparent" strokeWidth={Math.max(22, 22 / view.k)} strokeLinejoin="round"
+              fill="none" stroke="transparent" strokeWidth={Math.max(22, 22 * hit / view.k)} strokeLinejoin="round"
               style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
               onDoubleClick={e => { e.stopPropagation(); onAddWireGuide(bundle.wireIds[0], toWorld(e.clientX,e.clientY), true); }}
               onPointerDown={(event) => {

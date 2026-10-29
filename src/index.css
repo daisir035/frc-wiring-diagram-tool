@@ -86,3 +86,29 @@
 [data-cable-port-id]:focus {
   outline: none;
 }
+
+/* Touch screens: fingertip-sized targets; mouse layouts are unchanged. */
+@media (pointer: coarse) {
+  .toolbar-scroll {
+    min-height: 3.25rem;
+  }
+  .toolbar-scroll button {
+    min-height: 36px;
+  }
+  .toolbar-scroll[role="toolbar"] button,
+  [aria-label="缩放"] button {
+    min-height: 40px;
+    min-width: 40px;
+    justify-content: center;
+  }
+  [role="menu"] [role="menuitem"] {
+    height: 44px;
+  }
+}
+
+/* Long presses on the canvas start a marquee, not the iOS callout or text selection. */
+svg[aria-label="接线图画布"] {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}

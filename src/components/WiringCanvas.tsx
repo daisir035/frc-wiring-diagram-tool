@@ -10,6 +10,7 @@ import type {
   InlineConnectorKind,
   ViewTransform,
   WorldPort,
+  RoutePoint,
 } from '../lib/wiring';
 import {
   defaultTerminalForPort,
@@ -18,6 +19,9 @@ import {
   cablePortPolarity,
   INLINE_CONNECTOR_STYLES,
   cablePorts,
+  compactRoute,
+  dragOrthogonalSegment,
+  projectOntoRoute,
   connectionIssue,
   pairedCablePort,
   pairedWireGroups,
@@ -69,6 +73,8 @@ interface Props {
   onInlinePlacementComplete: () => void;
   onAddWireGuide: (id: string, point: { x: number; y: number }, trunk?: boolean) => { wireId: string; waypointId: string } | null;
   onWireWaypointChange: (id: string, waypointId: string, point?: { x: number; y: number }) => void;
+  /** Replace an orthogonal wire's corners (segment drag). */
+  onWireCorners: (id: string, corners: Array<{ x: number; y: number }>) => void;
   onPortClick: (end: WireEnd) => void;
   onFuseClick: (uid: string, channel: number) => void;
   onBackgroundClick: () => void;
@@ -100,6 +106,8 @@ type DragMode =
   | { kind: 'wire-bend'; wireId: string; startX: number; startY: number; world: { x: number; y: number }; trunk?: boolean }
   /** Pressed on a port: releasing over another port connects, releasing on empty canvas cancels. */
   | { kind: 'port-drag'; startX: number; startY: number }
+  /** Sliding one segment of an orthogonal wire sideways; `route` is the route when the drag began. */
+  | { kind: 'orth-segment'; wireId: string; startX: number; startY: number; start: { x: number; y: number }; route: RoutePoint[]; index: number; horizontal: boolean; moved: boolean }
   | { kind: 'label'; uid: string; start: { x: number; y: number }; origin: { x: number; y: number } }
   | { kind: 'annotation'; id: string; mode: 'move' | 'resize'; start: { x: number; y: number }; origin: Annotation };
 
@@ -360,6 +368,7 @@ export default function WiringCanvas(props: Props) {
     onInlinePlacementComplete,
     onWireWaypointChange,
     onAddWireGuide,
+    onWireCorners,
     onPartLabelOffset,
     annotations,
     selectedAnnotationId,
@@ -808,6 +817,13 @@ export default function WiringCanvas(props: Props) {
       onAnnotationChange(d.id, d.mode === 'move'
         ? { x: d.origin.x + dx, y: d.origin.y + dy }
         : { w: Math.max(min.w, d.origin.w + dx), h: Math.max(min.h, d.origin.h + dy) });
+    } else if (d.kind === 'orth-segment') {
+      if (!d.moved && Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < 4 * hit) return;
+      d.moved = true;
+      beginInteraction();
+      const point = toWorld(e.clientX, e.clientY);
+      const offset = Math.round((d.horizontal ? point.y - d.start.y : point.x - d.start.x) / 2) * 2;
+      onWireCorners(d.wireId, dragOrthogonalSegment(d.route, d.index, offset));
     } else if (d.kind === 'wire-bend') {
       if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < 4 * hit) return;
       beginInteraction();
@@ -1159,6 +1175,21 @@ export default function WiringCanvas(props: Props) {
                     if (isFreeRoute(editorWire) && !additiveKey(e) && !pendingFrom) {
                       (e.currentTarget.ownerSVGElement as Element | null)?.setPointerCapture?.(e.pointerId);
                       dragRef.current = { kind: 'wire-bend', wireId: wire.id, startX: e.clientX, startY: e.clientY, world: toWorld(e.clientX, e.clientY) };
+                    } else if (!additiveKey(e) && !pendingFrom && (!editorWire.routingStyle || editorWire.routingStyle === 'standard')
+                      && !editorWire.waypoints?.some((point) => point.kind !== 'guide')) {
+                      // Orthogonal: grab the nearest segment and slide it across its own direction.
+                      const start = toWorld(e.clientX, e.clientY);
+                      const points = compactRoute(route.vertices ?? route.points);
+                      let index = 0;
+                      let best = Infinity;
+                      for (let i = 0; i < points.length - 1; i++) {
+                        const distance = projectOntoRoute([points[i], points[i + 1]], start).distance;
+                        if (distance < best) { best = distance; index = i; }
+                      }
+                      const horizontal = points.length > 1 && Math.abs(points[index].y - points[index + 1].y) < 0.01;
+                      (e.currentTarget.ownerSVGElement as Element | null)?.setPointerCapture?.(e.pointerId);
+                      dragRef.current = { kind: 'orth-segment', wireId: editorWire.id, startX: e.clientX, startY: e.clientY, start,
+                        route: points, index, horizontal, moved: false };
                     }
                   }}
                 />

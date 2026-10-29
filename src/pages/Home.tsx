@@ -50,7 +50,9 @@ import {
   portWorld,
   wireGaugeRule,
   wireEndsReversed,
-  translateWireRoutes,
+  followMovedParts,
+  usesOrthogonalCorners,
+  moveOrthogonalCorner,
   partSize,
   uid,
 } from '../lib/wiring';
@@ -654,11 +656,15 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
   };
 
   const rotateSelected = () => {
+    const rotated = new Set(parts.filter((part) => selectedParts.has(part.uid) && !part.locked).map((part) => part.uid));
     setParts((ps) =>
       ps.map((p) =>
-        selectedParts.has(p.uid) && !p.locked ? { ...p, rot: (((p.rot + 90) % 360) as PlacedPart['rot']) } : p,
+        rotated.has(p.uid) ? { ...p, rot: (((p.rot + 90) % 360) as PlacedPart['rot']) } : p,
       ),
     );
+    // Rotating turns the port normals, so frozen 90° corners no longer fit: route those wires afresh.
+    setWires((current) => current.map((wire) => (rotated.has(wire.a.uid) || rotated.has(wire.b.uid)) && usesOrthogonalCorners(wire)
+      && !(rotated.has(wire.a.uid) && rotated.has(wire.b.uid)) ? { ...wire, waypoints: undefined, control: undefined } : wire));
   };
 
   const toggleLockSelected = () => {
@@ -856,9 +862,18 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
   };
 
   const changeWireWaypoint = (wireId: string, waypointId: string, point?: { x: number; y: number }) => {
+    const orthogonal = wires.find((wire) => wire.id === wireId);
     applyWaypointsToWireGroup(wireId, (waypoints) => point
-      ? waypoints.map((waypoint) => waypoint.id === waypointId && !waypoint.locked ? { ...waypoint, ...point } : waypoint)
+      ? orthogonal && usesOrthogonalCorners(orthogonal) ? moveOrthogonalCorner(waypoints, waypointId, point)
+        : waypoints.map((waypoint) => waypoint.id === waypointId && !waypoint.locked ? { ...waypoint, ...point } : waypoint)
       : waypoints.filter((waypoint) => waypoint.id !== waypointId));
+  };
+
+  /** Replace an orthogonal wire's corners, e.g. after sliding one of its segments. */
+  const setWireCorners = (wireId: string, corners: Array<{ x: number; y: number }>) => {
+    applyWaypointsToWireGroup(wireId, (waypoints) => corners.map((corner, index) => ({
+      id: waypoints[index]?.kind === 'guide' ? waypoints[index].id : uid(), x: corner.x, y: corner.y, kind: 'guide' as const })));
+    setWires((current) => current.map((wire) => wire.id === wireId ? { ...wire, control: undefined } : wire));
   };
 
   /** Returns the wire that owns the new guide, so the canvas can keep dragging it. */
@@ -1011,7 +1026,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
     return {
       ...project,
       parts: project.parts.map((part) => moved.has(part.uid) ? { ...part, x: part.x + dx, y: part.y + dy } : part),
-      wires: translateWireRoutes(project.wires, moved, dx, dy),
+      wires: followMovedParts(project.wires, project.parts, partDefs, moved, dx, dy),
     };
   });
   const selectAll = () => {
@@ -1650,6 +1665,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
               });
             }}
             onWireWaypointChange={changeWireWaypoint}
+            onWireCorners={setWireCorners}
             onAddWireGuide={addWireGuide}
             onPortClick={onPortClick}
             onFuseClick={cyclePartFuse}

@@ -1863,6 +1863,116 @@ export function smoothWireRoute(a: WorldPort, b: WorldPort, guides: RoutePoint[]
 }
 
 /** Explicit guides are world-space anchors; free routes never insert elbows. */
+const cardinalPort = (port: WorldPort): WorldPort => Math.abs(port.nx) > Math.abs(port.ny)
+  ? { ...port, nx: Math.sign(port.nx), ny: 0 } : { ...port, nx: 0, ny: Math.sign(port.ny) || 1 };
+/** Shortest straight run kept out of a port before the first bend, in mm. */
+export const ORTHOGONAL_STUB = 12;
+
+/**
+ * Orthogonal polyline through explicit corners: every bend is 90°. Corner pairs that are not lined
+ * up get one elbow — leaving a port along its normal, arriving along the far port's normal, and
+ * otherwise turning from the previous leg — so the route never bends at an angle.
+ */
+export function orthogonalCornerRoute(a: WorldPort, b: WorldPort, corners: RoutePoint[]): RoutePoint[] {
+  const start = cardinalPort(a);
+  const end = cardinalPort(b);
+  const points: RoutePoint[] = [{ x: a.x, y: a.y }];
+  const targets = [...corners.map(({ x, y }) => ({ x, y })), { x: b.x, y: b.y }];
+  let current = points[0];
+  let horizontal = start.nx !== 0;
+  targets.forEach((target, index) => {
+    const dx = target.x - current.x;
+    const dy = target.y - current.y;
+    if (Math.abs(dx) > 0.01 && Math.abs(dy) > 0.01) {
+      const last = index === targets.length - 1;
+      const firstLegHorizontal = last ? end.nx === 0 : index === 0 ? start.nx !== 0 : !horizontal;
+      points.push(firstLegHorizontal ? { x: target.x, y: current.y } : { x: current.x, y: target.y });
+      horizontal = !firstLegHorizontal;
+    } else if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01) {
+      horizontal = Math.abs(dx) > Math.abs(dy);
+    }
+    points.push(target);
+    current = target;
+  });
+  return compactRoute(points);
+}
+
+/** Interior bends of a route, i.e. the corners that reproduce it in orthogonalCornerRoute. */
+export function routeCorners(points: RoutePoint[]): RoutePoint[] {
+  return compactRoute(points).slice(1, -1).map(({ x, y }) => ({ x, y }));
+}
+
+/**
+ * Corners after one end's port moved by (dx, dy): the first corner slides with the port across its
+ * leg so that leg stays straight, and is pushed ahead (with its neighbour) only when the port would
+ * otherwise pass it. Everything further along the route stays where the user left it.
+ */
+export function followOrthogonalEnd<T extends RoutePoint & { locked?: boolean }>(corners: T[], port: WorldPort, dx: number, dy: number,
+  end: 'a' | 'b'): T[] {
+  const list = corners.map((corner) => ({ ...corner }));
+  if (!list.length) return list;
+  const first = end === 'a' ? 0 : list.length - 1;
+  const next = end === 'a' ? 1 : list.length - 2;
+  const corner = list[first];
+  if (corner.locked) return list;
+  const normal = cardinalPort(port);
+  const moved = { x: port.x + dx, y: port.y + dy };
+  if (normal.nx !== 0) {
+    corner.y += dy;
+    if ((corner.x - moved.x) * normal.nx < ORTHOGONAL_STUB) {
+      const x = moved.x + normal.nx * ORTHOGONAL_STUB;
+      if (list[next] && !list[next].locked && Math.abs(list[next].x - corner.x) < 0.01) list[next].x = x;
+      corner.x = x;
+    }
+  } else {
+    corner.x += dx;
+    if ((corner.y - moved.y) * normal.ny < ORTHOGONAL_STUB) {
+      const y = moved.y + normal.ny * ORTHOGONAL_STUB;
+      if (list[next] && !list[next].locked && Math.abs(list[next].y - corner.y) < 0.01) list[next].y = y;
+      corner.y = y;
+    }
+  }
+  return list;
+}
+
+/**
+ * Corners after sliding one segment of an orthogonal route sideways by `offset` (mm, along the
+ * segment's normal). Segments touching a port keep a short stub at the port and gain a jog.
+ */
+export function dragOrthogonalSegment(route: RoutePoint[], index: number, offset: number): RoutePoint[] {
+  const points = compactRoute(route).map(({ x, y }) => ({ x, y }));
+  const last = points.length - 1;
+  if (index < 0 || index >= last) return routeCorners(points);
+  const a = points[index];
+  const b = points[index + 1];
+  const horizontal = Math.abs(a.y - b.y) < 0.01;
+  const shift = (point: RoutePoint) => horizontal ? { x: point.x, y: point.y + offset } : { x: point.x + offset, y: point.y };
+  const length = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+  const stub = Math.min(ORTHOGONAL_STUB, length / 3);
+  const toward = (from: RoutePoint, to: RoutePoint) => ({ x: from.x + (to.x - from.x) / length * stub, y: from.y + (to.y - from.y) / length * stub });
+  const head = index === 0 ? [points[0], toward(a, b), shift(toward(a, b))] : [...points.slice(0, index), shift(a)];
+  const tail = index + 1 === last ? [shift(toward(b, a)), toward(b, a), points[last]] : [shift(b), ...points.slice(index + 2)];
+  return routeCorners([...head, ...tail]);
+}
+
+/** Move one corner; the neighbours sharing its horizontal / vertical legs follow so bends stay 90°. */
+export function moveOrthogonalCorner<T extends RoutePoint & { id: string; locked?: boolean }>(corners: T[], id: string, point: RoutePoint): T[] {
+  const index = corners.findIndex((corner) => corner.id === id);
+  if (index < 0 || corners[index].locked) return corners;
+  const old = corners[index];
+  return corners.map((corner, i) => {
+    if (i === index) return { ...corner, x: point.x, y: point.y };
+    if (Math.abs(i - index) !== 1 || corner.locked) return corner;
+    if (Math.abs(corner.y - old.y) < 0.01) return { ...corner, y: point.y };
+    if (Math.abs(corner.x - old.x) < 0.01) return { ...corner, x: point.x };
+    return corner;
+  });
+}
+
+/** Orthogonal wires whose only waypoints are guides are routed as explicit 90° polylines. */
+export const usesOrthogonalCorners = (wire: Wire) => !isFreeRoute(wire)
+  && Boolean(wire.waypoints?.length) && wire.waypoints!.every((point) => point.kind === 'guide');
+
 export function editableWireRoute(wire: Wire, a: WorldPort, b: WorldPort, lane = 0) {
   if (wire.pathMode === 'smooth') {
     const route = smoothWireRoute(a, b, wire.waypoints?.length ? wire.waypoints : wire.control ? [wire.control] : []);
@@ -1873,7 +1983,12 @@ export function editableWireRoute(wire: Wire, a: WorldPort, b: WorldPort, lane =
         const points = [a, ...(wire.waypoints?.length ? wire.waypoints : wire.control ? [wire.control] : []), b];
         return { points, control: pointAlongRoute(points, routeLength(points) / 2) };
       })()
-    : wireRoute(a, b, lane, wire.control, wire.waypoints);
+    : usesOrthogonalCorners(wire)
+      ? (() => {
+          const points = orthogonalCornerRoute(a, b, wire.waypoints!);
+          return { points, control: pointAlongRoute(points, routeLength(points) / 2) };
+        })()
+      : wireRoute(a, b, lane, wire.control, wire.waypoints);
   return { ...route, path: roundedOrthogonalPath(route.points, wire.cornerRadius ?? 8) };
 }
 
@@ -2070,6 +2185,50 @@ export function anchorWireBundles(wires: Wire[], parts: PlacedPart[], defs: Read
     }
   }
   return wires.map((wire) => updates.has(wire.id) ? { ...wire, ...updates.get(wire.id) } : wire);
+}
+
+/**
+ * Moving parts by (dx, dy): wires with both ends moving translate as before. An orthogonal wire with
+ * one moving end first freezes its current auto route into corners — so it can no longer jump to a
+ * different detour mid-drag — and then only the corners next to the moving port follow it. If that
+ * would fold the route back on itself, it is re-routed once and frozen again.
+ */
+export function followMovedParts(wires: Wire[], parts: PlacedPart[], defs: ReadonlyMap<string, PartDef>,
+  movedUids: Set<string>, dx: number, dy: number): Wire[] {
+  const translated = translateWireRoutes(wires, movedUids, dx, dy);
+  const byUid = new Map(parts.map((part) => [part.uid, part]));
+  const portDef = (end: WireEnd) => defs.get(byUid.get(end.uid)?.partId ?? '')?.ports.find((port) => port.id === end.portId);
+  const resolve = (end: WireEnd) => {
+    const part = byUid.get(end.uid);
+    const def = part && defs.get(part.partId);
+    const port = portDef(end);
+    return part && def && port ? portWorld(part, def, cablePort(def, port)) : null;
+  };
+  const cables = pairedWireGroups(wires, parts, defs);
+  const lane = (wire: Wire) => wireRoutingLane(wire, cables, portDef);
+  let layout: ReturnType<typeof buildWireGeometry> | undefined;
+  return translated.map((wire, index) => {
+    const aMoved = movedUids.has(wire.a.uid);
+    if (aMoved === movedUids.has(wire.b.uid)) return wire;
+    if (isFreeRoute(wire) || wire.bundleId || (wire.routingStyle && wire.routingStyle !== 'standard')
+      || wire.waypoints?.some((point) => point.kind !== 'guide')) return wire;
+    const a = resolve(wire.a);
+    const b = resolve(wire.b);
+    if (!a || !b) return wire;
+    let corners: WireWaypoint[] = wire.waypoints?.length ? wire.waypoints : [];
+    if (!corners.length) {
+      layout ??= buildWireGeometry(wires, resolve, lane, cables);
+      const route = layout.routes.get(wires[index].id);
+      corners = routeCorners(route?.vertices ?? route?.points ?? []).map((point) => ({ ...point, id: uid(), kind: 'guide' as const }));
+    }
+    corners = followOrthogonalEnd(corners, aMoved ? a : b, dx, dy, aMoved ? 'a' : 'b');
+    const movedA = aMoved ? { ...a, x: a.x + dx, y: a.y + dy } : a;
+    const movedB = aMoved ? b : { ...b, x: b.x + dx, y: b.y + dy };
+    if (!isSimpleRoute(orthogonalCornerRoute(movedA, movedB, corners))) {
+      corners = routeCorners(wireRoute(movedA, movedB, lane(wire)).points).map((point) => ({ ...point, id: uid(), kind: 'guide' as const }));
+    }
+    return { ...wire, control: undefined, waypoints: corners };
+  });
 }
 
 export function translateWireRoutes(wires: Wire[], movedUids: Set<string>, dx: number, dy: number): Wire[] {

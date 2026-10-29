@@ -1042,8 +1042,9 @@ const PART_FOOTPRINTS_MM: Record<string, { w: number; h: number }> = {
   pdh: { w: 111.125, h: 225.425 },
   miniPdp: { w: 47.625, h: 85.725 },
   battery12v: { w: 181, h: 76 },
-  terminalPair: { w: 60, h: 32 },
-  terminal2To4: { w: 85, h: 45 },
+  // Generic lever terminals, sized like two WAGO 221 splices side by side.
+  terminalPair: { w: 40, h: 22 },
+  terminal2To4: { w: 48, h: 26 },
   breaker120: { w: 51, h: 76 },
   vrm: { w: 51.562, h: 56.388 },
   vh109: { w: 145, h: 67 },

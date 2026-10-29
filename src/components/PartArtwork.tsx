@@ -644,9 +644,7 @@ export default function PartArtwork({ def, width, height, fuses, onFuseClick, ca
         </>
       ) : (
         <>
-          {def.id === 'ph' ? <svg x={(def.w - def.h * 220 / 505) / 2} width={def.h * 220 / 505} height={def.h} viewBox="265 0 220 505" preserveAspectRatio="none" overflow="hidden">
-            <image href={partImageSrc(def)} width={755} height={551}/>
-          </svg> : <image href={partImageSrc(def)} width={def.w} height={def.h} preserveAspectRatio="xMidYMid meet" />}
+          <image href={partImageSrc(def)} width={def.w} height={def.h} preserveAspectRatio="xMidYMid meet" />
           <ImageFuseSlots def={def} fuses={fuses} onFuseClick={onFuseClick} canActivateFuse={canActivateFuse} />
         </>
       )}

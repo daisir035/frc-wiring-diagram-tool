@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { PartDef } from '../lib/wiring';
-import { cylinderLayout } from '../lib/pneumatics';
+import { CONTROLLER, controllerChannel, cylinderLayout } from '../lib/pneumatics';
 
 /*
  * Flat pneumatic artwork after Team 3161's FRC control system diagrams: solid fills, no outlines,
@@ -328,6 +328,86 @@ export function CylinderArtwork({ def }: { def: PartDef }) {
   );
 }
 
+/** Lever terminal seen from the front: coloured lever, dark wire entry on the outer edge. */
+function Terminal({ x, y, w, h, color, flip }: { x: number; y: number; w: number; h: number; color: string; flip?: boolean }) {
+  return (
+    <g>
+      <rect x={x} y={y} width={w} height={h} rx={0.5} fill={color} />
+      <rect x={flip ? x + w - w * 0.28 : x} y={y + h * 0.18} width={w * 0.28} height={h * 0.64} fill="#1b1b1c" />
+    </g>
+  );
+}
+
+/** REV Pneumatic Hub / CTRE PCM board; terminal rows match CONTROLLER in lib/pneumatics. */
+function Controller({ def }: { def: PartDef }) {
+  const { w, h, bankTop, row, pin } = CONTROLLER;
+  const ph = def.art === 'ph';
+  const channels = def.ports.filter((p) => /^sol\d+\+$/.test(p.id)).length;
+  const body = ph ? '#48484a' : '#2f3033';
+  const panel = ph ? '#3a3a3c' : '#26272a';
+  const lever = ph ? '#ef3f3e' : '#f08a24';
+  const label = '#c3c4c6';
+  const tw = 11;
+  const th = pin * 1.7;
+  const rows = Array.from({ length: channels }, (_, channel) => ({ channel, ...controllerChannel(channel, channels) }));
+  return (
+    <g fontFamily="'Saira Semi Condensed', 'Barlow Semi Condensed', sans-serif">
+      <rect x={0} y={0} width={w} height={h} rx={5} fill={body} />
+      <rect x={4} y={24} width={w - 8} height={h - 44} rx={2} fill={panel} />
+      {[[7, 7], [w - 7, 7], [7, h - 7], [w - 7, h - 7]].map(([cx, cy]) => (
+        <g key={`${cx}-${cy}`}>
+          <circle cx={cx} cy={cy} r={3.6} fill="#e9e9ea" />
+          <circle cx={cx} cy={cy} r={2.2} fill={body} />
+        </g>
+      ))}
+      <text x={w / 2} y={11} textAnchor="middle" fontSize={7} fontWeight={800} fontStyle="italic" fill="#ffffff">{ph ? 'REV' : 'CTRE'}</text>
+      <text x={w / 2} y={17.5} textAnchor="middle" fontSize={3.6} fontWeight={700} fill="#ffffff" letterSpacing={0.3}>{ph ? 'PNEUMATIC HUB' : 'PNEUMATICS CONTROL MODULE'}</text>
+      {/* compressor output, top left */}
+      <rect x={0} y={30 - pin * 2.4} width={16} height={pin * 4.8} rx={0.8} fill="#1d1d1e" />
+      <Terminal x={0.6} y={30 - pin - th / 2} w={tw} h={th} color={lever} />
+      <Terminal x={0.6} y={30 + pin - th / 2} w={tw} h={th} color="#2a2a2b" />
+      <text x={18} y={31} fontSize={2.8} fill={label}>COMPRESSOR</text>
+      {/* pressure switch, top right */}
+      <rect x={w - 14} y={26 - pin * 2.2} width={14} height={pin * 4.4} rx={0.6} fill="#f1f1f2" />
+      {[-pin, pin].map((dy) => <rect key={dy} x={w - 4} y={26 + dy - 0.8} width={3.4} height={1.6} fill="#9a9b9e" />)}
+      <text x={w - 16} y={27} fontSize={2.8} textAnchor="end" fill={label}>PRESSURE SW</text>
+      {/* solenoid voltage switch */}
+      <rect x={8} y={40} width={12} height={8} rx={1} fill="#1d1d1e" />
+      <rect x={14} y={41.5} width={4.5} height={5} rx={0.6} fill="#e9e9ea" />
+      <text x={22} y={45.6} fontSize={2.6} fill={label}>12V | 24V</text>
+      {/* solenoid channels */}
+      {rows.map(({ channel, left, y }) => {
+        const x = left ? 0.6 : w - tw - 0.6;
+        return (
+          <g key={channel}>
+            <Terminal x={x} y={y - pin - th / 2} w={tw} h={th} color={lever} flip={!left} />
+            <Terminal x={x} y={y + pin - th / 2} w={tw} h={th} color="#2a2a2b" flip={!left} />
+            <rect x={left ? tw + 3 : w - tw - 9.5} y={y - 2.6} width={6.5} height={5.2} rx={0.8} fill="#f1f1f2" />
+            <text x={left ? tw + 6.25 : w - tw - 6.25} y={y + 1.5} textAnchor="middle" fontSize={3.8} fontWeight={700} fill="#2a2a2b">{channel}</text>
+          </g>
+        );
+      })}
+      <text x={w / 2} y={bankTop - 3} textAnchor="middle" fontSize={2.8} fill={label}>SOLENOID CHANNELS</text>
+      {/* status, USB-C and RS485 */}
+      <rect x={8} y={bankTop + 8 * row + 8} width={5} height={13} rx={2.5} fill="#1d1d1e" stroke="#6d6e71" strokeWidth={0.5} />
+      <circle cx={w / 2} cy={bankTop + 8 * row + 10} r={1.4} fill="#4aa3ff" />
+      <circle cx={w / 2} cy={bankTop + 8 * row + 16} r={1.4} fill="#1d1d1e" stroke="#6d6e71" strokeWidth={0.4} />
+      <text x={w / 2 - 3} y={bankTop + 8 * row + 11} fontSize={2.6} textAnchor="end" fill={label}>STATUS</text>
+      <text x={w / 2 - 3} y={bankTop + 8 * row + 17} fontSize={2.6} textAnchor="end" fill={label}>MODE</text>
+      {[0, 1].map((i) => <rect key={i} x={w - 15} y={bankTop + 8 * row + 7 + i * 7} width={9} height={5.5} rx={0.6} fill="#f1f1f2" />)}
+      {/* CAN and power terminals, wires leave downward */}
+      <rect x={12} y={h - 22} width={50} height={18} rx={1} fill="#1d1d1e" />
+      {[['#f2d22e', 12.5], ['#2fae4a', 18.5], ['#f2d22e', 24.5], ['#2fae4a', 30.5]].map(([color, x]) => (
+        <rect key={x} x={Number(x)} y={h - 20} width={5} height={14} rx={0.6} fill={String(color)} />
+      ))}
+      <rect x={47} y={h - 20} width={6} height={14} rx={0.6} fill="#ef3f3e" />
+      <rect x={54} y={h - 20} width={6} height={14} rx={0.6} fill="#2a2a2b" stroke="#6d6e71" strokeWidth={0.4} />
+      <text x={24} y={h - 23.5} textAnchor="middle" fontSize={2.8} fill={label}>CAN  H L H L</text>
+      <text x={53.5} y={h - 23.5} textAnchor="middle" fontSize={2.8} fill={label}>POWER + −</text>
+    </g>
+  );
+}
+
 export default function PneumaticArtwork({ def }: { def: PartDef }) {
   if (def.cylinder) return <CylinderArtwork def={def} />;
   const { w, h: height } = def;
@@ -343,6 +423,8 @@ export default function PneumaticArtwork({ def }: { def: PartDef }) {
     case 'double-solenoid': return <DoubleSolenoid def={def} />;
     case 'manifold-solenoid': return <ManifoldValve def={def} />;
     case 'tee': return <Tee def={def} />;
+    case 'ph':
+    case 'pcm': return <Controller def={def} />;
     default: return null;
   }
 }

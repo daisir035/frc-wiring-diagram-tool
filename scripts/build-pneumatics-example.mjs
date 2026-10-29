@@ -101,16 +101,17 @@ note(1130, 250, 180, 92, '分立阀与阀岛', '分立阀自带接口，用三�
 
 // ---------- 气动控制 ----------
 section(370, 340, 330, 240, '气动控制');
-placeBox('ph', 'ph', 470, 360, { customName: '气动控制器', caption: 'REV-11-1852 · CTRE PCM 可替代', labelPos: 'bottom' });
+placeBox('ph', 'ph', 470, 360, { customName: '气动控制器', caption: 'REV-11-1852 · 可换 CTRE PCM', labelPos: 'bottom' });
 pair(['comp', 'power'], ['ph', 'compressor'], 18, 'x330');
 // Switch leads cross over to the opposite PH pins so the two never cross; a switch has no polarity.
-wire(['ps', 'switch'], ['ph', 'switchReturn'], '#e8262c', 22, 'y290 x446');
-wire(['ps', 'return'], ['ph', 'switch'], '#231f20', 22, 'y298 x452');
-// Cables from above take the upper channels, nearest riser first; cables from below the lower ones.
-pair(['mfold', 'coilA'], ['ph', 'sol0'], 22, 'x1110 y225 x608');
-pair(['ssol', 'coilA'], ['ph', 'sol1'], 22, 'x1060 y240 x622');
-pair(['dsol', 'coilB'], ['ph', 'sol2'], 22, 'x840 y415 x655');
-pair(['dsol', 'coilA'], ['ph', 'sol3'], 22, 'x640');
+wire(['ps', 'switch'], ['ph', 'switchReturn'], '#e8262c', 22, 'y300 x570');
+wire(['ps', 'return'], ['ph', 'switch'], '#231f20', 22, 'y294 x564');
+// Right column runs 7 → 0 top to bottom. Cables dropping from above take the upper rows, nearest riser
+// first; the double valve's left coil comes in underneath everything.
+pair(['mfold', 'coilA'], ['ph', 'sol3'], 22, 'x1110 y225 x608');
+pair(['ssol', 'coilA'], ['ph', 'sol2'], 22, 'x1060 y240 x622');
+pair(['dsol', 'coilB'], ['ph', 'sol1'], 22, 'x840 y415 x655');
+pair(['dsol', 'coilA'], ['ph', 'sol0'], 22, 'x690');
 
 annotations.push({ id: 'title', kind: 'title', x: 20, y: 600, w: 1300, h: 110, title: 'FRC 气动系统', body: 'TEAM 0000 · 2026' });
 

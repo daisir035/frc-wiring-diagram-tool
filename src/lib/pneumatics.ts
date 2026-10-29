@@ -106,15 +106,41 @@ export function cylinderBores() {
   return [...bores.entries()].sort((a, b) => a[0] - b[0]).map(([boreMm, options]) => ({ boreMm, options }));
 }
 
-function controller(id: 'ph' | 'pcm', name: string, channels: number): PartDef {
-  const ports = [...power('vin', '电源输入', 0, 0.1), port('canH', 'CAN H', 0, 0.35, 'canH'), port('canL', 'CAN L', 0, 0.43, 'canL'),
-    ...power('compressor', '压缩机', 0, 0.62), port('switch', '压力开关', 0, 0.83, 'signal'), port('switchReturn', '压力开关回线', 0, 0.91, 'signal')];
-  for (let i = 0; i < channels; i++) {
-    ports.push(...power(`sol${i}`, `电磁阀 ${i}`, 1, 0.03 + (i * 2) * 0.94 / (channels * 2), 'right', 0.94 / (channels * 2)));
+/**
+ * Pneumatics controller drawn as a vector board, 74 × 180 mm, with terminals where the real PH has them:
+ * compressor top left, pressure switch top right, solenoid channels 8–15 down the left edge and 7–0 down
+ * the right edge, CAN and power along the bottom. The PCM uses the right column for its 8 channels.
+ */
+export const CONTROLLER = { w: 74, h: 180, bankTop: 58, row: 7.6, pin: 1.7 };
+
+/** Channel row centre (mm) and edge, shared by the artwork and the ports. */
+export function controllerChannel(channel: number, channels: number) {
+  const left = channels > 8 && channel >= 8;
+  const index = left ? channel - 8 : 7 - channel;
+  return { left, y: CONTROLLER.bankTop + (index + 0.5) * CONTROLLER.row };
+}
+
+function controller(id: 'ph' | 'pcm', name: string, channels: number, caption: string): PartDef {
+  const { w, h, pin } = CONTROLLER;
+  const at = (x: number, y: number) => [x / w, y / h] as const;
+  const ports = [
+    port('compressor+', '空压机 +', ...at(0, 30 - pin), 'pwr+', 'left'),
+    port('compressor-', '空压机 −', ...at(0, 30 + pin), 'pwr-', 'left'),
+    port('switch', '压力开关', ...at(w, 26 - pin), 'signal', 'right'),
+    port('switchReturn', '压力开关回线', ...at(w, 26 + pin), 'signal', 'right'),
+    port('canH', 'CAN H', ...at(15, h), 'canH', 'bottom'),
+    port('canL', 'CAN L', ...at(21, h), 'canL', 'bottom'),
+    port('vin+', '电源输入 +', ...at(50, h), 'pwr+', 'bottom'),
+    port('vin-', '电源输入 −', ...at(57, h), 'pwr-', 'bottom'),
+  ];
+  for (let channel = 0; channel < channels; channel++) {
+    const { left, y } = controllerChannel(channel, channels);
+    const side = left ? 'left' : 'right';
+    ports.push(port(`sol${channel}+`, `电磁阀 ${channel} +`, ...at(left ? 0 : w, y - pin), 'pwr+', side),
+      port(`sol${channel}-`, `电磁阀 ${channel} −`, ...at(left ? 0 : w, y + pin), 'pwr-', side));
   }
   return {
-    id, name, category: '气动', w: 110, h: 150, displayWidth: 110, ports, visual: 'image',
-    img: id === 'ph' ? 'pneumatic-ph.png' : 'pneumatic-pcm.png',
+    id, name, category: '气动', w, h, displayWidth: w, ports, visual: 'vector', art: id, caption,
     docsUrl: id === 'ph' ? 'https://docs.revrobotics.com/rev-11-1852' : 'https://docs.ctr-electronics.com/',
   };
 }
@@ -144,6 +170,6 @@ export const PNEUMATIC_PARTS: PartDef[] = [
   { ...vectorPart('tee', '三通接头', { w: 16, h: 26 }, '1/4 in 推入式三通', [
     port('in', '口 1', 0.55, 0), port('out', '口 2', 0.55, 1), port('branch', '口 3', 0, 0.5)]), hideLabel: true },
   ...CYLINDER_PARTS,
-  controller('ph', 'REV Pneumatic Hub', 16),
-  controller('pcm', 'CTRE PCM', 8),
+  controller('ph', 'REV Pneumatic Hub', 16, 'REV-11-1852 · 16 路电磁阀'),
+  controller('pcm', 'CTRE PCM', 8, 'CTRE 14-806777 · 8 路电磁阀'),
 ];

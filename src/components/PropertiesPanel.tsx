@@ -192,6 +192,27 @@ export default function PropertiesPanel({ part, def, onPartChange, onFuseChange,
               placeholder="例如：M1、左前、CAN ID 3"
             />
           </label>
+          <label className="mt-2 block">
+            <span className="mb-1 block text-[10px] font-medium text-slate-500">说明文字（标签第二行，可换行）</span>
+            <textarea
+              value={part.caption ?? def.caption ?? ''}
+              rows={2}
+              onChange={(event) => onPartChange({ caption: event.target.value === (def.caption ?? '') ? undefined : event.target.value })}
+              className="w-full resize-y rounded border border-slate-200 px-2 py-1.5 text-xs leading-4 text-slate-700 outline-none focus:border-sky-400"
+              placeholder="例如：Viair 90C 示意 / 必须装在机器人上"
+            />
+          </label>
+          <div className="mt-2">
+            <span className="mb-1 block text-[10px] font-medium text-slate-500">标签位置（也可在画布上直接拖动标签）</span>
+            <div className="grid grid-cols-5 gap-1">
+              {([['bottom', '下'], ['right', '右'], ['left', '左'], ['top', '上'], ['none', '隐藏']] as const).map(([value, label]) => (
+                <button key={value} type="button" onClick={() => onPartChange({ labelPos: value === 'bottom' ? undefined : value, labelOffset: undefined })}
+                  className={`h-7 rounded border text-[11px] ${(part.labelPos ?? 'bottom') === value ? 'border-sky-500 bg-sky-50 text-sky-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
         </section>
 
         <section className="border-b border-slate-100 py-3">

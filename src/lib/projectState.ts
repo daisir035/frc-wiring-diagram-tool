@@ -1,3 +1,4 @@
+import type { Annotation } from './annotations.ts';
 import {
   BUILTIN_PARTS,
   FUSE_RATINGS,
@@ -22,6 +23,8 @@ export interface ProjectState {
   parts: PlacedPart[];
   wires: Wire[];
   backgroundImage?: CanvasBackground;
+  /** Section frames, notes and the title block; absent in older files. */
+  annotations?: Annotation[];
   view: ViewTransform;
 }
 
@@ -221,6 +224,13 @@ function validatePlacedPart(value: unknown, path: string, defs: ReadonlyMap<stri
   if (!def) fail(`${path}.partId`, `缺少器件定义「${partId}」，请恢复该自定义器件后重试`);
   member(source.rot, [0, 90, 180, 270], `${path}.rot`);
   optional(source, 'customName', path, text);
+  optional(source, 'caption', path, text);
+  optional(source, 'labelOffset', path, (value, path) => {
+    const offset = record(value, path);
+    number(offset.x, `${path}.x`, -100000, 100000);
+    number(offset.y, `${path}.y`, -100000, 100000);
+  });
+  optional(source, 'labelPos', path, (v, p) => member(v, ['bottom', 'right', 'left', 'top', 'none'], p));
   optional(source, 'deviceId', path, text);
   optional(source, 'locked', path, boolean);
   optional(source, 'sizeMm', path, (value, path) => {
@@ -276,7 +286,7 @@ function validateWire(value: unknown, path: string): Wire {
   optional(source, 'terminalA', path, terminal);
   optional(source, 'terminalB', path, terminal);
   optional(source, 'tubeOdMm', path, (v, p) => number(v, p, 0.1, 100));
-  optional(source, 'pressureSide', path, (v, p) => member(v, ['high', 'working'], p));
+  optional(source, 'pressureSide', path, (v, p) => member(v, ['high', 'working', 'secondary'], p));
   optional(source, 'pathMode', path, (v, p) => member(v, ['orthogonal', 'free', 'smooth'], p));
   optional(source, 'cornerRadius', path, (v, p) => number(v, p, 0, 1000));
   optional(source, 'routingStyle', path, (value, path) => member(value, ['standard', 'drag-chain', 'conduit'], path));
@@ -317,6 +327,22 @@ function validateBackground(value: unknown, path: string): CanvasBackground {
   fraction(source.opacity, `${path}.opacity`);
   optional(source, 'calibratedWidthMm', path, (value, path) => dimension(value, path, 10000));
   return { ...source } as unknown as CanvasBackground;
+}
+
+function validateAnnotations(value: unknown, path: string): Annotation[] {
+  const ids = new Set<string>();
+  return list(value, path, 10000).map((item, index) => {
+    const itemPath = `${path}[${index}]`;
+    const source = point(item, itemPath);
+    unique(identifier(source.id, `${itemPath}.id`), ids, `${itemPath}.id`);
+    member(source.kind, ['section', 'note', 'title'], `${itemPath}.kind`);
+    dimension(source.w, `${itemPath}.w`);
+    dimension(source.h, `${itemPath}.h`);
+    optional(source, 'title', itemPath, text);
+    optional(source, 'body', itemPath, text);
+    optional(source, 'framed', itemPath, boolean);
+    return { ...source } as unknown as Annotation;
+  });
 }
 
 function validateView(value: unknown, path: string): ViewTransform {
@@ -407,6 +433,7 @@ export function parseSavedState(value: unknown): SavedState {
       parts,
       wires: anchorWireBundles(wires, parts, defs),
       backgroundImage: page.backgroundImage === undefined ? undefined : validateBackground(page.backgroundImage, `${path}.backgroundImage`),
+      ...(page.annotations === undefined ? {} : { annotations: validateAnnotations(page.annotations, `${path}.annotations`) }),
       view: page.view === undefined ? { ...DEFAULT_VIEW } : validateView(page.view, `${path}.view`),
     };
   };

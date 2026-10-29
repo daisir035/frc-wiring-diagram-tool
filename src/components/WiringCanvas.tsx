@@ -32,7 +32,12 @@ import {
   wirePath,
   PORT_TYPE_COLOR,
 } from '../lib/wiring';
+import { PRESSURE_SIDES, pneumaticPressureSides } from '../lib/pneumaticZones';
 import PartArtwork from './PartArtwork';
+import AnnotationLayer from './AnnotationLayer';
+import type { LegendContent } from './AnnotationLayer';
+import { ANNOTATION_MIN } from '../lib/annotations';
+import type { Annotation } from '../lib/annotations';
 import InlineConnectorMarker from './InlineConnectorMarker';
 import CableConductors from './CableConductors';
 import { cablePolarity } from '../lib/cableGeometry';
@@ -69,6 +74,13 @@ interface Props {
   onInteractionStart?: () => void;
   onInteractionEnd?: () => void;
   keyboardShortcutsDisabled?: boolean;
+  onPartLabelOffset: (uid: string, offset?: { x: number; y: number }) => void;
+  annotations: Annotation[];
+  selectedAnnotationId: string | null;
+  onAnnotationSelect: (id: string | null) => void;
+  onAnnotationChange: (id: string, patch: Partial<Annotation>) => void;
+  /** Print look: no grid, no port dots, flat wires. */
+  posterMode?: boolean;
 }
 
 type DragMode =
@@ -81,7 +93,9 @@ type DragMode =
   | { kind: 'bundle-endpoint'; wireId: string; endpoint: 'entry' | 'exit'; endpoints: NonNullable<Wire['bundleEndpoints']>; offsetX: number; offsetY: number }
   | { kind: 'wire-waypoint'; wireId: string; waypointId: string }
   /** Pressing a free route's body; becomes a new guide once the pointer moves. */
-  | { kind: 'wire-bend'; wireId: string; startX: number; startY: number; world: { x: number; y: number }; trunk?: boolean };
+  | { kind: 'wire-bend'; wireId: string; startX: number; startY: number; world: { x: number; y: number }; trunk?: boolean }
+  | { kind: 'label'; uid: string; start: { x: number; y: number }; origin: { x: number; y: number } }
+  | { kind: 'annotation'; id: string; mode: 'move' | 'resize'; start: { x: number; y: number }; origin: Annotation };
 
 interface SelectionRect {
   x: number;
@@ -242,6 +256,53 @@ function WireTerminalMarker({ port, type, color, centered = false }: { port: Wor
   );
 }
 
+/** Wraps by display width, counting CJK characters double; model numbers and words are not split. */
+function wrapCaption(text: string, columns: number) {
+  const lines: string[] = [];
+  const widthOf = (token: string) => [...token].reduce((sum, char) => sum + (/[\u2e80-\uffff]/.test(char) ? 2 : 1), 0);
+  for (const paragraph of text.split('\n')) {
+    let line = '';
+    for (const token of paragraph.match(/[\u2e80-\uffff]|[^\s\u2e80-\uffff]+|\s+/g) ?? ['']) {
+      if (line.trim() && widthOf(line + token) > columns) {
+        lines.push(line.trimEnd());
+        line = token.trimStart();
+      } else line += token;
+    }
+    lines.push(line.trimEnd());
+  }
+  return lines;
+}
+
+/** Diagram label in the poster style: bold name, then grey caption lines (model shown, notes). */
+function PartLabel({ w, h, rot, position, title, caption, locked, offset, onPointerDown }: {
+  w: number; h: number; rot: number; position: Exclude<PlacedPart['labelPos'], 'none' | undefined>; title: string; caption: string; locked: boolean;
+  offset?: { x: number; y: number }; onPointerDown: (event: React.PointerEvent<SVGGElement>) => void;
+}) {
+  const turned = rot === 90 || rot === 270;
+  const vw = turned ? h : w;
+  const vh = turned ? w : h;
+  const left = w / 2 - vw / 2;
+  const top = h / 2 - vh / 2;
+  const side = position === 'left' || position === 'right';
+  const lines = caption ? wrapCaption(caption, side ? 22 : Math.max(24, Math.round(vw / 2.6))) : [];
+  const titleSize = 11;
+  const captionSize = 8.6;
+  const blockHeight = titleSize + lines.length * captionSize * 1.3;
+  const anchor = side ? (position === 'right' ? 'start' : 'end') : 'middle';
+  const x = position === 'right' ? left + vw + 8 : position === 'left' ? left - 8 : w / 2;
+  const y = position === 'bottom' ? top + vh + 14 : position === 'top' ? top - 6 - blockHeight + titleSize : top + vh / 2 - blockHeight / 2 + titleSize * 0.8;
+  return (
+    <g transform={offset ? `translate(${offset.x} ${offset.y})` : undefined} style={{ userSelect: 'none', cursor: locked ? 'default' : 'move' }}
+      fontFamily="'Saira Semi Condensed', 'Barlow Semi Condensed', 'Noto Sans SC', sans-serif" onPointerDown={onPointerDown}>
+      <title>拖动标签调整位置</title>
+      <text x={x} y={y} textAnchor={anchor} fontSize={titleSize} fontWeight={700} fill={locked ? '#92400e' : '#4c4d4f'}>{title}</text>
+      {lines.map((line, index) => (
+        <text key={index} x={x} y={y + (index + 1) * captionSize * 1.3} textAnchor={anchor} fontSize={captionSize} fill="#6d6e71">{line}</text>
+      ))}
+    </g>
+  );
+}
+
 export default function WiringCanvas(props: Props) {
   const {
     backgroundImage,
@@ -267,6 +328,12 @@ export default function WiringCanvas(props: Props) {
     onInlinePlacementComplete,
     onWireWaypointChange,
     onAddWireGuide,
+    onPartLabelOffset,
+    annotations,
+    selectedAnnotationId,
+    onAnnotationSelect,
+    onAnnotationChange,
+    posterMode = false,
     onPortClick,
     onFuseClick,
     onBackgroundClick,
@@ -298,6 +365,25 @@ export default function WiringCanvas(props: Props) {
   const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
 
+  const pressureSides = useMemo(() => pneumaticPressureSides(parts, wires, partDefs), [parts, wires, partDefs]);
+  const legend = useMemo<LegendContent>(() => {
+    const used = new Set(pressureSides.values());
+    const electrical = wires.filter((wire) => !pressureSides.has(wire.id) && !wire.tubeOdMm);
+    return {
+      sides: (['high', 'working', 'secondary'] as const).filter((side) => used.has(side)),
+      gauges: [...new Set(electrical.flatMap((wire) => wire.awg ? [wire.awg] : []))].sort((a, b) => a - b).slice(0, 3),
+      power: electrical.length > 0,
+    };
+  }, [pressureSides, wires]);
+  const startAnnotationDrag = (event: React.PointerEvent<SVGElement>, id: string, mode: 'move' | 'resize') => {
+    if (event.button !== 0 || spaceRef.current || pendingFrom) return;
+    const origin = annotations.find((item) => item.id === id);
+    if (!origin) return;
+    event.stopPropagation();
+    onAnnotationSelect(id);
+    (event.currentTarget.ownerSVGElement as Element | null)?.setPointerCapture?.(event.pointerId);
+    dragRef.current = { kind: 'annotation', id, mode, start: toWorld(event.clientX, event.clientY), origin };
+  };
   const connectedPorts = useMemo(() => {
     const connected = new Set(wires.flatMap((wire) => [wire.a, wire.b].map((end) => `${end.uid}:${end.portId}`)));
     // Hard fittings: two air ports screwed together count as connected without a tube.
@@ -564,6 +650,22 @@ export default function WiringCanvas(props: Props) {
         w: Math.abs(w.x - d.startWx),
         h: Math.abs(w.y - d.startWy),
       });
+    } else if (d.kind === 'label') {
+      const point = toWorld(e.clientX, e.clientY);
+      const x = Math.round(d.origin.x + point.x - d.start.x);
+      const y = Math.round(d.origin.y + point.y - d.start.y);
+      beginInteraction();
+      onPartLabelOffset(d.uid, x || y ? { x, y } : undefined);
+    } else if (d.kind === 'annotation') {
+      const point = toWorld(e.clientX, e.clientY);
+      const dx = Math.round((point.x - d.start.x) / 2) * 2;
+      const dy = Math.round((point.y - d.start.y) / 2) * 2;
+      if (!dx && !dy) return;
+      beginInteraction();
+      const min = ANNOTATION_MIN[d.origin.kind];
+      onAnnotationChange(d.id, d.mode === 'move'
+        ? { x: d.origin.x + dx, y: d.origin.y + dy }
+        : { w: Math.max(min.w, d.origin.w + dx), h: Math.max(min.h, d.origin.h + dy) });
     } else if (d.kind === 'wire-bend') {
       if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < 4) return;
       beginInteraction();
@@ -704,8 +806,8 @@ export default function WiringCanvas(props: Props) {
       ref={containerRef}
       className="absolute inset-0 overflow-hidden select-none"
       style={{
-        background: '#f1f5f9',
-        backgroundImage: 'radial-gradient(circle, #cbd5e1 1.2px, transparent 1.2px)',
+        background: posterMode ? '#ffffff' : '#f1f5f9',
+        backgroundImage: posterMode ? 'none' : 'radial-gradient(circle, #cbd5e1 1.2px, transparent 1.2px)',
         backgroundSize: '26px 26px',
         cursor: pendingFrom || pendingInlineWireId ? 'crosshair' : 'default',
       }}
@@ -743,6 +845,8 @@ export default function WiringCanvas(props: Props) {
               <title>{`底盘俯视图：${backgroundImage.name}`}</title>
             </image>
           )}
+
+          <AnnotationLayer annotations={annotations} selectedId={selectedAnnotationId} legend={legend} k={view.k} onPointerDown={startAnnotationDrag} />
 
           {/* 拖链 / 束线管外套：每组只绘制一条细主干，彩色线在两端汇聚与散开 */}
           {geometry.bundles.map((visual) => {
@@ -831,12 +935,11 @@ export default function WiringCanvas(props: Props) {
                 ))}
                 {visiblePaths.map((segment, index) => (
                   <g key={'wire-segment-' + index} style={{ pointerEvents: 'none' }}>
-                    {tube ? <>
-                      <path d={segment} fill="none" stroke="#14532d" strokeOpacity={0.55} strokeWidth={tubeWidth + 1.2} strokeLinejoin="round" />
-                      <path d={segment} fill="none" stroke={wire.color} strokeWidth={tubeWidth} strokeLinejoin="round" />
-                    </> : cable ? <CableConductors radius={editorWire.cornerRadius} points={route.visiblePoints[index]} colors={[wire.color, cable[1].color]} twisted={commonType === 'canH'}
+                    {tube ? (
+                      <path d={segment} fill="none" stroke={PRESSURE_SIDES[pressureSides.get(wire.id) ?? 'working'].color} strokeWidth={tubeWidth} strokeLinejoin="round" />
+                    ) : cable ? <CableConductors radius={editorWire.cornerRadius} points={route.visiblePoints[index]} colors={[wire.color, cable[1].color]} twisted={commonType === 'canH'}
                       polarity={cableVisuals.get(wire.id)?.polarity} {...cableVisuals.get(wire.id)?.segments[index]} /> : <>
-                    <path
+                    {!posterMode && <path
                       d={segment}
                       fill="none"
                       stroke="#ffffff"
@@ -844,12 +947,12 @@ export default function WiringCanvas(props: Props) {
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       opacity={0.92}
-                    />
+                    />}
                     <path
                       d={segment}
                       fill="none"
                       stroke={wire.color}
-                      strokeWidth={3.5}
+                      strokeWidth={posterMode ? 2.4 : 3.5}
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     />
@@ -1011,7 +1114,7 @@ export default function WiringCanvas(props: Props) {
             const { w, h } = partSize(def, part);
             const sel = selectedParts.has(part.uid);
             const displayLabel = [part.customName?.trim() || def.name, part.deviceId?.trim()].filter(Boolean).join(' · ');
-            const showLabel = !def.hideLabel || Boolean(part.customName?.trim() || part.deviceId?.trim());
+            const showLabel = part.labelPos !== 'none' && (!def.hideLabel || Boolean(part.customName?.trim() || part.deviceId?.trim()));
             const pdhChannels = motorPdhChannels.get(part.uid) ?? [];
             const pdhLabel = pdhChannels.length > 0 ? `PDH CH ${pdhChannels.join(' / ')}` : '';
             const pdhLabelWidth = Math.max(64, pdhLabel.length * 6 + 16);
@@ -1076,7 +1179,7 @@ export default function WiringCanvas(props: Props) {
                             <stop offset="50%" stopColor={PORT_TYPE_COLOR[paired!.type]} />
                           </linearGradient>
                         </defs>}
-                        {port.type === 'air' && !isPending ? (
+                        {posterMode && !isPending ? null : port.type === 'air' && !isPending ? (
                           // Push-to-connect fittings are in the artwork; only open ones get a ring.
                           !connectedPorts.has(`${part.uid}:${port.id}`) && <circle cx={port.x * w} cy={port.y * h} r={3.2}
                             fill="#ffffff" stroke={PORT_TYPE_COLOR.air} strokeWidth={1.6} pointerEvents="none" />
@@ -1126,17 +1229,15 @@ export default function WiringCanvas(props: Props) {
                     <title>器件已锁定</title>
                   </g>
                 )}
-                {showLabel && <text
-                  x={w / 2}
-                  y={h + 16}
-                  textAnchor="middle"
-                  fontSize={12}
-                  fill={part.locked ? '#92400e' : '#475569'}
-                  fontWeight={500}
-                  style={{ pointerEvents: 'none', userSelect: 'none' }}
-                >
-                  {displayLabel}
-                </text>}
+                {showLabel && <PartLabel w={w} h={h} rot={part.rot} position={part.labelPos === 'none' ? 'bottom' : part.labelPos ?? 'bottom'} title={displayLabel}
+                  caption={part.caption ?? def.caption ?? ''} locked={Boolean(part.locked)} offset={part.labelOffset}
+                  onPointerDown={(event) => {
+                    if (event.button !== 0 || spaceRef.current || pendingFrom || part.locked) return;
+                    event.stopPropagation();
+                    onPartClick(part.uid, false);
+                    (event.currentTarget.ownerSVGElement as Element | null)?.setPointerCapture?.(event.pointerId);
+                    dragRef.current = { kind: 'label', uid: part.uid, start: toWorld(event.clientX, event.clientY), origin: part.labelOffset ?? { x: 0, y: 0 } };
+                  }} />}
                 {pdhLabel && (
                   <g
                     transform={`translate(${w / 2} ${h + 24})`}

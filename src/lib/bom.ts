@@ -3,6 +3,7 @@ import {
   cablePort, cableInlineConnectors, defaultTerminalForPort, pairedWireGroups, partDimensions, partSize, portWorld,
   routeLength, wireEngineeringIssues, wireRoutingLane,
 } from './wiring.ts';
+import { PRESSURE_SIDES, pneumaticPressureSides } from './pneumaticZones.ts';
 import type { CanvasBackground, PartDef, PlacedPart, ViewTransform, Wire, WireEnd, WireTerminalType } from './wiring.ts';
 
 export interface BomPage {
@@ -148,6 +149,7 @@ export function buildBom(project: string, pages: BomPage[], defs: ReadonlyMap<st
     };
     const handledEditors = new Set<string>();
     const handledInlineCables = new Set<string>();
+    const pressureSides = pneumaticPressureSides(page.parts, page.wires, defs);
     for (const wire of page.wires) {
       const cable = cables.get(wire.id);
       const cableId = cable?.[0].id ?? wire.id;
@@ -175,8 +177,9 @@ export function buildBom(project: string, pages: BomPage[], defs: ReadonlyMap<st
       const lengthM = length !== null && Number.isFinite(length) ? length : null;
       const stockM = lengthM === null ? null : estimateStockLength(lengthM, options);
       if (context(wire.a).port?.type === 'air') {
-        const specification = `外径 ${wire.tubeOdMm ?? 6.35} mm · ${wire.pressureSide === 'high' ? '高压侧' : '工作侧'}`;
-        const itemKey = keyOf('tube', specification, wire.color);
+        const side = pressureSides.get(wire.id);
+        const specification = `外径 ${wire.tubeOdMm ?? 6.35} mm${side ? ` · ${PRESSURE_SIDES[side].label}` : ''}`;
+        const itemKey = keyOf('tube', specification);
         add({key:itemKey, category:'气管', name:'气动管', specification, quantity:stockM, unit:'m', pages:[pageName], notes:['平面中心线估算含预留；实际压力等级需核对'], source:''});
         report.lines.push({page:pageName,id:wire.id,cableId:'',from:endName(wire.a),to:endName(wire.b),kind:'气管',color:wire.color,awg:null,lengthM,stockM,terminalA:'',terminalB:'',notes:specification,itemKey});
         continue;

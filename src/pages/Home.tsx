@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SetStateAction } from 'react';
-import { CircuitBoard, ClipboardPaste, Copy, Download, Eraser, FileSpreadsheet, FolderOpen, GitMerge, ImageOff, ImagePlus, Lock, Maximize, Pencil, Plus, PanelLeft, RotateCw, Redo2, Save, Settings2, Trash2, Undo2, Unlock, Zap } from 'lucide-react';
+import { CircuitBoard, ClipboardPaste, Copy, Download, Eraser, FileSpreadsheet, FolderOpen, GitMerge, ImageOff, ImagePlus, Lock, Maximize, PanelBottom, Pencil, Plus, PanelLeft, Presentation, SquareDashed, StickyNote, RotateCw, Redo2, Save, Settings2, Trash2, Undo2, Unlock, Zap } from 'lucide-react';
 import WiringCanvas from '../components/WiringCanvas';
 import LibraryPanel from '../components/LibraryPanel';
 import CustomBoardModal from '../components/CustomBoardModal';
 import PropertiesPanel from '../components/PropertiesPanel';
 import WirePropertiesPanel from '../components/WirePropertiesPanel';
 import WireBundlePanel from '../components/WireBundlePanel';
+import AnnotationPanel from '../components/AnnotationPanel';
+import { ANNOTATION_DEFAULTS } from '../lib/annotations';
+import type { Annotation, AnnotationKind } from '../lib/annotations';
 import BomExportSettings from '../components/BomExportSettings';
 import { buildBom, calibrateBomPage, DEFAULT_BOM_OPTIONS, validateBomOptions } from '../lib/bom';
 import type { BomOptions } from '../lib/bom';
@@ -23,6 +26,7 @@ import type {
   WireWaypoint,
   ViewTransform,
 } from '../lib/wiring';
+import { pneumaticPressureSides } from '../lib/pneumaticZones';
 import {
   BUILTIN_PARTS,
   allowedFuseRatings,
@@ -231,6 +235,11 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
     ...project,
     wires: typeof action === 'function' ? action(project.wires) : action,
   }));
+  const annotations = activeProject.annotations ?? [];
+  const setAnnotations = (action: SetStateAction<Annotation[]>) => updateActiveProject((project) => ({
+    ...project,
+    annotations: typeof action === 'function' ? action(project.annotations ?? []) : action,
+  }));
   const setBackgroundImage = (action: SetStateAction<CanvasBackground | undefined>) => updateActiveProject((project) => ({
     ...project,
     backgroundImage: typeof action === 'function' ? action(project.backgroundImage) : action,
@@ -243,6 +252,14 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
   const [selectedParts, setSelectedParts] = useState<Set<string>>(new Set());
   const [selectedWires, setSelectedWires] = useState<Set<string>>(new Set());
   const [pendingFrom, setPendingFrom] = useState<WireEnd | null>(null);
+  const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
+  const [posterMode, setPosterMode] = useState(() => {
+    try { return localStorage.getItem('wiresheet.posterMode') === '1'; } catch { return false; }
+  });
+  const togglePosterMode = () => setPosterMode((current) => {
+    try { localStorage.setItem('wiresheet.posterMode', current ? '0' : '1'); } catch { /* per-viewer convenience only */ }
+    return !current;
+  });
   const [pendingInlineWireId, setPendingInlineWireId] = useState<string | null>(null);
   const [inlineKind, setInlineKind] = useState<InlineConnectorKind>('terminal2x2');
   const [clipboard, setClipboard] = useState<WorkspaceClipboard | null>(null);
@@ -864,6 +881,26 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
     return { wireId: editId, waypointId: guideId };
   };
 
+  // Only shown while no part or wire is selected, so the panels never compete.
+  const selectedAnnotation = selectedParts.size === 0 && selectedWires.size === 0
+    ? annotations.find((item) => item.id === selectedAnnotationId) : undefined;
+  const addAnnotation = (kind: AnnotationKind) => {
+    const svg = svgRef.current;
+    const width = svg?.clientWidth ?? 1000;
+    const height = svg?.clientHeight ?? 700;
+    const defaults = ANNOTATION_DEFAULTS[kind];
+    const center = { x: (width / 2 - view.x) / view.k, y: (height / 2 - view.y) / view.k };
+    const annotation: Annotation = { ...defaults, id: uid(), x: Math.round(center.x - defaults.w / 2), y: Math.round(center.y - defaults.h / 2) };
+    setAnnotations((current) => [...current, annotation]);
+    setSelectedParts(new Set());
+    setSelectedWires(new Set());
+    setSelectedAnnotationId(annotation.id);
+  };
+  const deleteAnnotation = (id: string) => {
+    setAnnotations((current) => current.filter((item) => item.id !== id));
+    setSelectedAnnotationId(null);
+  };
+
   const changeWireWaypointTerminal = (wireId: string, waypointId: string, terminal: WireTerminalType) => {
     applyWaypointsToWireGroup(wireId, (waypoints) => waypoints.map((waypoint) =>
       waypoint.id === waypointId ? { ...waypoint, terminal } : waypoint,
@@ -1122,7 +1159,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
       canvas.width = Math.round(vbW * scale);
       canvas.height = Math.round(vbH * scale);
       const ctx = canvas.getContext('2d')!;
-      ctx.fillStyle = '#f8fafc';
+      ctx.fillStyle = posterMode ? '#ffffff' : '#f8fafc';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       URL.revokeObjectURL(url);
@@ -1169,7 +1206,8 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
         }
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
-        deleteSelection();
+        if (selectedAnnotation) deleteAnnotation(selectedAnnotation.id);
+        else deleteSelection();
       } else if (e.key === 'Escape') {
         if (pendingInlineWireId) setPendingInlineWireId(null);
         else if (pendingFrom) setPendingFrom(null);
@@ -1324,6 +1362,22 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
           try { const response = await fetch(`${import.meta.env.BASE_URL}examples/frc-pneumatics.frcwire`); if (!response.ok) throw new Error('示例下载失败'); await openSourceFile(new File([await response.text()], 'FRC 气动示例.frcwire')); }
           catch (error) { setNotice(error instanceof Error ? error.message : '示例加载失败'); }
         }} title="添加完整气动系统示例工程">气动示例</ToolBtn>
+        <ToolBtn onClick={() => addAnnotation('section')} title="添加虚线分区框，用来划分空压储气、调压、控制等区域">
+          <SquareDashed className="h-3.5 w-3.5" aria-hidden="true" />
+          分区
+        </ToolBtn>
+        <ToolBtn onClick={() => addAnnotation('note')} title="添加说明文字块">
+          <StickyNote className="h-3.5 w-3.5" aria-hidden="true" />
+          说明
+        </ToolBtn>
+        <ToolBtn onClick={() => addAnnotation('title')} disabled={annotations.some((item) => item.kind === 'title')} title="添加标题栏与自动图例（每页一个）">
+          <PanelBottom className="h-3.5 w-3.5" aria-hidden="true" />
+          标题栏
+        </ToolBtn>
+        <ToolBtn onClick={togglePosterMode} active={posterMode} title="出图模式：隐藏网格和端口圆点，导线改为细实线，导出 PNG 即为海报效果">
+          <Presentation className="h-3.5 w-3.5" aria-hidden="true" />
+          出图模式
+        </ToolBtn>
         <ToolBtn onClick={clearAll} disabled={parts.length === 0 && wires.length === 0 && !backgroundImage}>
           <Eraser className="h-3.5 w-3.5" aria-hidden="true" />
           清空
@@ -1617,8 +1671,19 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
               else {
                 setSelectedParts(new Set());
                 setSelectedWires(new Set());
+                setSelectedAnnotationId(null);
               }
             }}
+            onPartLabelOffset={(uid, offset) => setParts((current) => current.map((part) => part.uid === uid ? { ...part, labelOffset: offset } : part))}
+            annotations={annotations}
+            selectedAnnotationId={selectedAnnotation?.id ?? null}
+            onAnnotationSelect={(id) => {
+              setSelectedParts(new Set());
+              setSelectedWires(new Set());
+              setSelectedAnnotationId(id);
+            }}
+            onAnnotationChange={(id, patch) => setAnnotations((current) => current.map((item) => item.id === id ? { ...item, ...patch } : item))}
+            posterMode={posterMode}
           />
         </div>
         {selectedWires.size > 1 && !selectedWire && (
@@ -1634,6 +1699,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
         )}
         {selectedWire && selectedWireRule && (
           <WirePropertiesPanel
+            pressureSide={pneumaticPressureSides(parts, wires, partDefs).get(selectedWire.id)}
             wire={selectedWire}
             cableSize={cables.get(selectedWire.id)?.length ?? 1}
             parts={parts}
@@ -1673,6 +1739,12 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
             onClearWaypoints={() => selectedWire && applyWaypointsToWireGroup(selectedWire.id, (points) => points.filter((point) => point.kind === 'guide'))}
             onClose={() => { setSelectedWires(new Set()); setPendingInlineWireId(null); }}
           />
+        )}
+        {selectedAnnotation && (
+          <AnnotationPanel annotation={selectedAnnotation}
+            onChange={(patch) => setAnnotations((current) => current.map((item) => item.id === selectedAnnotation.id ? { ...item, ...patch } : item))}
+            onDelete={() => deleteAnnotation(selectedAnnotation.id)}
+            onClose={() => setSelectedAnnotationId(null)} />
         )}
         {!selectedWire && selectedPart && selectedPartDef && (
           <PropertiesPanel

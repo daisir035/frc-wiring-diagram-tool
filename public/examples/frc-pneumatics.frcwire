@@ -10,184 +10,194 @@
     "pages": [
       {
         "id": "air-system",
-        "name": "气动回路与电磁阀控制",
+        "name": "气动系统",
         "parts": [
           {
             "uid": "comp",
             "partId": "pneumatic-compressor",
-            "x": 771.7,
-            "y": 68.6,
+            "x": 44,
+            "y": 93,
             "rot": 0,
-            "customName": "压缩机"
+            "labelPos": "bottom"
           },
           {
             "uid": "tee-c",
             "partId": "pneumatic-tee",
-            "x": 795.7,
-            "y": 61.7,
+            "x": 195,
+            "y": 96.2,
             "rot": 90
           },
           {
             "uid": "relief",
             "partId": "pneumatic-relief",
-            "x": 790.9,
-            "y": 15.2,
+            "x": 192,
+            "y": 49.2,
             "rot": 0,
-            "customName": "安全阀"
+            "labelPos": "right"
           },
           {
-            "uid": "tee-r",
-            "partId": "pneumatic-tee",
-            "x": 736.6,
-            "y": 175,
-            "rot": 0
-          },
-          {
-            "uid": "tee-t",
-            "partId": "pneumatic-tee",
-            "x": 739,
-            "y": 230,
-            "rot": 180
-          },
-          {
-            "uid": "tank",
+            "uid": "tank1",
             "partId": "pneumatic-tank",
-            "x": 761.4,
-            "y": 213.16,
+            "x": 42,
+            "y": 300,
             "rot": 0,
-            "customName": "储气罐"
+            "labelPos": "none"
           },
           {
-            "uid": "ps",
-            "partId": "pneumatic-pressure-switch",
-            "x": 676.6,
-            "y": 277.66,
+            "uid": "tank2",
+            "partId": "pneumatic-tank",
+            "x": 117,
+            "y": 300,
             "rot": 0,
-            "customName": "压力开关"
+            "labelPos": "none"
           },
           {
-            "uid": "tee-g",
+            "uid": "tank3",
+            "partId": "pneumatic-tank",
+            "x": 192,
+            "y": 300,
+            "rot": 0,
+            "labelPos": "right",
+            "customName": "储气罐",
+            "caption": "AVT-PP-35 × 3\n数量仅示意"
+          },
+          {
+            "uid": "tee-1",
             "partId": "pneumatic-tee",
-            "x": 640.3,
-            "y": 326.71,
-            "rot": 90
-          },
-          {
-            "uid": "gauge-s",
-            "partId": "pneumatic-gauge",
-            "x": 620.8,
-            "y": 285.61,
-            "rot": 0
-          },
-          {
-            "uid": "vent",
-            "partId": "pneumatic-vent",
-            "x": 584.2,
-            "y": 324.88,
-            "rot": 0,
-            "customName": "泄压阀"
+            "x": 405,
+            "y": 72.8,
+            "rot": 270
           },
           {
             "uid": "reg",
             "partId": "pneumatic-regulator",
-            "x": 597.46,
-            "y": 147.71,
+            "x": 450,
+            "y": 46.6,
             "rot": 0,
-            "customName": "主调压阀"
+            "customName": "主调压阀",
+            "labelPos": "bottom"
           },
           {
-            "uid": "tee-w1",
-            "partId": "pneumatic-tee",
-            "x": 638.4,
-            "y": 490.8,
-            "rot": 0
+            "uid": "ps",
+            "partId": "pneumatic-pressure-switch",
+            "x": 450,
+            "y": 205.9,
+            "rot": 0,
+            "labelPos": "left",
+            "caption": "REV-11-1107\n数字式；am-2006\n模拟式可选"
           },
           {
-            "uid": "tee-w2",
+            "uid": "tee-g",
             "partId": "pneumatic-tee",
-            "x": 640.79,
-            "y": 539,
+            "x": 489,
+            "y": 201.2,
+            "rot": 90
+          },
+          {
+            "uid": "gauge",
+            "partId": "pneumatic-gauge",
+            "x": 477,
+            "y": 150.2,
+            "rot": 0,
+            "customName": "储气压力表",
+            "labelPos": "right"
+          },
+          {
+            "uid": "vent",
+            "partId": "pneumatic-vent",
+            "x": 510,
+            "y": 199.4,
+            "rot": 0,
+            "labelPos": "right"
+          },
+          {
+            "uid": "tee-2",
+            "partId": "pneumatic-tee",
+            "x": 752.8,
+            "y": 150,
             "rot": 180
           },
           {
-            "uid": "reg-w1",
-            "partId": "pneumatic-regulator",
-            "x": 522.66,
-            "y": 437.31,
-            "rot": 0,
-            "customName": "调压阀（可选）"
+            "uid": "tee-3",
+            "partId": "pneumatic-tee",
+            "x": 752.8,
+            "y": 260,
+            "rot": 180
           },
           {
-            "uid": "dsol",
-            "partId": "pneumatic-double-solenoid",
-            "x": 382.26,
-            "y": 388.2,
-            "rot": 0,
-            "customName": "双电磁阀"
-          },
-          {
-            "uid": "msol",
+            "uid": "mfold",
             "partId": "pneumatic-manifold-solenoid",
-            "x": 383.4,
-            "y": 511.42,
+            "x": 988,
+            "y": 118.92,
             "rot": 0,
-            "customName": "阀岛电磁阀"
+            "labelPos": "top"
+          },
+          {
+            "uid": "pancake",
+            "partId": "am-4388",
+            "x": 819.55,
+            "y": 55.05,
+            "rot": 0,
+            "customName": "薄型气缸",
+            "labelPos": "bottom"
           },
           {
             "uid": "ssol",
             "partId": "pneumatic-single-solenoid",
-            "x": 471.77,
-            "y": 625.8,
+            "x": 952.8,
+            "y": 300,
             "rot": 0,
-            "customName": "单电磁阀"
-          },
-          {
-            "uid": "reg-w2",
-            "partId": "pneumatic-regulator",
-            "x": 329.46,
-            "y": 631.71,
-            "rot": 0,
-            "customName": "调压阀（可选）"
+            "labelPos": "left"
           },
           {
             "uid": "cyl1",
-            "partId": "am-2034_4",
-            "x": 37.54,
-            "y": 381.35,
+            "partId": "am-4229",
+            "x": 1002.22,
+            "y": 405.67,
             "rot": 0,
-            "customName": "气缸 · 3/4 × 4 in"
+            "customName": "单作用气缸",
+            "labelPos": "bottom"
+          },
+          {
+            "uid": "reg2",
+            "partId": "pneumatic-regulator",
+            "x": 731.4,
+            "y": 333,
+            "rot": 90,
+            "customName": "二级调压阀",
+            "caption": "可选：某个机构需要低于主工作压力时使用",
+            "labelPos": "right"
+          },
+          {
+            "uid": "dsol",
+            "partId": "pneumatic-double-solenoid",
+            "x": 705,
+            "y": 434,
+            "rot": 0,
+            "labelPos": "left",
+            "labelOffset": {
+              "x": 0,
+              "y": 42
+            }
           },
           {
             "uid": "cyl2",
-            "partId": "am-2034_6",
-            "x": 37.54,
-            "y": 518.15,
+            "partId": "am-2034_4",
+            "x": 866.28,
+            "y": 515.67,
             "rot": 0,
-            "customName": "气缸 · 3/4 × 6 in"
-          },
-          {
-            "uid": "cyl3",
-            "partId": "am-2034_2",
-            "x": 37.54,
-            "y": 623.15,
-            "rot": 0,
-            "customName": "气缸 · 3/4 × 2 in"
+            "customName": "双作用气缸",
+            "labelPos": "bottom"
           },
           {
             "uid": "ph",
             "partId": "ph",
-            "x": 960,
-            "y": 420,
+            "x": 470,
+            "y": 360,
             "rot": 0,
-            "customName": "REV Pneumatic Hub"
-          },
-          {
-            "uid": "pdh",
-            "partId": "pdh",
-            "x": 1140,
-            "y": 400,
-            "rot": 0,
-            "customName": "配电 PDH"
+            "customName": "气动控制器",
+            "caption": "REV-11-1852 · CTRE PCM 可替代",
+            "labelPos": "bottom"
           }
         ],
         "wires": [
@@ -195,22 +205,34 @@
             "id": "tube-0",
             "a": {
               "uid": "tee-c",
-              "portId": "out"
-            },
-            "b": {
-              "uid": "tee-r",
               "portId": "in"
             },
-            "color": "#00cc00",
+            "b": {
+              "uid": "tank1",
+              "portId": "in"
+            },
+            "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pressureSide": "high",
-            "pathMode": "smooth",
+            "pathMode": "free",
+            "cornerRadius": 16,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g1-0",
-                "x": 752,
-                "y": 120,
+                "x": 300,
+                "y": 110,
+                "kind": "guide"
+              },
+              {
+                "id": "g1-1",
+                "x": 300,
+                "y": 255,
+                "kind": "guide"
+              },
+              {
+                "id": "g1-2",
+                "x": 70,
+                "y": 255,
                 "kind": "guide"
               }
             ]
@@ -218,39 +240,59 @@
           {
             "id": "tube-1",
             "a": {
-              "uid": "tee-r",
+              "uid": "tank1",
               "portId": "out"
             },
             "b": {
-              "uid": "tee-t",
+              "uid": "tank2",
               "portId": "out"
             },
-            "color": "#00cc00",
+            "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pressureSide": "high",
-            "pathMode": "smooth",
-            "assembly": "field"
+            "pathMode": "free",
+            "cornerRadius": 16,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g2-0",
+                "x": 70,
+                "y": 520,
+                "kind": "guide"
+              },
+              {
+                "id": "g2-1",
+                "x": 145,
+                "y": 520,
+                "kind": "guide"
+              }
+            ]
           },
           {
             "id": "tube-2",
             "a": {
-              "uid": "tee-t",
+              "uid": "tank2",
               "portId": "in"
             },
             "b": {
-              "uid": "ps",
-              "portId": "b"
+              "uid": "tank3",
+              "portId": "in"
             },
-            "color": "#00cc00",
+            "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pressureSide": "high",
-            "pathMode": "smooth",
+            "pathMode": "free",
+            "cornerRadius": 16,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g3-0",
-                "x": 742,
-                "y": 320,
+                "x": 145,
+                "y": 270,
+                "kind": "guide"
+              },
+              {
+                "id": "g3-1",
+                "x": 220,
+                "y": 270,
                 "kind": "guide"
               }
             ]
@@ -258,23 +300,35 @@
           {
             "id": "tube-3",
             "a": {
-              "uid": "tee-r",
-              "portId": "branch"
+              "uid": "tank3",
+              "portId": "out"
             },
             "b": {
-              "uid": "reg",
+              "uid": "tee-1",
               "portId": "in"
             },
-            "color": "#00cc00",
+            "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pressureSide": "high",
-            "pathMode": "smooth",
+            "pathMode": "free",
+            "cornerRadius": 16,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g4-0",
-                "x": 705,
-                "y": 160,
+                "x": 220,
+                "y": 555,
+                "kind": "guide"
+              },
+              {
+                "id": "g4-1",
+                "x": 362,
+                "y": 555,
+                "kind": "guide"
+              },
+              {
+                "id": "g4-2",
+                "x": 362,
+                "y": 85,
                 "kind": "guide"
               }
             ]
@@ -282,89 +336,95 @@
           {
             "id": "tube-4",
             "a": {
-              "uid": "tee-t",
-              "portId": "branch"
+              "uid": "tee-1",
+              "portId": "out"
             },
             "b": {
-              "uid": "tank",
+              "uid": "reg",
               "portId": "in"
             },
-            "color": "#00cc00",
+            "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pressureSide": "high",
-            "pathMode": "smooth",
-            "assembly": "field"
+            "pathMode": "free",
+            "cornerRadius": 16,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g5-0",
+                "x": 426,
+                "y": 85,
+                "kind": "guide"
+              }
+            ]
           },
           {
             "id": "tube-5",
             "a": {
-              "uid": "tee-g",
-              "portId": "in"
+              "uid": "tee-1",
+              "portId": "branch"
             },
             "b": {
               "uid": "ps",
               "portId": "a"
             },
-            "color": "#00cc00",
+            "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pressureSide": "high",
-            "pathMode": "smooth",
-            "assembly": "field"
+            "pathMode": "free",
+            "cornerRadius": 16,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g6-0",
+                "x": 413,
+                "y": 215,
+                "kind": "guide"
+              }
+            ]
           },
           {
             "id": "tube-6",
-            "a": {
-              "uid": "tee-g",
-              "portId": "out"
-            },
-            "b": {
-              "uid": "vent",
-              "portId": "air"
-            },
-            "color": "#00cc00",
-            "tubeOdMm": 6.35,
-            "pressureSide": "high",
-            "pathMode": "smooth",
-            "assembly": "field"
-          },
-          {
-            "id": "tube-7",
             "a": {
               "uid": "reg",
               "portId": "out"
             },
             "b": {
-              "uid": "tee-w2",
-              "portId": "branch"
+              "uid": "tee-2",
+              "portId": "out"
             },
-            "color": "#00cc00",
+            "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pressureSide": "working",
-            "pathMode": "smooth",
+            "pathMode": "free",
+            "cornerRadius": 16,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g7-0",
+                "x": 760,
+                "y": 85,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "tube-7",
+            "a": {
+              "uid": "tee-2",
+              "portId": "in"
+            },
+            "b": {
+              "uid": "tee-3",
+              "portId": "out"
+            },
+            "color": "#6298d1",
+            "tubeOdMm": 6.35,
+            "pathMode": "free",
+            "cornerRadius": 16,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g8-0",
-                "x": 560,
-                "y": 150,
-                "kind": "guide"
-              },
-              {
-                "id": "g8-1",
-                "x": 560,
-                "y": 300,
-                "kind": "guide"
-              },
-              {
-                "id": "g8-2",
                 "x": 760,
-                "y": 420,
-                "kind": "guide"
-              },
-              {
-                "id": "g8-3",
-                "x": 720,
-                "y": 560,
+                "y": 176,
                 "kind": "guide"
               }
             ]
@@ -372,23 +432,35 @@
           {
             "id": "tube-8",
             "a": {
-              "uid": "tee-w1",
-              "portId": "in"
+              "uid": "tee-2",
+              "portId": "branch"
             },
             "b": {
-              "uid": "reg-w1",
-              "portId": "in"
+              "uid": "mfold",
+              "portId": "p"
             },
-            "color": "#00cc00",
+            "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pressureSide": "working",
-            "pathMode": "smooth",
+            "pathMode": "free",
+            "cornerRadius": 16,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g9-0",
-                "x": 645,
-                "y": 447,
+                "x": 790,
+                "y": 163,
+                "kind": "guide"
+              },
+              {
+                "id": "g9-1",
+                "x": 790,
+                "y": 230,
+                "kind": "guide"
+              },
+              {
+                "id": "g9-2",
+                "x": 1040,
+                "y": 230,
                 "kind": "guide"
               }
             ]
@@ -396,23 +468,41 @@
           {
             "id": "tube-9",
             "a": {
-              "uid": "reg-w1",
-              "portId": "out"
+              "uid": "mfold",
+              "portId": "a"
             },
             "b": {
-              "uid": "dsol",
-              "portId": "p"
+              "uid": "pancake",
+              "portId": "a"
             },
-            "color": "#00cc00",
+            "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pressureSide": "working",
-            "pathMode": "smooth",
+            "pathMode": "free",
+            "cornerRadius": 16,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g10-0",
-                "x": 480,
-                "y": 471,
+                "x": 960,
+                "y": 159,
+                "kind": "guide"
+              },
+              {
+                "id": "g10-1",
+                "x": 960,
+                "y": 42,
+                "kind": "guide"
+              },
+              {
+                "id": "g10-2",
+                "x": 804,
+                "y": 42,
+                "kind": "guide"
+              },
+              {
+                "id": "g10-3",
+                "x": 804,
+                "y": 60,
                 "kind": "guide"
               }
             ]
@@ -420,23 +510,29 @@
           {
             "id": "tube-10",
             "a": {
-              "uid": "tee-w1",
-              "portId": "branch"
+              "uid": "mfold",
+              "portId": "b"
             },
             "b": {
-              "uid": "msol",
-              "portId": "p"
+              "uid": "pancake",
+              "portId": "b"
             },
-            "color": "#00cc00",
+            "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pressureSide": "working",
-            "pathMode": "smooth",
+            "pathMode": "free",
+            "cornerRadius": 16,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g11-0",
-                "x": 570,
-                "y": 516,
+                "x": 900,
+                "y": 170,
+                "kind": "guide"
+              },
+              {
+                "id": "g11-1",
+                "x": 900,
+                "y": 60,
                 "kind": "guide"
               }
             ]
@@ -444,23 +540,23 @@
           {
             "id": "tube-11",
             "a": {
-              "uid": "tee-w2",
-              "portId": "in"
+              "uid": "tee-3",
+              "portId": "branch"
             },
             "b": {
               "uid": "ssol",
               "portId": "p"
             },
-            "color": "#00cc00",
+            "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pressureSide": "working",
-            "pathMode": "smooth",
+            "pathMode": "free",
+            "cornerRadius": 16,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g12-0",
-                "x": 600,
-                "y": 696,
+                "x": 980,
+                "y": 273,
                 "kind": "guide"
               }
             ]
@@ -468,23 +564,35 @@
           {
             "id": "tube-12",
             "a": {
-              "uid": "dsol",
-              "portId": "b"
+              "uid": "ssol",
+              "portId": "a"
             },
             "b": {
               "uid": "cyl1",
-              "portId": "a"
+              "portId": "b"
             },
-            "color": "#00cc00",
+            "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pressureSide": "working",
-            "pathMode": "smooth",
+            "pathMode": "free",
+            "cornerRadius": 16,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g13-0",
-                "x": 336,
-                "y": 366,
+                "x": 972,
+                "y": 380,
+                "kind": "guide"
+              },
+              {
+                "id": "g13-1",
+                "x": 1134,
+                "y": 380,
+                "kind": "guide"
+              },
+              {
+                "id": "g13-2",
+                "x": 1134,
+                "y": 410,
                 "kind": "guide"
               }
             ]
@@ -492,23 +600,23 @@
           {
             "id": "tube-13",
             "a": {
-              "uid": "dsol",
-              "portId": "a"
+              "uid": "tee-3",
+              "portId": "in"
             },
             "b": {
-              "uid": "cyl1",
-              "portId": "b"
+              "uid": "reg2",
+              "portId": "in"
             },
-            "color": "#00cc00",
+            "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pressureSide": "working",
-            "pathMode": "smooth",
+            "pathMode": "free",
+            "cornerRadius": 16,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g14-0",
-                "x": 300,
-                "y": 387.6,
+                "x": 760,
+                "y": 286,
                 "kind": "guide"
               }
             ]
@@ -516,23 +624,23 @@
           {
             "id": "tube-14",
             "a": {
-              "uid": "msol",
-              "portId": "a"
+              "uid": "reg2",
+              "portId": "out"
             },
             "b": {
-              "uid": "cyl2",
-              "portId": "b"
+              "uid": "dsol",
+              "portId": "p"
             },
-            "color": "#00cc00",
+            "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pressureSide": "working",
-            "pathMode": "smooth",
+            "pathMode": "free",
+            "cornerRadius": 16,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g15-0",
-                "x": 288,
-                "y": 522,
+                "x": 760,
+                "y": 400,
                 "kind": "guide"
               }
             ]
@@ -540,23 +648,35 @@
           {
             "id": "tube-15",
             "a": {
-              "uid": "msol",
-              "portId": "b"
+              "uid": "dsol",
+              "portId": "a"
             },
             "b": {
               "uid": "cyl2",
               "portId": "a"
             },
-            "color": "#00cc00",
+            "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pressureSide": "working",
-            "pathMode": "smooth",
+            "pathMode": "free",
+            "cornerRadius": 16,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g16-0",
-                "x": 312,
-                "y": 547.2,
+                "x": 752,
+                "y": 505,
+                "kind": "guide"
+              },
+              {
+                "id": "g16-1",
+                "x": 850,
+                "y": 505,
+                "kind": "guide"
+              },
+              {
+                "id": "g16-2",
+                "x": 850,
+                "y": 520,
                 "kind": "guide"
               }
             ]
@@ -564,61 +684,41 @@
           {
             "id": "tube-16",
             "a": {
-              "uid": "ssol",
+              "uid": "dsol",
               "portId": "b"
             },
             "b": {
-              "uid": "cyl3",
+              "uid": "cyl2",
               "portId": "b"
             },
-            "color": "#00cc00",
+            "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pressureSide": "working",
-            "pathMode": "smooth",
+            "pathMode": "free",
+            "cornerRadius": 16,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g17-0",
-                "x": 336,
-                "y": 600,
+                "x": 768,
+                "y": 495,
+                "kind": "guide"
+              },
+              {
+                "id": "g17-1",
+                "x": 1078,
+                "y": 495,
+                "kind": "guide"
+              },
+              {
+                "id": "g17-2",
+                "x": 1078,
+                "y": 520,
                 "kind": "guide"
               }
             ]
           },
           {
-            "id": "tube-17",
-            "a": {
-              "uid": "ssol",
-              "portId": "a"
-            },
-            "b": {
-              "uid": "reg-w2",
-              "portId": "in"
-            },
-            "color": "#00cc00",
-            "tubeOdMm": 6.35,
-            "pressureSide": "working",
-            "pathMode": "smooth",
-            "assembly": "field"
-          },
-          {
-            "id": "tube-18",
-            "a": {
-              "uid": "reg-w2",
-              "portId": "out"
-            },
-            "b": {
-              "uid": "cyl3",
-              "portId": "a"
-            },
-            "color": "#00cc00",
-            "tubeOdMm": 6.35,
-            "pressureSide": "working",
-            "pathMode": "smooth",
-            "assembly": "field"
-          },
-          {
-            "id": "wire-19",
+            "id": "wire-17",
             "a": {
               "uid": "comp",
               "portId": "power+"
@@ -627,12 +727,28 @@
               "uid": "ph",
               "portId": "compressor+"
             },
-            "color": "#dc2626",
+            "color": "#e8262c",
             "awg": 18,
-            "assembly": "field"
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g18-0",
+                "x": 330,
+                "y": 153,
+                "kind": "guide"
+              },
+              {
+                "id": "g18-1",
+                "x": 330,
+                "y": 453,
+                "kind": "guide"
+              }
+            ]
           },
           {
-            "id": "wire-20",
+            "id": "wire-18",
             "a": {
               "uid": "comp",
               "portId": "power-"
@@ -641,65 +757,265 @@
               "uid": "ph",
               "portId": "compressor-"
             },
-            "color": "#111827",
+            "color": "#231f20",
             "awg": 18,
-            "assembly": "field"
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g19-0",
+                "x": 330,
+                "y": 158,
+                "kind": "guide"
+              },
+              {
+                "id": "g19-1",
+                "x": 330,
+                "y": 465,
+                "kind": "guide"
+              }
+            ]
           },
           {
-            "id": "wire-21",
+            "id": "wire-19",
             "a": {
               "uid": "ps",
               "portId": "switch"
             },
             "b": {
               "uid": "ph",
-              "portId": "switch"
+              "portId": "switchReturn"
             },
-            "color": "#f59e0b",
+            "color": "#e8262c",
             "awg": 22,
-            "assembly": "field"
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g20-0",
+                "x": 464,
+                "y": 290,
+                "kind": "guide"
+              },
+              {
+                "id": "g20-1",
+                "x": 446,
+                "y": 290,
+                "kind": "guide"
+              },
+              {
+                "id": "g20-2",
+                "x": 446,
+                "y": 497,
+                "kind": "guide"
+              }
+            ]
           },
           {
-            "id": "wire-22",
+            "id": "wire-20",
             "a": {
               "uid": "ps",
               "portId": "return"
             },
             "b": {
               "uid": "ph",
-              "portId": "switchReturn"
+              "portId": "switch"
             },
-            "color": "#64748b",
+            "color": "#231f20",
             "awg": 22,
-            "assembly": "field"
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g21-0",
+                "x": 470,
+                "y": 298,
+                "kind": "guide"
+              },
+              {
+                "id": "g21-1",
+                "x": 452,
+                "y": 298,
+                "kind": "guide"
+              },
+              {
+                "id": "g21-2",
+                "x": 452,
+                "y": 485,
+                "kind": "guide"
+              }
+            ]
           },
           {
-            "id": "wire-23",
+            "id": "wire-21",
             "a": {
-              "uid": "dsol",
+              "uid": "mfold",
               "portId": "coilA+"
             },
             "b": {
               "uid": "ph",
               "portId": "sol0+"
             },
-            "color": "#dc2626",
+            "color": "#e8262c",
             "awg": 22,
-            "assembly": "field"
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g22-0",
+                "x": 1110,
+                "y": 136,
+                "kind": "guide"
+              },
+              {
+                "id": "g22-1",
+                "x": 1110,
+                "y": 225,
+                "kind": "guide"
+              },
+              {
+                "id": "g22-2",
+                "x": 608,
+                "y": 225,
+                "kind": "guide"
+              },
+              {
+                "id": "g22-3",
+                "x": 608,
+                "y": 365,
+                "kind": "guide"
+              }
+            ]
           },
           {
-            "id": "wire-24",
+            "id": "wire-22",
             "a": {
-              "uid": "dsol",
+              "uid": "mfold",
               "portId": "coilA-"
             },
             "b": {
               "uid": "ph",
               "portId": "sol0-"
             },
-            "color": "#111827",
+            "color": "#231f20",
             "awg": 22,
-            "assembly": "field"
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g23-0",
+                "x": 1110,
+                "y": 141,
+                "kind": "guide"
+              },
+              {
+                "id": "g23-1",
+                "x": 1110,
+                "y": 225,
+                "kind": "guide"
+              },
+              {
+                "id": "g23-2",
+                "x": 608,
+                "y": 225,
+                "kind": "guide"
+              },
+              {
+                "id": "g23-3",
+                "x": 608,
+                "y": 369,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "wire-23",
+            "a": {
+              "uid": "ssol",
+              "portId": "coilA+"
+            },
+            "b": {
+              "uid": "ph",
+              "portId": "sol1+"
+            },
+            "color": "#e8262c",
+            "awg": 22,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g24-0",
+                "x": 1060,
+                "y": 323,
+                "kind": "guide"
+              },
+              {
+                "id": "g24-1",
+                "x": 1060,
+                "y": 240,
+                "kind": "guide"
+              },
+              {
+                "id": "g24-2",
+                "x": 622,
+                "y": 240,
+                "kind": "guide"
+              },
+              {
+                "id": "g24-3",
+                "x": 622,
+                "y": 373,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "wire-24",
+            "a": {
+              "uid": "ssol",
+              "portId": "coilA-"
+            },
+            "b": {
+              "uid": "ph",
+              "portId": "sol1-"
+            },
+            "color": "#231f20",
+            "awg": 22,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g25-0",
+                "x": 1060,
+                "y": 328,
+                "kind": "guide"
+              },
+              {
+                "id": "g25-1",
+                "x": 1060,
+                "y": 240,
+                "kind": "guide"
+              },
+              {
+                "id": "g25-2",
+                "x": 622,
+                "y": 240,
+                "kind": "guide"
+              },
+              {
+                "id": "g25-3",
+                "x": 622,
+                "y": 378,
+                "kind": "guide"
+              }
+            ]
           },
           {
             "id": "wire-25",
@@ -709,11 +1025,39 @@
             },
             "b": {
               "uid": "ph",
-              "portId": "sol1+"
+              "portId": "sol2+"
             },
-            "color": "#dc2626",
+            "color": "#e8262c",
             "awg": 22,
-            "assembly": "field"
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g26-0",
+                "x": 840,
+                "y": 457,
+                "kind": "guide"
+              },
+              {
+                "id": "g26-1",
+                "x": 840,
+                "y": 415,
+                "kind": "guide"
+              },
+              {
+                "id": "g26-2",
+                "x": 655,
+                "y": 415,
+                "kind": "guide"
+              },
+              {
+                "id": "g26-3",
+                "x": 655,
+                "y": 382,
+                "kind": "guide"
+              }
+            ]
           },
           {
             "id": "wire-26",
@@ -723,128 +1067,163 @@
             },
             "b": {
               "uid": "ph",
-              "portId": "sol1-"
+              "portId": "sol2-"
             },
-            "color": "#111827",
+            "color": "#231f20",
             "awg": 22,
-            "assembly": "field"
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g27-0",
+                "x": 840,
+                "y": 462,
+                "kind": "guide"
+              },
+              {
+                "id": "g27-1",
+                "x": 840,
+                "y": 415,
+                "kind": "guide"
+              },
+              {
+                "id": "g27-2",
+                "x": 655,
+                "y": 415,
+                "kind": "guide"
+              },
+              {
+                "id": "g27-3",
+                "x": 655,
+                "y": 387,
+                "kind": "guide"
+              }
+            ]
           },
           {
             "id": "wire-27",
             "a": {
-              "uid": "msol",
-              "portId": "coilA+"
-            },
-            "b": {
-              "uid": "ph",
-              "portId": "sol2+"
-            },
-            "color": "#dc2626",
-            "awg": 22,
-            "assembly": "field"
-          },
-          {
-            "id": "wire-28",
-            "a": {
-              "uid": "msol",
-              "portId": "coilA-"
-            },
-            "b": {
-              "uid": "ph",
-              "portId": "sol2-"
-            },
-            "color": "#111827",
-            "awg": 22,
-            "assembly": "field"
-          },
-          {
-            "id": "wire-29",
-            "a": {
-              "uid": "ssol",
+              "uid": "dsol",
               "portId": "coilA+"
             },
             "b": {
               "uid": "ph",
               "portId": "sol3+"
             },
-            "color": "#dc2626",
+            "color": "#e8262c",
             "awg": 22,
-            "assembly": "field"
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g28-0",
+                "x": 640,
+                "y": 457,
+                "kind": "guide"
+              },
+              {
+                "id": "g28-1",
+                "x": 640,
+                "y": 391,
+                "kind": "guide"
+              }
+            ]
           },
           {
-            "id": "wire-30",
+            "id": "wire-28",
             "a": {
-              "uid": "ssol",
+              "uid": "dsol",
               "portId": "coilA-"
             },
             "b": {
               "uid": "ph",
               "portId": "sol3-"
             },
-            "color": "#111827",
+            "color": "#231f20",
             "awg": 22,
-            "assembly": "field"
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g29-0",
+                "x": 640,
+                "y": 462,
+                "kind": "guide"
+              },
+              {
+                "id": "g29-1",
+                "x": 640,
+                "y": 395,
+                "kind": "guide"
+              }
+            ]
+          }
+        ],
+        "annotations": [
+          {
+            "id": "sec-0",
+            "kind": "section",
+            "x": 20,
+            "y": 20,
+            "w": 330,
+            "h": 560,
+            "title": "空压与储气"
           },
           {
-            "id": "wire-31",
-            "a": {
-              "uid": "pdh",
-              "portId": "ch20+"
-            },
-            "b": {
-              "uid": "ph",
-              "portId": "vin+"
-            },
-            "color": "#dc2626",
-            "awg": 18,
-            "assembly": "field"
+            "id": "sec-1",
+            "kind": "section",
+            "x": 370,
+            "y": 20,
+            "w": 330,
+            "h": 300,
+            "title": "调压"
           },
           {
-            "id": "wire-32",
-            "a": {
-              "uid": "pdh",
-              "portId": "ch20-"
-            },
-            "b": {
-              "uid": "ph",
-              "portId": "vin-"
-            },
-            "color": "#111827",
-            "awg": 18,
-            "assembly": "field"
+            "id": "sec-2",
+            "kind": "section",
+            "x": 720,
+            "y": 20,
+            "w": 600,
+            "h": 560,
+            "title": "执行机构"
           },
           {
-            "id": "wire-33",
-            "a": {
-              "uid": "pdh",
-              "portId": "canOutH"
-            },
-            "b": {
-              "uid": "ph",
-              "portId": "canH"
-            },
-            "color": "#facc15",
-            "awg": 22,
-            "assembly": "field"
+            "id": "note-3",
+            "kind": "note",
+            "x": 1130,
+            "y": 250,
+            "w": 180,
+            "h": 92,
+            "title": "分立阀与阀岛",
+            "body": "分立阀自带接口，用三通从工作\n气路取气；阀岛共用一个分配块，\n给多个电磁阀供气和排气。",
+            "framed": true
           },
           {
-            "id": "wire-34",
-            "a": {
-              "uid": "pdh",
-              "portId": "canOutL"
-            },
-            "b": {
-              "uid": "ph",
-              "portId": "canL"
-            },
-            "color": "#16a34a",
-            "awg": 22,
-            "assembly": "field"
+            "id": "sec-4",
+            "kind": "section",
+            "x": 370,
+            "y": 340,
+            "w": 330,
+            "h": 240,
+            "title": "气动控制"
+          },
+          {
+            "id": "title",
+            "kind": "title",
+            "x": 20,
+            "y": 600,
+            "w": 1300,
+            "h": 110,
+            "title": "FRC 气动系统",
+            "body": "TEAM 0000 · 2026"
           }
         ],
         "view": {
-          "x": 20,
-          "y": 10,
+          "x": 30,
+          "y": 20,
           "k": 0.95
         }
       }

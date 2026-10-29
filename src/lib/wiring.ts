@@ -60,6 +60,10 @@ export interface PartDef {
   cylinder?: CylinderSpec;
   /** Small fittings such as tees omit the canvas name unless the user names them. */
   hideLabel?: boolean;
+  /** Vector drawing key in components/PneumaticArtwork. */
+  art?: string;
+  /** Default second label line, e.g. the model shown. */
+  caption?: string;
   id: string;
   name: string;
   category: string;
@@ -98,6 +102,12 @@ export interface PlacedPart {
   rot: 0 | 90 | 180 | 270;
   /** 图纸上显示的自定义名称，如“左前驱动电机” */
   customName?: string;
+  /** Second label line under the name; falls back to the part's default caption, '' hides it. */
+  caption?: string;
+  /** Side of the part the label sits on; 'none' hides it. */
+  labelPos?: 'bottom' | 'right' | 'left' | 'top' | 'none';
+  /** Label dragged away from its anchored spot, in mm. */
+  labelOffset?: { x: number; y: number };
   /** CAN ID、电机编号或队内器件编号 */
   deviceId?: string;
   /** 锁定后禁止移动、旋转和普通删除 */
@@ -155,7 +165,8 @@ export interface InlineConnector {
 
 export interface Wire {
   tubeOdMm?: number;
-  pressureSide?: 'high' | 'working';
+  /** Unset tubes take the side traced from the compressor (lib/pneumaticZones). */
+  pressureSide?: 'high' | 'working' | 'secondary';
   /** orthogonal: auto elbows; free: straight segments between guides; smooth: spline through guides. */
   pathMode?: 'orthogonal' | 'free' | 'smooth';
   cornerRadius?: number;
@@ -1596,7 +1607,7 @@ export function connectWireEnds(wires: Wire[], from: WireEnd, to: WireEnd, parts
     const jumper = left.type === 'data' && right.type === 'data';
     const wire: Wire = {
       id: uid(), a, b, color: left.type === right.type ? PORT_TYPE_COLOR[left.type] : color,
-      ...(left.type === 'air' ? { tubeOdMm: 6.35, pressureSide: 'working' as const, pathMode: 'smooth' as const } : {}),
+      ...(left.type === 'air' ? { tubeOdMm: 6.35, cornerRadius: 18 } : {}),
       assembly: jumper ? 'jumper' : 'field',
       terminalA: jumper ? defaultTerminalForPort(left) : undefined,
       terminalB: jumper ? defaultTerminalForPort(right) : undefined,

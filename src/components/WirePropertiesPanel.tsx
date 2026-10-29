@@ -1,4 +1,6 @@
 import { AlertTriangle, Cable, CheckCircle2, Lock, MapPinPlus, Plug, Ruler, Shield, Spline, Trash2, Unlock, X } from 'lucide-react';
+import { PRESSURE_SIDES } from '../lib/pneumaticZones';
+import type { PressureSide } from '../lib/pneumaticZones';
 import type {
   PartDef,
   InlineConnector,
@@ -21,6 +23,8 @@ import {
 import { WireRoutingStylePicker } from './WireBundlePanel';
 
 interface Props {
+  /** Side traced from the compressor, or the explicit one. */
+  pressureSide?: PressureSide;
   wire: Wire;
   cableSize: number;
   parts: PlacedPart[];
@@ -119,7 +123,7 @@ const PATH_MODES: Array<{ value: NonNullable<Wire['pathMode']>; label: string; h
   { value: 'smooth', label: '曲线', hint: '平滑样条穿过固定点，适合气管' },
 ];
 
-export default function WirePropertiesPanel({ wire, cableSize, parts, partDefs, rule, bundleSize, onChange, onRoutingStyleChange,
+export default function WirePropertiesPanel({ wire, pressureSide, cableSize, parts, partDefs, rule, bundleSize, onChange, onRoutingStyleChange,
   inlineConnectors, inlineSupported, inlineKind, onInlineKindChange, inlinePlacement, onAddInline, onRemoveInline, onClearInline,
   onWaypointTerminalChange, onAddGuide, onToggleWaypointLock, onRemoveWaypoint, onClearWaypoints, onClose }: Props) {
   const waypoints = wireWaypoints(wire);
@@ -253,13 +257,16 @@ export default function WirePropertiesPanel({ wire, cableSize, parts, partDefs, 
           </div>
           <label className="flex items-center gap-2 text-[11px] text-slate-600">
             <span className="w-16 shrink-0">压力侧</span>
-            <select aria-label="压力侧" className="h-8 min-w-0 flex-1 rounded border border-slate-200 bg-white px-2 text-xs" value={wire.pressureSide ?? 'working'}
-              onChange={(e) => onChange({ pressureSide: e.target.value as Wire['pressureSide'] })}>
-              <option value="high">高压储气侧（≤120 psi）</option>
-              <option value="working">调压后工作侧（≤60 psi）</option>
+            <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: PRESSURE_SIDES[pressureSide ?? 'working'].color }} aria-hidden="true" />
+            <select aria-label="压力侧" className="h-8 min-w-0 flex-1 rounded border border-slate-200 bg-white px-2 text-xs" value={wire.pressureSide ?? 'auto'}
+              onChange={(e) => onChange({ pressureSide: e.target.value === 'auto' ? undefined : e.target.value as Wire['pressureSide'] })}>
+              <option value="auto">自动（{pressureSide ? PRESSURE_SIDES[pressureSide].label : '未接到空压机'}）</option>
+              {(Object.keys(PRESSURE_SIDES) as PressureSide[]).map((side) => (
+                <option key={side} value={side}>{PRESSURE_SIDES[side].label}（{PRESSURE_SIDES[side].detail}）</option>
+              ))}
             </select>
           </label>
-          <p className="mt-2 text-[10px] leading-4 text-slate-400">气管不使用 AWG。每个接头只接一根管，分支用三通；承压等级以气管规格为准。</p>
+          <p className="mt-2 text-[10px] leading-4 text-slate-400">自动模式从空压机沿气路追踪，每经过一个调压阀降一级并换色。气管不使用 AWG。每个接头只接一根管，分支用三通；承压等级以气管规格为准。</p>
         </section> : <>
         <section className="border-b border-slate-100 py-3">
           <div className="mb-2 flex items-center gap-2">

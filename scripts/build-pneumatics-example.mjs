@@ -1,99 +1,123 @@
-// Builds public/examples/frc-pneumatics.frcwire after figures 1 and 2 of the FIRST pneumatics manual.
+// Builds public/examples/frc-pneumatics.frcwire, laid out after Team 3161's FRC pneumatic system diagram.
 // Run: node --experimental-strip-types scripts/build-pneumatics-example.mjs
 import { writeFileSync } from 'node:fs';
-import { BUILTIN_PARTS, partSize, portWorld } from '../src/lib/wiring.ts';
+import { BUILTIN_PARTS, portWorld } from '../src/lib/wiring.ts';
+
 const defs = new Map(BUILTIN_PARTS.map((d) => [d.id, d]));
 const parts = [];
 const wires = [];
+const annotations = [];
 const find = (uid) => parts.find((x) => x.uid === uid);
-const at = (uid, portId) => { const p = find(uid); const def = defs.get(p.partId); const q = def.ports.find((q) => q.id === portId); if (!q) throw new Error(uid + ':' + portId); return portWorld(p, def, q); };
-/** Place a part so that one of its ports lands on (x, y). */
-const place = (uid, partId, rot, portId, x, y, customName) => {
-  if (!defs.has(partId)) throw new Error(partId);
-  parts.push({ uid, partId, x: 0, y: 0, rot, ...(customName ? { customName } : {}) });
-  const p = at(uid, portId); const part = find(uid);
-  part.x = +(x - p.x).toFixed(2); part.y = +(y - p.y).toFixed(2);
+const at = (uid, portId) => {
+  const p = find(uid); const def = defs.get(p.partId); const q = def.ports.find((q) => q.id === portId);
+  if (!q) throw new Error(`${uid}:${portId}`);
+  return portWorld(p, def, q);
 };
-const placeBox = (uid, partId, x, y, rot = 0, customName) => parts.push({ uid, partId, x, y, rot, ...(customName ? { customName } : {}) });
+/** Place a part so that one of its ports lands on (x, y). */
+const place = (uid, partId, rot, portId, x, y, extra = {}) => {
+  if (!defs.has(partId)) throw new Error(partId);
+  parts.push({ uid, partId, x: 0, y: 0, rot, ...extra });
+  const p = at(uid, portId); const part = find(uid);
+  part.x = +(part.x + x - p.x).toFixed(2); part.y = +(part.y + y - p.y).toFixed(2);
+};
+const placeBox = (uid, partId, x, y, extra = {}) => parts.push({ uid, partId, x, y, rot: 0, ...extra });
 /** A point `d` mm out of a port along its normal. */
 const out = (uid, portId, d) => { const p = at(uid, portId); return [p.x + p.nx * d, p.y + p.ny * d]; };
 let n = 0;
-const tube = (a, b, side, guides = []) => wires.push({ id: `tube-${n++}`, a: { uid: a[0], portId: a[1] }, b: { uid: b[0], portId: b[1] },
-  color: '#00cc00', tubeOdMm: 6.35, pressureSide: side, pathMode: 'smooth', assembly: 'field',
-  ...(guides.length ? { waypoints: guides.map(([x, y], i) => ({ id: `g${n}-${i}`, x: +x.toFixed(1), y: +y.toFixed(1), kind: 'guide' })) } : {}) });
-const wire = (a, b, color, awg, extra = {}) => wires.push({ id: `wire-${n++}`, a: { uid: a[0], portId: a[1] }, b: { uid: b[0], portId: b[1] }, color, awg, assembly: 'field', ...extra });
+const guides = (points) => points.length ? { waypoints: points.map(([x, y], i) => ({ id: `g${n}-${i}`, x: Math.round(x), y: Math.round(y), kind: 'guide' })) } : {};
+/**
+ * Axis-aligned route in the poster style: "x300 y255" walks to x = 300, then y = 255, and the last
+ * corner lines up with the end port. Straight segments, rounded corners (free mode).
+ */
+const lanes = (a, b, spec = '') => {
+  let p = at(...a);
+  const points = [];
+  for (const token of spec.split(' ').filter(Boolean)) {
+    const v = Number(token.slice(1));
+    p = token[0] === 'x' ? { x: v, y: p.y } : { x: p.x, y: v };
+    points.push([p.x, p.y]);
+  }
+  const end = at(...b);
+  if (Math.abs(end.ny) > 0.5) points.push([end.x, p.y]); else points.push([p.x, end.y]);
+  return points.filter(([x, y], i, all) => !(i && all[i - 1][0] === x && all[i - 1][1] === y));
+};
+const tube = (a, b, points = '') => wires.push({ id: `tube-${n++}`, a: { uid: a[0], portId: a[1] }, b: { uid: b[0], portId: b[1] },
+  color: '#6298d1', tubeOdMm: 6.35, pathMode: 'free', cornerRadius: 16, assembly: 'field', ...guides(typeof points === 'string' ? lanes(a, b, points) : points) });
+const wire = (a, b, color, awg, spec = '') => wires.push({ id: `wire-${n++}`, a: { uid: a[0], portId: a[1] }, b: { uid: b[0], portId: b[1] },
+  color, awg, pathMode: 'free', cornerRadius: 8, assembly: 'field', ...guides(lanes(a, b, spec)) });
+/** Power pairs render as one two-conductor cable that follows the + wire's route. */
+const pair = (a, b, awg, spec) => {
+  wire([a[0], `${a[1]}+`], [b[0], `${b[1]}+`], '#e8262c', awg, spec);
+  wire([a[0], `${a[1]}-`], [b[0], `${b[1]}-`], '#231f20', awg, spec);
+};
+const section = (x, y, w, h, title) => annotations.push({ id: `sec-${annotations.length}`, kind: 'section', x, y, w, h, ...(title ? { title } : {}) });
+const note = (x, y, w, h, title, body, framed = true) => annotations.push({ id: `note-${annotations.length}`, kind: 'note', x, y, w, h, title, body, framed });
 
-// Figure coordinates are source pixels of the manual's figures; artwork uses 0.6 mm per pixel.
-const fig = (ox, oy) => (x, y) => [ox + x * 0.6, oy + y * 0.6];
-const F1 = fig(430, 0);
-const F2 = fig(0, 330);
+// ---------- 空压与储气 ----------
+section(20, 20, 330, 560, '空压与储气');
+place('comp', 'pneumatic-compressor', 0, 'air', 190, 110, { labelPos: 'bottom' });
+place('tee-c', 'pneumatic-tee', 90, 'out', ...out('comp', 'air', 0));
+place('relief', 'pneumatic-relief', 0, 'air', ...out('tee-c', 'branch', 0), { labelPos: 'right' });
+for (const [i, x] of [70, 145, 220].entries()) place(`tank${i + 1}`, 'pneumatic-tank', 0, 'in', x, 300, i === 2 ? { labelPos: 'right', customName: '储气罐', caption: 'AVT-PP-35 × 3\n数量仅示意' } : { labelPos: 'none' });
+tube(['tee-c', 'in'], ['tank1', 'in'], 'x300 y255');
+tube(['tank1', 'out'], ['tank2', 'out'], 'y520');
+tube(['tank2', 'in'], ['tank3', 'in'], 'y270');
 
-// ---------- High pressure side (manual figure 1) ----------
-place('comp', 'pneumatic-compressor', 0, 'air', 820, 80, '压缩机');
-place('tee-c', 'pneumatic-tee', 90, 'in', ...out('comp', 'air', 0));
-place('relief', 'pneumatic-relief', 0, 'air', ...out('tee-c', 'branch', 0), '安全阀');
-place('tee-r', 'pneumatic-tee', 0, 'in', 745, 175);
-place('tee-t', 'pneumatic-tee', 180, 'out', 745, 230);
-place('tank', 'pneumatic-tank', 0, 'in', ...out('tee-t', 'branch', 8), '储气罐');
-place('ps', 'pneumatic-pressure-switch', 0, 'b', 712, 345, '压力开关');
-place('tee-g', 'pneumatic-tee', 90, 'in', ...out('ps', 'a', 12));
-place('gauge-s', 'pneumatic-gauge', 0, 'air', ...out('tee-g', 'branch', 0));
-place('vent', 'pneumatic-vent', 0, 'air', ...out('tee-g', 'out', 12), '泄压阀');
-place('reg', 'pneumatic-regulator', 0, 'in', 682, 182, '主调压阀');
+// ---------- 调压 ----------
+section(370, 20, 330, 300, '调压');
+place('tee-1', 'pneumatic-tee', 270, 'in', 400, 85);
+place('reg', 'pneumatic-regulator', 0, 'in', ...out('tee-1', 'out', 24), { customName: '主调压阀', labelPos: 'bottom' });
+place('ps', 'pneumatic-pressure-switch', 0, 'a', 450, 215, { labelPos: 'left', caption: 'REV-11-1107\n数字式；am-2006\n模拟式可选' });
+place('tee-g', 'pneumatic-tee', 90, 'out', ...out('ps', 'b', 0));
+place('gauge', 'pneumatic-gauge', 0, 'air', ...out('tee-g', 'branch', 0), { customName: '储气压力表', labelPos: 'right' });
+place('vent', 'pneumatic-vent', 0, 'air', ...out('tee-g', 'in', 0), { labelPos: 'right' });
+tube(['tank3', 'out'], ['tee-1', 'in'], 'y555 x362');
+tube(['tee-1', 'out'], ['reg', 'in']);
+tube(['tee-1', 'branch'], ['ps', 'a']);
 
-tube(['tee-c', 'out'], ['tee-r', 'in'], 'high', [[752, 120]]);
-tube(['tee-r', 'out'], ['tee-t', 'out'], 'high');
-tube(['tee-t', 'in'], ['ps', 'b'], 'high', [[742, 320]]);
-tube(['tee-r', 'branch'], ['reg', 'in'], 'high', [[705, 160]]);
-tube(['tee-t', 'branch'], ['tank', 'in'], 'high');
-tube(['tee-g', 'in'], ['ps', 'a'], 'high');
-tube(['tee-g', 'out'], ['vent', 'air'], 'high');
+// ---------- 执行机构 ----------
+section(720, 20, 600, 560, '执行机构');
+place('tee-2', 'pneumatic-tee', 180, 'out', 760, 150);
+place('tee-3', 'pneumatic-tee', 180, 'out', 760, 260);
+place('mfold', 'pneumatic-manifold-solenoid', 0, 'p', 1040, 165, { labelPos: 'top' });
+place('pancake', 'am-4388', 0, 'a', 820, 60, { customName: '薄型气缸', labelPos: 'bottom' });
+place('ssol', 'pneumatic-single-solenoid', 0, 'p', 980, 300, { labelPos: 'left' });
+place('cyl1', 'am-4229', 0, 'b', 1110, 410, { customName: '单作用气缸', labelPos: 'bottom' });
+place('reg2', 'pneumatic-regulator', 90, 'in', 760, 330, { customName: '二级调压阀', caption: '可选：某个机构需要低于主工作压力时使用', labelPos: 'right' });
+place('dsol', 'pneumatic-double-solenoid', 0, 'p', ...out('reg2', 'out', 34), { labelPos: 'left', labelOffset: { x: 0, y: 42 } });
+place('cyl2', 'am-2034_4', 0, 'a', 880, 520, { customName: '双作用气缸', labelPos: 'bottom' });
+tube(['reg', 'out'], ['tee-2', 'out'], '');
+tube(['tee-2', 'in'], ['tee-3', 'out']);
+tube(['tee-2', 'branch'], ['mfold', 'p'], 'x790 y230');
+tube(['mfold', 'a'], ['pancake', 'a'], 'x960 y42 x804');
+tube(['mfold', 'b'], ['pancake', 'b'], 'x900');
+tube(['tee-3', 'branch'], ['ssol', 'p'], '');
+tube(['ssol', 'a'], ['cyl1', 'b'], `y380 x${Math.round(at('cyl1', 'b').x + 24)}`);
+tube(['tee-3', 'in'], ['reg2', 'in']);
+tube(['reg2', 'out'], ['dsol', 'p']);
+tube(['dsol', 'a'], ['cyl2', 'a'], 'y505 x850');
+tube(['dsol', 'b'], ['cyl2', 'b'], `y495 x${Math.round(at('cyl2', 'b').x + 24)}`);
+note(1130, 250, 180, 92, '分立阀与阀岛', '分立阀自带接口，用三通从工作\n气路取气；阀岛共用一个分配块，\n给多个电磁阀供气和排气。');
 
-// ---------- Working pressure side (manual figure 2) ----------
-place('tee-w1', 'pneumatic-tee', 0, 'in', ...F2(1078, 268));
-place('tee-w2', 'pneumatic-tee', 180, 'out', ...out('tee-w1', 'out', 14));
-place('reg-w1', 'pneumatic-regulator', 0, 'in', ...F2(1012, 236), '调压阀（可选）');
-place('dsol', 'pneumatic-double-solenoid', 0, 'p', ...F2(736, 200), '双电磁阀');
-place('msol', 'pneumatic-manifold-solenoid', 0, 'p', ...F2(771, 370), '阀岛电磁阀');
-place('ssol', 'pneumatic-single-solenoid', 0, 'p', ...F2(870, 592), '单电磁阀');
-place('reg-w2', 'pneumatic-regulator', 0, 'in', ...F2(690, 560), '调压阀（可选）');
-place('cyl1', 'am-2034_4', 0, 'b', ...F2(146, 94), '气缸 · 3/4 × 4 in');
-place('cyl2', 'am-2034_6', 0, 'b', ...F2(146, 322), '气缸 · 3/4 × 6 in');
-place('cyl3', 'am-2034_2', 0, 'b', ...F2(146, 497), '气缸 · 3/4 × 2 in');
+// ---------- 气动控制 ----------
+section(370, 340, 330, 240, '气动控制');
+placeBox('ph', 'ph', 470, 360, { customName: '气动控制器', caption: 'REV-11-1852 · CTRE PCM 可替代', labelPos: 'bottom' });
+pair(['comp', 'power'], ['ph', 'compressor'], 18, 'x330');
+// Switch leads cross over to the opposite PH pins so the two never cross; a switch has no polarity.
+wire(['ps', 'switch'], ['ph', 'switchReturn'], '#e8262c', 22, 'y290 x446');
+wire(['ps', 'return'], ['ph', 'switch'], '#231f20', 22, 'y298 x452');
+// Cables from above take the upper channels, nearest riser first; cables from below the lower ones.
+pair(['mfold', 'coilA'], ['ph', 'sol0'], 22, 'x1110 y225 x608');
+pair(['ssol', 'coilA'], ['ph', 'sol1'], 22, 'x1060 y240 x622');
+pair(['dsol', 'coilB'], ['ph', 'sol2'], 22, 'x840 y415 x655');
+pair(['dsol', 'coilA'], ['ph', 'sol3'], 22, 'x640');
 
-tube(['reg', 'out'], ['tee-w2', 'branch'], 'working', [[560, 150], [560, 300], [760, 420], [720, 560]]);
-tube(['tee-w1', 'in'], ['reg-w1', 'in'], 'working', [F2(1075, 195)]);
-tube(['reg-w1', 'out'], ['dsol', 'p'], 'working', [F2(800, 235)]);
-tube(['tee-w1', 'branch'], ['msol', 'p'], 'working', [F2(950, 310)]);
-tube(['tee-w2', 'in'], ['ssol', 'p'], 'working', [F2(1000, 610)]);
-tube(['dsol', 'b'], ['cyl1', 'a'], 'working', [F2(560, 60)]);
-tube(['dsol', 'a'], ['cyl1', 'b'], 'working', [F2(500, 96)]);
-tube(['msol', 'a'], ['cyl2', 'b'], 'working', [F2(480, 320)]);
-tube(['msol', 'b'], ['cyl2', 'a'], 'working', [F2(520, 362)]);
-tube(['ssol', 'b'], ['cyl3', 'b'], 'working', [F2(560, 450)]);
-tube(['ssol', 'a'], ['reg-w2', 'in'], 'working');
-tube(['reg-w2', 'out'], ['cyl3', 'a'], 'working');
-
-// ---------- Electrical control ----------
-placeBox('ph', 'ph', 960, 420, 0, 'REV Pneumatic Hub');
-placeBox('pdh', 'pdh', 1140, 400, 0, '配电 PDH');
-wire(['comp', 'power+'], ['ph', 'compressor+'], '#dc2626', 18);
-wire(['comp', 'power-'], ['ph', 'compressor-'], '#111827', 18);
-wire(['ps', 'switch'], ['ph', 'switch'], '#f59e0b', 22);
-wire(['ps', 'return'], ['ph', 'switchReturn'], '#64748b', 22);
-for (const [sol, coil, ch] of [['dsol', 'coilA', 0], ['dsol', 'coilB', 1], ['msol', 'coilA', 2], ['ssol', 'coilA', 3]]) {
-  wire([sol, `${coil}+`], ['ph', `sol${ch}+`], '#dc2626', 22);
-  wire([sol, `${coil}-`], ['ph', `sol${ch}-`], '#111827', 22);
-}
-wire(['pdh', 'ch20+'], ['ph', 'vin+'], '#dc2626', 18);
-wire(['pdh', 'ch20-'], ['ph', 'vin-'], '#111827', 18);
-wire(['pdh', 'canOutH'], ['ph', 'canH'], '#facc15', 22);
-wire(['pdh', 'canOutL'], ['ph', 'canL'], '#16a34a', 22);
+annotations.push({ id: 'title', kind: 'title', x: 20, y: 600, w: 1300, h: 110, title: 'FRC 气动系统', body: 'TEAM 0000 · 2026' });
 
 const file = {
   format: 'frc-wiresheet-source', version: 2, savedAt: '2026-10-29T00:00:00.000Z', customParts: [],
   project: { id: 'pneumatics-demo', name: 'FRC 气动系统示例', activePageId: 'air-system', pages: [{
-    id: 'air-system', name: '气动回路与电磁阀控制', parts, wires, view: { x: 20, y: 10, k: 0.95 } }] },
+    id: 'air-system', name: '气动系统', parts, wires, annotations, view: { x: 30, y: 20, k: 0.95 } }] },
 };
 writeFileSync(new URL('../public/examples/frc-pneumatics.frcwire', import.meta.url), JSON.stringify(file, null, 2) + '\n');
-console.log(parts.length, 'parts', wires.length, 'wires');
+console.log(parts.length, 'parts', wires.length, 'wires', annotations.length, 'annotations');

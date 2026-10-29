@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import type { FuseRating, PartDef } from '../lib/wiring';
 import { PORT_TYPE_COLOR, partAssetSrc, partImageSrc } from '../lib/wiring';
-import { CYLINDER_ELBOW, cylinderLayout } from '../lib/pneumatics';
+import PneumaticArtwork from './PneumaticArtwork';
 
 interface Props {
   def: PartDef;
@@ -589,31 +589,8 @@ function LeverTerminal({ def }: { def: PartDef }) {
   );
 }
 
-/** Cylinder in the FIRST manual's actuator style, drawn to the AndyMark length and diameter. */
-function CylinderArtwork({ def }: { def: PartDef }) {
-  const layout = cylinderLayout(def.cylinder!);
-  const { w, rod, bodyY, rodCap, rearCap, elbowW, elbowH } = layout;
-  const d = def.cylinder!.odMm;
-  const rodD = Math.max(3, d * 0.3);
-  const elbows = [rearCap.x, rodCap.x].map((capX) => capX === rearCap.x ? layout.rearElbowX : layout.rodElbowX);
-  const portElbows = def.cylinder!.action === 'double' ? elbows : elbows.slice(1);
-  return (
-    <g>
-      <rect x={0.4} y={bodyY + d / 2 - rodD / 2} width={rod + 1} height={rodD} fill="#cccccc" stroke="#5f5f5f" strokeWidth={0.5} />
-      <rect x={rodCap.x + rodCap.w / 2} y={bodyY + d * 0.07} width={rearCap.x - rodCap.x} height={d * 0.86} fill="#cccccc" stroke="#9a9a9a" strokeWidth={0.4} />
-      {[rodCap, rearCap].map((cap) => (
-        <rect key={cap.x} x={cap.x} y={bodyY + 0.3} width={Math.min(cap.w, w - cap.x - 0.3)} height={d - 0.6} rx={Math.min(2.5, cap.w * 0.2)}
-          fill="#cccccc" stroke="#2e2e2e" strokeWidth={0.6} />
-      ))}
-      {portElbows.map((x) => (
-        <image key={x} href={partAssetSrc(CYLINDER_ELBOW.file)} x={x} y={0} width={elbowW} height={elbowH} preserveAspectRatio="none" />
-      ))}
-    </g>
-  );
-}
-
 function renderVector(def: PartDef) {
-  if (def.cylinder) return <CylinderArtwork def={def} />;
+  if (def.cylinder || def.art) return <PneumaticArtwork def={def} />;
   switch (def.id) {
     case 'pdp': return <PdpArtwork def={def} />;
     case 'roborio': return <RoboRIO def={def} />;

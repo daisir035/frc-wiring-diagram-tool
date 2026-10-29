@@ -1,4 +1,4 @@
-import { CYLINDER_PARTS } from '../lib/pneumatics';
+import { cylinderBores } from '../lib/pneumatics';
 import {
   BookOpen,
   CircuitBoard,
@@ -62,6 +62,50 @@ function FuseRow({
 
 const ROTATIONS: PlacedPart['rot'][] = [0, 90, 180, 270];
 
+const inches = (mm: number) => `${Math.round(mm / 25.4 * 100) / 100} in`;
+
+function CylinderPicker({ def, disabled, onSelect }: { def: PartDef; disabled: boolean; onSelect: (partId: string) => void }) {
+  const spec = def.cylinder!;
+  const bores = cylinderBores();
+  const current = bores.find((bore) => bore.boreMm === spec.boreMm)!;
+  const option = (active: boolean) => `h-8 rounded border px-2 text-[11px] disabled:opacity-40 ${active
+    ? 'border-sky-500 bg-sky-50 font-semibold text-sky-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`;
+  return (
+    <section className="border-b border-slate-100 py-3">
+      <div className="mb-2 flex items-center gap-2">
+        <Ruler className="h-4 w-4 text-sky-600" aria-hidden="true" />
+        <span className="text-xs font-semibold text-slate-700">气缸规格（AndyMark）</span>
+      </div>
+      <div className="mb-1 text-[10px] text-slate-500">缸径</div>
+      <div className="mb-2 grid grid-cols-2 gap-1">
+        {bores.map((bore) => (
+          <button key={bore.boreMm} type="button" disabled={disabled} className={option(bore.boreMm === spec.boreMm)}
+            onClick={() => bore.boreMm !== spec.boreMm && onSelect(bore.options[0].id)}>
+            {bore.boreMm > 15 ? `Ø${inches(bore.boreMm)} · ${bore.boreMm} mm` : `Ø${bore.boreMm} mm`}
+          </button>
+        ))}
+      </div>
+      <div className="mb-1 text-[10px] text-slate-500">行程 / 型号</div>
+      <div className="grid grid-cols-3 gap-1">
+        {current.options.map((item) => (
+          <button key={item.id} type="button" disabled={disabled} className={option(item.id === def.id)} title={item.name}
+            onClick={() => onSelect(item.id)}>
+            {item.cylinder!.family === 'compact' ? `${item.cylinder!.strokeMm} mm` : inches(item.cylinder!.strokeMm)}
+            {item.cylinder!.action === 'spring-extend' ? ' 弹簧' : ''}
+          </button>
+        ))}
+      </div>
+      <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11px] text-slate-600">
+        <dt className="text-slate-400">型号</dt><dd className="font-mono">{def.id}</dd>
+        <dt className="text-slate-400">收缩总长</dt><dd>{spec.retractedMm.toFixed(1)} mm{spec.lengthVerified ? '' : '（参考）'}</dd>
+        <dt className="text-slate-400">缸体外径</dt><dd>{spec.odMm.toFixed(1)} mm{spec.family === 'smc' ? '' : '（参考）'}</dd>
+        <dt className="text-slate-400">动作</dt><dd>{spec.action === 'double' ? '双作用（A/B 两口）' : '弹簧伸出（单口）'}</dd>
+      </dl>
+      <a href={def.productUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-[11px] text-sky-700 underline">AndyMark 产品页</a>
+    </section>
+  );
+}
+
 export default function PropertiesPanel({ part, def, onPartChange, onFuseChange, onClose }: Props) {
   const installed = Object.keys(part.fuses ?? {}).length;
   const channelCount = def.fuseChannels ?? 0;
@@ -91,16 +135,7 @@ export default function PropertiesPanel({ part, def, onPartChange, onFuseChange,
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 pb-4">
-        {def.cylinder && <section className="space-y-2 border-b py-3 text-xs">
-          <label className="block">缸径 / 行程（AndyMark）
-            <select aria-label="气缸型号" disabled={part.locked} className="mt-1 w-full rounded border p-2" value={def.id} onChange={e => onPartChange({ partId: e.target.value, sizeMm: undefined })}>
-              {CYLINDER_PARTS.map(c => <option key={c.id} value={c.id}>{c.cylinder!.boreMm} mm × {c.cylinder!.strokeMm} mm · {c.id}</option>)}
-            </select>
-          </label>
-          <p>缸径 {def.cylinder.boreMm} mm · 行程 {def.cylinder.strokeMm} mm</p>
-          <p>{def.cylinder.retractedMm ? `收缩总长 ${def.cylinder.retractedMm.toFixed(2)} mm；外径 21.844 mm` : '厂家仅公布缸径和行程；外形为参考尺寸，可在下方按实物校准。'}</p>
-          <a href={def.productUrl} target="_blank" rel="noreferrer" className="text-sky-700 underline">AndyMark 产品与尺寸来源</a>
-        </section>}
+        {def.cylinder && <CylinderPicker def={def} disabled={Boolean(part.locked)} onSelect={(partId) => onPartChange({ partId, sizeMm: undefined })} />}
         <section className="border-b border-slate-100 py-3">
           <div className="mb-2 flex items-center gap-2">
             <Ruler className="h-4 w-4 text-sky-600" aria-hidden="true" />

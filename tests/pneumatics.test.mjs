@@ -29,9 +29,32 @@ test('AndyMark SMC presets use published retracted length and exterior diameter'
  assert.equal(d.cylinder.boreMm,19.05);
  assert.equal(d.cylinder.strokeMm,50.8);
  assert.equal(partDimensions(d).w,165.1);
- assert.equal(partDimensions(d).h,21.844);
+ assert.equal(d.cylinder.odMm,21.844);
+ assert.ok(partDimensions(d).h > 21.844, 'drawing height includes the port elbows');
  assert.equal(partDimensions(d).status,'verified');
  assert.equal(defs.get('am-4388').cylinder.boreMm,12);
+ assert.equal(partDimensions(defs.get('am-4388')).status,'reference');
+});
+
+test('cylinder presets group by bore and keep port ids across strokes', async () => {
+ const {cylinderBores, CYLINDER_PARTS} = await import('../src/lib/pneumatics.ts');
+ const bores = cylinderBores();
+ assert.deepEqual(bores.map(b => b.boreMm), [12, 19.05]);
+ assert.deepEqual(bores[1].options.map(o => o.id), ['am-2034_05','am-2034_2','am-2034_4','am-2034_6','am-2034_7','am-4229']);
+ for (const def of CYLINDER_PARTS.filter(d => d.cylinder.action === 'double')) assert.deepEqual(def.ports.map(p => p.id), ['a','b']);
+ assert.deepEqual(defs.get('am-4229').ports.map(p => p.id), ['b']);
+ const lengths = bores[1].options.slice(0, 5).map(o => o.w);
+ assert.deepEqual(lengths, [129.54, 165.1, 215.9, 266.7, 292.1]);
+});
+
+test('manual artwork parts reference cropped images and new tubes default to smooth routing', () => {
+ for (const def of BUILTIN_PARTS.filter(d => d.id.startsWith('pneumatic-'))) {
+  assert.match(def.img, /^pneumatics\/[a-z-]+\.png$/, def.id);
+  for (const port of def.ports) assert.ok(port.x >= 0 && port.x <= 1 && port.y >= 0 && port.y <= 1, `${def.id}:${port.id}`);
+ }
+ const wires=connectWireEnds([],a,b,parts,defs,'green');
+ assert.equal(wires[0].pathMode,'smooth');
+ assert.equal(wires[0].color,'#00cc00');
 });
 
 test('bundled sample loads with valid ports and its tubes survive source round trip', async () => {
@@ -40,11 +63,12 @@ test('bundled sample loads with valid ports and its tubes survive source round t
  const raw=JSON.parse(await readFile(new URL('../public/examples/frc-pneumatics.frcwire',import.meta.url),'utf8'));
  const state=parseSourceFile(raw);
  const page=state.engineeringProjects[0].pages[0];
- assert.equal(page.parts.length,17);
+ assert.equal(page.parts.length,23);
  for(const w of page.wires) assert.equal(connectionIssue(w.a,w.b,page.parts,defs,false),null,w.id);
  const tube=page.wires.find(w=>w.tubeOdMm);
  assert.equal(tube.awg,undefined);
- assert.equal(tube.cornerRadius,16);
+ assert.equal(tube.pathMode,'smooth');
  const report=buildBom('Example',[page],defs,DEFAULT_BOM_OPTIONS);
- assert.equal(report.lines.filter(l=>l.kind==='气管').length,15);
+ assert.equal(report.lines.filter(l=>l.kind==='气管').length,page.wires.filter(w=>w.tubeOdMm).length);
+ assert.ok(page.wires.filter(w=>w.tubeOdMm).length >= 18);
 });

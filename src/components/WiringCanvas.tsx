@@ -25,6 +25,7 @@ import {
   inlineConnectorPosition,
   uid,
   wireRoutingLane,
+  isFreeRoute,
   partSize,
   portWorld,
   wireGaugeRule,
@@ -59,7 +60,7 @@ interface Props {
   onInlineConnectorChange: (wireId: string, connectorId: string, position: number, kind?: InlineConnectorKind) => void;
   onInlineConnectorRemove: (wireId: string, connectorId: string) => void;
   onInlinePlacementComplete: () => void;
-  onAddWireGuide: (id: string, point: { x: number; y: number }, trunk?: boolean) => void;
+  onAddWireGuide: (id: string, point: { x: number; y: number }, trunk?: boolean) => { wireId: string; waypointId: string } | null;
   onWireWaypointChange: (id: string, waypointId: string, point?: { x: number; y: number }) => void;
   onPortClick: (end: WireEnd) => void;
   onFuseClick: (uid: string, channel: number) => void;
@@ -78,7 +79,9 @@ type DragMode =
   | { kind: 'wire-control'; wireId: string }
   | { kind: 'inline-connector'; wireId: string; connectorId: string }
   | { kind: 'bundle-endpoint'; wireId: string; endpoint: 'entry' | 'exit'; endpoints: NonNullable<Wire['bundleEndpoints']>; offsetX: number; offsetY: number }
-  | { kind: 'wire-waypoint'; wireId: string; waypointId: string };
+  | { kind: 'wire-waypoint'; wireId: string; waypointId: string }
+  /** Pressing a free route's body; becomes a new guide once the pointer moves. */
+  | { kind: 'wire-bend'; wireId: string; startX: number; startY: number; world: { x: number; y: number }; trunk?: boolean };
 
 interface SelectionRect {
   x: number;
@@ -295,6 +298,18 @@ export default function WiringCanvas(props: Props) {
   const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
 
+  const connectedPorts = useMemo(() => {
+    const connected = new Set(wires.flatMap((wire) => [wire.a, wire.b].map((end) => `${end.uid}:${end.portId}`)));
+    // Hard fittings: two air ports screwed together count as connected without a tube.
+    const air = parts.flatMap((part) => {
+      const def = partDefs.get(part.partId);
+      return def ? def.ports.filter((port) => port.type === 'air').map((port) => ({ key: `${part.uid}:${port.id}`, uid: part.uid, ...portWorld(part, def, port) })) : [];
+    });
+    for (const a of air) {
+      if (air.some((b) => b.uid !== a.uid && Math.hypot(a.x - b.x, a.y - b.y) < 1.5)) connected.add(a.key);
+    }
+    return connected;
+  }, [wires, parts, partDefs]);
   const motorPdhChannels = useMemo(() => {
     const partByUid = new Map(parts.map((part) => [part.uid, part]));
     const channelSets = new Map<string, Set<number>>();
@@ -549,6 +564,11 @@ export default function WiringCanvas(props: Props) {
         w: Math.abs(w.x - d.startWx),
         h: Math.abs(w.y - d.startWy),
       });
+    } else if (d.kind === 'wire-bend') {
+      if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < 4) return;
+      beginInteraction();
+      const guide = onAddWireGuide(d.wireId, d.world, d.trunk);
+      dragRef.current = guide ? { kind: 'wire-waypoint', ...guide } : { kind: 'none' };
     } else if (d.kind === 'parts') {
       if (d.uids.length === 0) return;
       const w = toWorld(e.clientX, e.clientY);
@@ -578,8 +598,8 @@ export default function WiringCanvas(props: Props) {
       const point = toWorld(e.clientX, e.clientY);
       beginInteraction();
       onWireControlChange(d.wireId, {
-        x: wires.find(w => w.id === d.wireId)?.pathMode === 'free' ? point.x : Math.round(point.x / 4) * 4,
-        y: wires.find(w => w.id === d.wireId)?.pathMode === 'free' ? point.y : Math.round(point.y / 4) * 4,
+        x: isFreeRoute(wires.find(w => w.id === d.wireId)) ? point.x : Math.round(point.x / 4) * 4,
+        y: isFreeRoute(wires.find(w => w.id === d.wireId)) ? point.y : Math.round(point.y / 4) * 4,
       });
     } else if (d.kind === 'inline-connector') {
       const wire = wires.find((wire) => wire.id === d.wireId);
@@ -596,8 +616,8 @@ export default function WiringCanvas(props: Props) {
       const point = toWorld(e.clientX, e.clientY);
       beginInteraction();
       onWireWaypointChange(d.wireId, d.waypointId, {
-        x: wires.find(w => w.id === d.wireId)?.pathMode === 'free' ? point.x : Math.round(point.x / 4) * 4,
-        y: wires.find(w => w.id === d.wireId)?.pathMode === 'free' ? point.y : Math.round(point.y / 4) * 4,
+        x: isFreeRoute(wires.find(w => w.id === d.wireId)) ? point.x : Math.round(point.x / 4) * 4,
+        y: isFreeRoute(wires.find(w => w.id === d.wireId)) ? point.y : Math.round(point.y / 4) * 4,
       });
     }
   };
@@ -785,6 +805,8 @@ export default function WiringCanvas(props: Props) {
               ? (wire.awg ? `${wire.awg} AWG` : '未选 AWG')
               : null;
             const commonType = portA?.type === portB?.type ? portA?.type : undefined;
+            const tube = commonType === 'air';
+            const tubeWidth = wire.tubeOdMm ?? 6.35;
             const labelOffset = commonType === 'pwr+'
               ? -15
               : commonType === 'pwr-'
@@ -805,11 +827,14 @@ export default function WiringCanvas(props: Props) {
             return (
               <g key={wire.id} data-wire-id={wire.id} data-cable-members={cable?.map((wire) => wire.id).join(',')}>
                 {sel && visiblePaths.map((segment, index) => (
-                  <path key={'selection-' + index} d={segment} fill="none" stroke="#38bdf8" strokeWidth={10} opacity={0.42} strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />
+                  <path key={'selection-' + index} d={segment} fill="none" stroke="#38bdf8" strokeWidth={tube ? tubeWidth + 6 : 10} opacity={0.42} strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />
                 ))}
                 {visiblePaths.map((segment, index) => (
                   <g key={'wire-segment-' + index} style={{ pointerEvents: 'none' }}>
-                    {cable ? <CableConductors radius={editorWire.cornerRadius} points={route.visiblePoints[index]} colors={[wire.color, cable[1].color]} twisted={commonType === 'canH'}
+                    {tube ? <>
+                      <path d={segment} fill="none" stroke="#14532d" strokeOpacity={0.55} strokeWidth={tubeWidth + 1.2} strokeLinejoin="round" />
+                      <path d={segment} fill="none" stroke={wire.color} strokeWidth={tubeWidth} strokeLinejoin="round" />
+                    </> : cable ? <CableConductors radius={editorWire.cornerRadius} points={route.visiblePoints[index]} colors={[wire.color, cable[1].color]} twisted={commonType === 'canH'}
                       polarity={cableVisuals.get(wire.id)?.polarity} {...cableVisuals.get(wire.id)?.segments[index]} /> : <>
                     <path
                       d={segment}
@@ -848,6 +873,10 @@ export default function WiringCanvas(props: Props) {
                       return;
                     }
                     onWireClick(wire.id, e.shiftKey);
+                    if (isFreeRoute(editorWire) && !e.shiftKey && !pendingFrom) {
+                      (e.currentTarget.ownerSVGElement as Element | null)?.setPointerCapture?.(e.pointerId);
+                      dragRef.current = { kind: 'wire-bend', wireId: wire.id, startX: e.clientX, startY: e.clientY, world: toWorld(e.clientX, e.clientY) };
+                    }
                   }}
                 />
                 {wire.assembly === 'jumper' && (
@@ -982,6 +1011,7 @@ export default function WiringCanvas(props: Props) {
             const { w, h } = partSize(def, part);
             const sel = selectedParts.has(part.uid);
             const displayLabel = [part.customName?.trim() || def.name, part.deviceId?.trim()].filter(Boolean).join(' · ');
+            const showLabel = !def.hideLabel || Boolean(part.customName?.trim() || part.deviceId?.trim());
             const pdhChannels = motorPdhChannels.get(part.uid) ?? [];
             const pdhLabel = pdhChannels.length > 0 ? `PDH CH ${pdhChannels.join(' / ')}` : '';
             const pdhLabelWidth = Math.max(64, pdhLabel.length * 6 + 16);
@@ -1046,7 +1076,11 @@ export default function WiringCanvas(props: Props) {
                             <stop offset="50%" stopColor={PORT_TYPE_COLOR[paired!.type]} />
                           </linearGradient>
                         </defs>}
-                        <circle
+                        {port.type === 'air' && !isPending ? (
+                          // Push-to-connect fittings are in the artwork; only open ones get a ring.
+                          !connectedPorts.has(`${part.uid}:${port.id}`) && <circle cx={port.x * w} cy={port.y * h} r={3.2}
+                            fill="#ffffff" stroke={PORT_TYPE_COLOR.air} strokeWidth={1.6} pointerEvents="none" />
+                        ) : <circle
                           cx={port.x * w}
                           cy={port.y * h}
                           r={isPending ? 7 : 4.6}
@@ -1056,7 +1090,7 @@ export default function WiringCanvas(props: Props) {
                           pointerEvents="none"
                         >
                           <title>{`${displayLabel} · ${port.label}`}</title>
-                        </circle>
+                        </circle>}
                         <circle
                           data-port-uid={part.uid}
                           data-port-id={port.id}
@@ -1092,7 +1126,7 @@ export default function WiringCanvas(props: Props) {
                     <title>器件已锁定</title>
                   </g>
                 )}
-                <text
+                {showLabel && <text
                   x={w / 2}
                   y={h + 16}
                   textAnchor="middle"
@@ -1102,7 +1136,7 @@ export default function WiringCanvas(props: Props) {
                   style={{ pointerEvents: 'none', userSelect: 'none' }}
                 >
                   {displayLabel}
-                </text>
+                </text>}
                 {pdhLabel && (
                   <g
                     transform={`translate(${w / 2} ${h + 24})`}
@@ -1149,6 +1183,11 @@ export default function WiringCanvas(props: Props) {
                   return;
                 }
                 onMarqueeSelect({ partUids: [], wireIds: bundle.wireIds }, event.shiftKey);
+                if (isFreeRoute(wires.find((wire) => wire.id === bundle.wireIds[0])) && !event.shiftKey) {
+                  (event.currentTarget.ownerSVGElement as Element | null)?.setPointerCapture?.(event.pointerId);
+                  dragRef.current = { kind: 'wire-bend', wireId: bundle.wireIds[0], startX: event.clientX, startY: event.clientY,
+                    world: toWorld(event.clientX, event.clientY), trunk: true };
+                }
               }}>
               <title>{bundle.style === 'drag-chain' ? '拖链' : '束线管'}</title>
             </path>

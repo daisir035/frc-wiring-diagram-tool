@@ -96,10 +96,26 @@ export default function WireBundlePanel({ pathMode, cornerRadius, onGeometryChan
           <Shield className="h-4 w-4 text-violet-600" aria-hidden="true" />
           <span className="text-xs font-semibold text-slate-700">线路保护方式</span>
         </div>
-        <div className="mb-3 space-y-2 text-xs">
-          <label className="block">主干路径 <select aria-label="线束路径模式" value={pathMode ?? 'orthogonal'} onChange={e=>onGeometryChange({pathMode:e.target.value as Wire['pathMode']})}><option value="orthogonal">正交</option><option value="free">自由</option></select></label>
-          <label className="block">圆角（mm）<input aria-label="线束圆角" className="ml-2 w-20 rounded border" type="number" min="0" max="1000" value={cornerRadius ?? 8} onChange={e=>{const n=Number(e.target.value);if(n>=0 && n<=1000)onGeometryChange({cornerRadius:n});}}/></label>
-          <p>双击主干加点，点击单根线路可锁定或删除路径点。</p>
+        <div className="mb-3">
+          <div className="mb-1 text-[10px] text-slate-500">主干路径</div>
+          <div className="grid grid-cols-3 gap-1 rounded-md bg-slate-100 p-1" role="radiogroup" aria-label="线束路径模式">
+            {([['orthogonal', '正交'], ['free', '折线'], ['smooth', '曲线']] as const).map(([value, label]) => (
+              <button key={value} type="button" role="radio" aria-checked={(pathMode ?? 'orthogonal') === value}
+                onClick={() => onGeometryChange({ pathMode: value })}
+                className={`h-7 rounded text-[11px] font-medium ${(pathMode ?? 'orthogonal') === value ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {pathMode !== 'smooth' && (
+            <label className="mt-2 flex items-center gap-2 text-[11px] text-slate-600">
+              <span className="w-16 shrink-0">拐角圆弧</span>
+              <input aria-label="线束圆角" type="range" min={0} max={60} step={1} value={Math.min(60, cornerRadius ?? 8)} className="min-w-0 flex-1 accent-violet-600"
+                onChange={(e) => onGeometryChange({ cornerRadius: Number(e.target.value) })} />
+              <span className="w-12 text-right tabular-nums">{cornerRadius ?? 8} mm</span>
+            </label>
+          )}
+          <p className="mt-2 text-[10px] leading-4 text-slate-400">双击主干加固定点；折线/曲线模式可直接拖动主干弯出固定点。</p>
         </div>
         <WireRoutingStylePicker value={value} onChange={onChange} />
       </div>

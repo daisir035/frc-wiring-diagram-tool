@@ -783,9 +783,12 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
     const sharedWaypoints = sharedWire.waypoints ?? affectedWires.find((wire) => wire.waypoints?.length)?.waypoints;
     const sharedA = resolveWorldPort(sharedWire.bundleReversed ? sharedWire.b : sharedWire.a);
     const sharedB = resolveWorldPort(sharedWire.bundleReversed ? sharedWire.a : sharedWire.b);
-    const waypointShape = (points: WireWaypoint[]) => JSON.stringify(points.map(({ x, y, terminal }) => [x, y, terminal ?? 'wago']));
-    if (sharedWaypoints && affectedWires.some((wire) => wire.waypoints?.length
-      && waypointShape(wire.waypoints) !== waypointShape(sharedWaypoints))) {
+    // Guides are pure geometry and the trunk adopts the shared wire's; only real terminals must agree.
+    const waypointShape = (points: WireWaypoint[] = []) => JSON.stringify(points.filter((point) => point.kind !== 'guide')
+      .map(({ x, y, terminal }) => [x, y, terminal ?? 'wago']));
+    const sharedTerminals = waypointShape(sharedWaypoints);
+    if (affectedWires.some((wire) => wire.waypoints?.some((point) => point.kind !== 'guide')
+      && waypointShape(wire.waypoints) !== sharedTerminals)) {
       window.alert('所选导线有不同的中间端子路径，请先统一端子路径再合并线束。现有端子已保留。');
       return;
     }
@@ -831,12 +834,13 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
       : waypoints.filter((waypoint) => waypoint.id !== waypointId));
   };
 
+  /** Returns the wire that owns the new guide, so the canvas can keep dragging it. */
   const addWireGuide = (wireId: string, point?: { x: number; y: number }, trunk = false) => {
     const target = wires.find(w => w.id === wireId);
-    if (!target) return;
+    if (!target) return null;
     const geometry = buildWireGeometry(wires, resolveWorldPort, () => 0, cables);
     const route = geometry.routes.get(wireId);
-    if (!route) return;
+    if (!route) return null;
     const editor = route.editorWire;
     const location = point ?? route.control;
     let field: 'waypoints' | 'bundleLeadIn' | 'bundleLeadOut' = 'waypoints';
@@ -848,14 +852,16 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
       if (inDistance < trunkDistance || outDistance < trunkDistance) field = inDistance <= outDistance ? 'bundleLeadIn' : 'bundleLeadOut';
     }
     const editId = field === 'waypoints' ? editor.id : wireId;
+    const guideId = uid();
     applyWaypointsToWireGroup(editId, points => {
-      const guide: WireWaypoint = { ...location, id: uid(), kind: 'guide' };
+      const guide: WireWaypoint = { x: location.x, y: location.y, id: guideId, kind: 'guide' };
       const along = projectOntoRoute(route.points, location).along;
       const index = points.findIndex(p => projectOntoRoute(route.points, p).along > along);
       const next = [...points];
       next.splice(index < 0 ? next.length : index, 0, guide);
       return next;
     }, field);
+    return { wireId: editId, waypointId: guideId };
   };
 
   const changeWireWaypointTerminal = (wireId: string, waypointId: string, terminal: WireTerminalType) => {
@@ -1664,7 +1670,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
             onToggleWaypointLock={(id) => applyWaypointsToWireGroup(selectedWire.id, points => points.map(p => p.id === id ? { ...p, locked: !p.locked } : p))}
             onWaypointTerminalChange={(waypointId, terminal) => changeWireWaypointTerminal(selectedWire.id, waypointId, terminal)}
             onRemoveWaypoint={(waypointId) => changeWireWaypoint(selectedWire.id, waypointId)}
-            onClearWaypoints={() => selectedWire && applyWaypointsToWireGroup(selectedWire.id, () => [])}
+            onClearWaypoints={() => selectedWire && applyWaypointsToWireGroup(selectedWire.id, (points) => points.filter((point) => point.kind === 'guide'))}
             onClose={() => { setSelectedWires(new Set()); setPendingInlineWireId(null); }}
           />
         )}
@@ -1672,9 +1678,16 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
           <PropertiesPanel
             part={selectedPart}
             def={selectedPartDef}
-            onPartChange={(changes) => setParts((current) => current.map((part) =>
-              part.uid === selectedPart.uid ? { ...part, ...changes } : part,
-            ))}
+            onPartChange={(changes) => {
+              const nextDef = changes.partId ? partDefs.get(changes.partId) : undefined;
+              if (nextDef) {
+                // Model swaps keep connections on ports the new model still has, e.g. cylinder A/B.
+                const ports = new Set(nextDef.ports.map((port) => port.id));
+                const stale = (end: WireEnd) => end.uid === selectedPart.uid && !ports.has(end.portId);
+                setWires((current) => current.filter((wire) => !stale(wire.a) && !stale(wire.b)));
+              }
+              setParts((current) => current.map((part) => part.uid === selectedPart.uid ? { ...part, ...changes } : part));
+            }}
             onFuseChange={(channel, rating) => setPartFuse(selectedPart.uid, channel, rating)}
             onClose={() => setSelectedParts(new Set())}
           />

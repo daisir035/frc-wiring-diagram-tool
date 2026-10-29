@@ -1,4 +1,5 @@
 import { PNEUMATIC_PARTS } from './pneumatics.ts';
+import type { CylinderSpec } from './pneumatics.ts';
 // FRC 接线图工具 - 类型、端口和内置元件定义
 
 export type PortType =
@@ -53,10 +54,12 @@ export interface PortDef {
 }
 
 export interface PartDef {
-  artworkCell?: number;
+  /** Built-in footprint and its published source, when not in PART_FOOTPRINTS_MM. */
   footprintMm?: { w: number; h: number };
   dimensionSource?: string;
-  cylinder?: { boreMm: number; strokeMm: number; retractedMm?: number; family: 'smc' | 'compact' };
+  cylinder?: CylinderSpec;
+  /** Small fittings such as tees omit the canvas name unless the user names them. */
+  hideLabel?: boolean;
   id: string;
   name: string;
   category: string;
@@ -153,7 +156,8 @@ export interface InlineConnector {
 export interface Wire {
   tubeOdMm?: number;
   pressureSide?: 'high' | 'working';
-  pathMode?: 'orthogonal' | 'free';
+  /** orthogonal: auto elbows; free: straight segments between guides; smooth: spline through guides. */
+  pathMode?: 'orthogonal' | 'free' | 'smooth';
   cornerRadius?: number;
   id: string;
   a: WireEnd;
@@ -210,7 +214,7 @@ export const PORT_TYPE_COLOR: Record<PortType, string> = {
   phaseA: '#f59e0b',
   phaseB: '#0ea5e9',
   phaseC: '#a855f7',
-  air: '#16a34a',
+  air: '#00cc00',
   airExhaust: '#94a3b8',
 };
 
@@ -1013,7 +1017,7 @@ export function partImageSrc(def: PartDef): string {
 }
 
 export function partAssetSrc(fileName: string): string {
-  return `${import.meta.env.BASE_URL}parts/${encodeURIComponent(fileName)}`;
+  return `${import.meta.env.BASE_URL}parts/${fileName.split('/').map(encodeURIComponent).join('/')}`;
 }
 
 /**
@@ -1592,7 +1596,7 @@ export function connectWireEnds(wires: Wire[], from: WireEnd, to: WireEnd, parts
     const jumper = left.type === 'data' && right.type === 'data';
     const wire: Wire = {
       id: uid(), a, b, color: left.type === right.type ? PORT_TYPE_COLOR[left.type] : color,
-      ...(left.type === 'air' ? { tubeOdMm: 6.35, pressureSide: 'working' as const } : {}),
+      ...(left.type === 'air' ? { tubeOdMm: 6.35, pressureSide: 'working' as const, pathMode: 'smooth' as const } : {}),
       assembly: jumper ? 'jumper' : 'field',
       terminalA: jumper ? defaultTerminalForPort(left) : undefined,
       terminalB: jumper ? defaultTerminalForPort(right) : undefined,
@@ -1806,8 +1810,52 @@ export function sampleRoundedRoute(input: RoutePoint[], radius = 8) {
   return samples;
 }
 
+/** Free and smooth routes keep guides where the user puts them; no grid snapping or auto elbows. */
+export const isFreeRoute = (wire?: Pick<Wire, 'pathMode'>) => wire?.pathMode === 'free' || wire?.pathMode === 'smooth';
+
+/**
+ * Cubic spline through the guides. The ends leave along the port normals, so tubes
+ * come straight out of a fitting before bending, as in the FIRST pneumatics manual.
+ */
+export function smoothWireRoute(a: WorldPort, b: WorldPort, guides: RoutePoint[], tension = 1) {
+  const knots: RoutePoint[] = [a, ...guides, b].filter((point, index, all) =>
+    index === 0 || Math.hypot(point.x - all[index - 1].x, point.y - all[index - 1].y) > 0.01);
+  if (knots.length < 2) return { points: [a, b], vertices: [a, b], path: `M ${a.x} ${a.y} L ${b.x} ${b.y}` };
+  const span = (i: number) => Math.hypot(knots[i + 1].x - knots[i].x, knots[i + 1].y - knots[i].y);
+  const tangents = knots.map((_, i) => {
+    if (i === 0) return { x: a.nx * span(0) * tension, y: a.ny * span(0) * tension };
+    if (i === knots.length - 1) return { x: -b.nx * span(i - 1) * tension, y: -b.ny * span(i - 1) * tension };
+    const prev = knots[i - 1];
+    const next = knots[i + 1];
+    return { x: (next.x - prev.x) / 2, y: (next.y - prev.y) / 2 };
+  });
+  let path = `M ${knots[0].x} ${knots[0].y}`;
+  const points: RoutePoint[] = [{ x: knots[0].x, y: knots[0].y }];
+  for (let i = 0; i < knots.length - 1; i++) {
+    const p0 = knots[i];
+    const p3 = knots[i + 1];
+    const c1 = { x: p0.x + tangents[i].x / 3, y: p0.y + tangents[i].y / 3 };
+    const c2 = { x: p3.x - tangents[i + 1].x / 3, y: p3.y - tangents[i + 1].y / 3 };
+    path += ` C ${c1.x} ${c1.y} ${c2.x} ${c2.y} ${p3.x} ${p3.y}`;
+    const count = Math.max(4, Math.ceil(span(i) / 3));
+    for (let step = 1; step <= count; step++) {
+      const t = step / count;
+      const u = 1 - t;
+      points.push({
+        x: u * u * u * p0.x + 3 * u * u * t * c1.x + 3 * u * t * t * c2.x + t * t * t * p3.x,
+        y: u * u * u * p0.y + 3 * u * u * t * c1.y + 3 * u * t * t * c2.y + t * t * t * p3.y,
+      });
+    }
+  }
+  return { points, vertices: knots.map(({ x, y }) => ({ x, y })), path };
+}
+
 /** Explicit guides are world-space anchors; free routes never insert elbows. */
 export function editableWireRoute(wire: Wire, a: WorldPort, b: WorldPort, lane = 0) {
+  if (wire.pathMode === 'smooth') {
+    const route = smoothWireRoute(a, b, wire.waypoints?.length ? wire.waypoints : wire.control ? [wire.control] : []);
+    return { ...route, control: pointAlongRoute(route.points, routeLength(route.points) / 2) };
+  }
   const route = wire.pathMode === 'free'
     ? (() => {
         const points = [a, ...(wire.waypoints?.length ? wire.waypoints : wire.control ? [wire.control] : []), b];
@@ -1916,10 +1964,14 @@ export function buildWireGeometry(
       const cableId = cables.get(item.wire.id)?.[0].id ?? item.wire.id;
       const memberBefore = item.wire.bundleEndpoints ? item.wire.bundleLeadIn : before;
       const memberAfter = item.wire.bundleEndpoints ? item.wire.bundleLeadOut : after;
-      const leadIn = wire.pathMode === 'free'
+      const leadIn = wire.pathMode === 'smooth'
+        ? smoothWireRoute(from, entry, memberBefore ?? []).points
+        : isFreeRoute(wire)
         ? [from, ...(memberBefore ?? []), entry]
         : bundleLeadRoute(entry, from, entryLanes.get(cableId) ?? getLane(item.wire), memberBefore?.slice().reverse()).points.slice().reverse();
-      const leadOut = wire.pathMode === 'free'
+      const leadOut = wire.pathMode === 'smooth'
+        ? smoothWireRoute(end, to, memberAfter ?? []).points
+        : isFreeRoute(wire)
         ? [end, ...(memberAfter ?? []), to]
         : bundleLeadRoute(end, to, exitLanes.get(cableId) ?? getLane(item.wire), memberAfter).points;
       const visiblePoints = [leadIn, leadOut];
@@ -1940,13 +1992,14 @@ export function buildWireGeometry(
   // Explicit rounding shares its sampled centerline with hit testing, BOM and inline connectors.
   const sampled = new Set<WireGeometry>();
   for (const route of routes.values()) {
-    if (sampled.has(route) || route.editorWire.cornerRadius === undefined) continue;
+    if (sampled.has(route) || route.editorWire.cornerRadius === undefined || route.vertices) continue;
     sampled.add(route);
     route.vertices = route.points;
     if (route.editorWire.cornerRadius > 0) route.points = sampleRoundedRoute(route.points, route.editorWire.cornerRadius);
   }
   for (const bundle of bundles) {
-    const radius = routes.get(bundle.wireIds[0])?.editorWire.cornerRadius;
+    const editor = routes.get(bundle.wireIds[0])?.editorWire;
+    const radius = editor?.pathMode === 'smooth' ? undefined : editor?.cornerRadius;
     if (radius !== undefined && radius > 0) bundle.points = sampleRoundedRoute(bundle.points, radius);
   }
   return { routes, bundles };

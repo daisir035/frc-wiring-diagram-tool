@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import type { FuseRating, PartDef } from '../lib/wiring';
 import { PORT_TYPE_COLOR, partAssetSrc, partImageSrc } from '../lib/wiring';
+import { CYLINDER_ELBOW, cylinderLayout } from '../lib/pneumatics';
 
 interface Props {
   def: PartDef;
@@ -588,33 +589,31 @@ function LeverTerminal({ def }: { def: PartDef }) {
   );
 }
 
-// Atlas isolated from the FIRST manual illustrations; boxes exclude labels and pipes.
-const PNEUMATIC_BOXES = [
-  [25,195,260,215], [310,240,370,130], [690,210,285,210], [1010,185,240,250],
-  [88,520,170,265], [440,520,105,265], [670,570,195,180], [900,580,325,165],
-  [25,935,290,140], [320,915,390,170], [730,905,220,185], [975,935,260,140],
-];
-
-function PneumaticArtwork({def}: {def: PartDef}) {
-  if (def.cylinder) {
-    const {w,h} = def;
-    const compact = def.cylinder.family === 'compact';
-    return <g>
-      <rect x={0} y={h * 0.42} width={w * 0.25} height={h * 0.16} fill="#cbd5e1" stroke="#475569" strokeWidth={0.6}/>
-      <rect x={w * 0.19} y={0.5} width={w * 0.75} height={h-1} rx={compact ? 1 : h*0.15} fill="#cbd5e1" stroke="#475569" strokeWidth={0.8}/>
-      <rect x={w * 0.22} y={1} width={Math.min(8,w*0.12)} height={h-2} fill="#64748b"/>
-      <rect x={w * 0.88} y={1} width={Math.min(8,w*0.08)} height={h-2} fill="#64748b"/>
-      <VectorPortPads def={def}/>
-    </g>;
-  }
-  const box = PNEUMATIC_BOXES[def.artworkCell ?? -1];
-  return box ? <><svg width={def.w} height={def.h} viewBox={box.join(' ')} preserveAspectRatio="none" overflow="hidden">
-    <image href={partAssetSrc('pneumatic-atlas.png')} width={1280} height={1280}/>
-  </svg><VectorPortPads def={def}/></> : null;
+/** Cylinder in the FIRST manual's actuator style, drawn to the AndyMark length and diameter. */
+function CylinderArtwork({ def }: { def: PartDef }) {
+  const layout = cylinderLayout(def.cylinder!);
+  const { w, rod, bodyY, rodCap, rearCap, elbowW, elbowH } = layout;
+  const d = def.cylinder!.odMm;
+  const rodD = Math.max(3, d * 0.3);
+  const elbows = [rearCap.x, rodCap.x].map((capX) => capX === rearCap.x ? layout.rearElbowX : layout.rodElbowX);
+  const portElbows = def.cylinder!.action === 'double' ? elbows : elbows.slice(1);
+  return (
+    <g>
+      <rect x={0.4} y={bodyY + d / 2 - rodD / 2} width={rod + 1} height={rodD} fill="#cccccc" stroke="#5f5f5f" strokeWidth={0.5} />
+      <rect x={rodCap.x + rodCap.w / 2} y={bodyY + d * 0.07} width={rearCap.x - rodCap.x} height={d * 0.86} fill="#cccccc" stroke="#9a9a9a" strokeWidth={0.4} />
+      {[rodCap, rearCap].map((cap) => (
+        <rect key={cap.x} x={cap.x} y={bodyY + 0.3} width={Math.min(cap.w, w - cap.x - 0.3)} height={d - 0.6} rx={Math.min(2.5, cap.w * 0.2)}
+          fill="#cccccc" stroke="#2e2e2e" strokeWidth={0.6} />
+      ))}
+      {portElbows.map((x) => (
+        <image key={x} href={partAssetSrc(CYLINDER_ELBOW.file)} x={x} y={0} width={elbowW} height={elbowH} preserveAspectRatio="none" />
+      ))}
+    </g>
+  );
 }
 
 function renderVector(def: PartDef) {
-  if (def.artworkCell !== undefined) return <PneumaticArtwork def={def}/>;
+  if (def.cylinder) return <CylinderArtwork def={def} />;
   switch (def.id) {
     case 'pdp': return <PdpArtwork def={def} />;
     case 'roborio': return <RoboRIO def={def} />;

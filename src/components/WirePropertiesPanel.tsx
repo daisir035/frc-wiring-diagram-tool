@@ -1,4 +1,4 @@
-import { AlertTriangle, Cable, CheckCircle2, MapPinPlus, Plug, Ruler, Shield, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Cable, CheckCircle2, Lock, MapPinPlus, Plug, Ruler, Shield, Spline, Trash2, Unlock, X } from 'lucide-react';
 import type {
   PartDef,
   InlineConnector,
@@ -107,10 +107,24 @@ function TerminalSelect({
   );
 }
 
+const TUBE_SIZES = [
+  { od: 4, label: '4 mm' },
+  { od: 6.35, label: '1/4 in' },
+  { od: 9.53, label: '3/8 in' },
+];
+
+const PATH_MODES: Array<{ value: NonNullable<Wire['pathMode']>; label: string; hint: string }> = [
+  { value: 'orthogonal', label: '正交', hint: '自动横平竖直走线，拐角按半径圆弧过渡' },
+  { value: 'free', label: '折线', hint: '按固定点直线连接，拐角圆弧过渡' },
+  { value: 'smooth', label: '曲线', hint: '平滑样条穿过固定点，适合气管' },
+];
+
 export default function WirePropertiesPanel({ wire, cableSize, parts, partDefs, rule, bundleSize, onChange, onRoutingStyleChange,
   inlineConnectors, inlineSupported, inlineKind, onInlineKindChange, inlinePlacement, onAddInline, onRemoveInline, onClearInline,
   onWaypointTerminalChange, onAddGuide, onToggleWaypointLock, onRemoveWaypoint, onClearWaypoints, onClose }: Props) {
   const waypoints = wireWaypoints(wire);
+  const guides = waypoints.filter((point) => point.kind === 'guide');
+  const terminals = waypoints.filter((point) => point.kind !== 'guide');
   const a = endInfo(wire, 'a', parts, partDefs);
   const b = endInfo(wire, 'b', parts, partDefs);
   const pneumatic = a.port?.type === 'air';
@@ -147,21 +161,48 @@ export default function WirePropertiesPanel({ wire, cableSize, parts, partDefs, 
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 pb-4">
-        <section className="space-y-2 border-b py-3 text-xs">
-          <label className="block">路径模式
-            <select aria-label="路径模式" className="ml-2 rounded border p-1" value={wire.pathMode ?? 'orthogonal'} onChange={e => onChange({ pathMode: e.target.value as Wire['pathMode'] })}>
-              <option value="orthogonal">正交布线</option><option value="free">自由路径</option>
-            </select>
-          </label>
-          <label className="block">圆角半径（mm）
-            <input aria-label="圆角半径" className="ml-2 w-20 rounded border p-1" type="number" min="0" max="1000" value={wire.cornerRadius ?? 8} onChange={e => { const n = Number(e.target.value); if (Number.isFinite(n) && n >= 0 && n <= 1000) onChange({ cornerRadius: n }); }} />
-          </label>
-          <button className="rounded border px-2 py-1" onClick={onAddGuide}>添加路径固定点</button>
-          <p className="text-[10px] text-slate-500">双击线路可在鼠标处加点。拖动空心点调整；锁定后移动器件也会保持位置。</p>
-          {waypoints.filter(p => p.kind === 'guide').map((p, i) => <div key={p.id} className="flex items-center gap-2">
-            <span>路径点 {i + 1}</span><button className="rounded border p-1" onClick={() => onToggleWaypointLock(p.id)}>{p.locked ? '解锁' : '锁定'}</button>
-            <button className="rounded border p-1" onClick={() => onRemoveWaypoint(p.id)}>删除</button>
-          </div>)}
+        <section className="border-b border-slate-100 py-3">
+          <div className="mb-2 flex items-center gap-2">
+            <Spline className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+            <span className="text-xs font-semibold text-slate-700">走线路径</span>
+          </div>
+          <div className="grid grid-cols-3 gap-1 rounded-md bg-slate-100 p-1" role="radiogroup" aria-label="路径模式">
+            {PATH_MODES.map((mode) => (
+              <button key={mode.value} type="button" role="radio" aria-checked={(wire.pathMode ?? 'orthogonal') === mode.value}
+                title={mode.hint}
+                onClick={() => onChange({ pathMode: mode.value })}
+                className={`h-7 rounded text-[11px] font-medium ${(wire.pathMode ?? 'orthogonal') === mode.value ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
+                {mode.label}
+              </button>
+            ))}
+          </div>
+          {wire.pathMode !== 'smooth' && (
+            <label className="mt-2 flex items-center gap-2 text-[11px] text-slate-600">
+              <span className="w-16 shrink-0">拐角圆弧</span>
+              <input aria-label="圆角半径" type="range" min={0} max={60} step={1} value={Math.min(60, wire.cornerRadius ?? 8)} className="min-w-0 flex-1 accent-emerald-600"
+                onChange={(e) => onChange({ cornerRadius: Number(e.target.value) })} />
+              <span className="w-12 text-right tabular-nums">{wire.cornerRadius ?? 8} mm</span>
+            </label>
+          )}
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <span className="text-[10px] leading-4 text-slate-400">{wire.pathMode === 'orthogonal' || !wire.pathMode ? '正交模式拖动吸附 4 mm 网格。' : '折线/曲线：直接拖动线身即可弯出新的固定点。'}双击线路在该处加点。</span>
+            <button type="button" className="h-7 shrink-0 rounded border border-slate-200 px-2 text-[11px] text-slate-600 hover:bg-slate-50" onClick={onAddGuide}>加固定点</button>
+          </div>
+          {guides.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {guides.map((point, index) => (
+                <div key={point.id} className="flex h-7 items-center gap-2 rounded border border-slate-100 bg-slate-50 px-2 text-[11px] text-slate-600">
+                  <span className="flex-1">固定点 {index + 1}{point.locked ? ' · 已锁定' : ''}</span>
+                  <button type="button" className="rounded p-1 text-slate-500 hover:bg-white hover:text-slate-800" title={point.locked ? '解锁' : '锁定：移动器件时保持位置'} onClick={() => onToggleWaypointLock(point.id)}>
+                    {point.locked ? <Lock className="h-3.5 w-3.5" aria-hidden="true" /> : <Unlock className="h-3.5 w-3.5" aria-hidden="true" />}
+                  </button>
+                  <button type="button" className="rounded p-1 text-slate-500 hover:bg-white hover:text-red-600" title="删除固定点" onClick={() => onRemoveWaypoint(point.id)}>
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
         {!pneumatic && <>
         <section className="border-b border-slate-100 py-3">
@@ -197,10 +238,28 @@ export default function WirePropertiesPanel({ wire, cableSize, parts, partDefs, 
           </div>)}
         </section>
         </>}
-        {pneumatic ? <section className="space-y-2 border-b py-3 text-xs">
-          <label className="block">气管外径（mm）<input aria-label="气管外径" className="ml-2 w-20 rounded border p-1" type="number" min="0.1" max="100" step="0.01" value={wire.tubeOdMm ?? 6.35} onChange={e => { const n=Number(e.target.value); if(n>=0.1 && n<=100) onChange({tubeOdMm:n}); }}/></label>
-          <label className="block">压力侧 <select aria-label="压力侧" className="rounded border p-1" value={wire.pressureSide ?? 'working'} onChange={e=>onChange({pressureSide:e.target.value as Wire['pressureSide'],color:e.target.value==='high'?'#16a34a':'#0ea5e9'})}><option value="high">高压储气侧</option><option value="working">调压后工作侧</option></select></label>
-          <p className="text-slate-500">气管不使用 AWG。分支请添加三通或分气块；实际承压等级以气管规格为准。</p>
+        {pneumatic ? <section className="border-b border-slate-100 py-3">
+          <div className="mb-2 flex items-center gap-2">
+            <Ruler className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+            <span className="text-xs font-semibold text-slate-700">气管规格</span>
+          </div>
+          <div className="mb-2 grid grid-cols-3 gap-1">
+            {TUBE_SIZES.map((size) => (
+              <button key={size.od} type="button" onClick={() => onChange({ tubeOdMm: size.od })}
+                className={`h-8 rounded border text-[11px] ${(wire.tubeOdMm ?? 6.35) === size.od ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                {size.label}
+              </button>
+            ))}
+          </div>
+          <label className="flex items-center gap-2 text-[11px] text-slate-600">
+            <span className="w-16 shrink-0">压力侧</span>
+            <select aria-label="压力侧" className="h-8 min-w-0 flex-1 rounded border border-slate-200 bg-white px-2 text-xs" value={wire.pressureSide ?? 'working'}
+              onChange={(e) => onChange({ pressureSide: e.target.value as Wire['pressureSide'] })}>
+              <option value="high">高压储气侧（≤120 psi）</option>
+              <option value="working">调压后工作侧（≤60 psi）</option>
+            </select>
+          </label>
+          <p className="mt-2 text-[10px] leading-4 text-slate-400">气管不使用 AWG。每个接头只接一根管，分支用三通；承压等级以气管规格为准。</p>
         </section> : <>
         <section className="border-b border-slate-100 py-3">
           <div className="mb-2 flex items-center gap-2">
@@ -260,16 +319,16 @@ export default function WirePropertiesPanel({ wire, cableSize, parts, partDefs, 
           ) : (
             <div className="mt-2 text-[9px] leading-4 text-slate-400">打开顶部“线束多选”或按住 Shift 多选导线，可以将多根线合并到同一拖链或束线管中。</div>
           )}
-          {waypoints.length > 0 && <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2.5">
+          {terminals.length > 0 && <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2.5">
             <div className="flex items-center justify-between gap-2">
               <div>
                 <div className="text-[10px] font-semibold text-slate-700">旧版路径点</div>
-                <div className="text-[9px] text-slate-400">当前 {waypoints.length} 个</div>
+                <div className="text-[9px] text-slate-400">当前 {terminals.length} 个</div>
               </div>
               <div className="flex gap-1">
                 <button
                   onClick={onClearWaypoints}
-                  disabled={!waypoints.length}
+                  disabled={!terminals.length}
                   className="flex h-7 items-center gap-1 rounded border border-slate-200 bg-white px-2 text-[10px] text-slate-600 hover:bg-slate-100 disabled:opacity-35"
                   title="删除当前导线的全部中间端子"
                 >
@@ -278,9 +337,9 @@ export default function WirePropertiesPanel({ wire, cableSize, parts, partDefs, 
                 </button>
               </div>
             </div>
-            {waypoints.length > 0 && (
+            {terminals.length > 0 && (
               <div className="mt-2 space-y-2">
-                {waypoints.filter(point => point.kind !== 'guide').map((waypoint, index) => (
+                {terminals.map((waypoint, index) => (
                   <div key={waypoint.id} className="rounded border border-violet-100 bg-white p-2">
                     <div className="mb-1 flex items-center justify-between gap-2">
                       <span className="text-[10px] font-semibold text-violet-700">中间端子 {index + 1}</span>

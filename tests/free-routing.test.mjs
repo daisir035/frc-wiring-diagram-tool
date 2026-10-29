@@ -86,3 +86,32 @@ test('detach preserves a legacy terminal lying in the middle of a straight segme
  const detached=m.detachWireBundle(w,r);
  assert.ok(detached.waypoints.some(p=>p.id===waypoint.id && p.terminal==='wago' && p.locked && p.x===20 && p.y===-50));
 });
+
+test('smooth paths leave and enter along port normals and pass through every guide', async () => {
+ const {smoothWireRoute} = await import('../src/lib/wiring.ts');
+ const route = smoothWireRoute(a, b, [{x: 30, y: 70}]);
+ assert.match(route.path, /^M 0 0 C /);
+ assert.doesNotMatch(route.path, /NaN|Infinity/);
+ const [p0, p1] = route.points;
+ assert.ok(p1.x > p0.x && Math.abs(p1.y - p0.y) < Math.abs(p1.x - p0.x), 'starts along +x');
+ const [q1, q0] = route.points.slice(-2);
+ assert.ok(q0.x > q1.x, 'arrives moving toward the port, against its -x normal');
+ assert.ok(route.points.some(p => Math.hypot(p.x - 30, p.y - 70) < 0.01));
+ assert.deepEqual(route.vertices, [{x:0,y:0},{x:30,y:70},{x:100,y:100}]);
+});
+
+test('smooth wires use their spline for hit testing and keep guides through bundling', () => {
+ const smooth = {...wire, pathMode: 'smooth'};
+ const r = buildWireGeometry([smooth], e => e.uid === 'a' ? a : b).routes.get('w');
+ assert.ok(r.points.length > 10);
+ assert.deepEqual(r.vertices.map(p => [p.x, p.y]), [[0,0],[30,70],[100,100]]);
+ const bundled = buildWireGeometry([{...smooth, routingStyle:'conduit', bundleEndpoints: {entry: a, exit: b}}], e => e.uid === 'a' ? a : b);
+ assert.ok(bundled.bundles[0].points.some(p => Math.hypot(p.x - 30, p.y - 70) < 0.01));
+});
+
+test('duplicate smooth guides do not create degenerate segments', async () => {
+ const {smoothWireRoute} = await import('../src/lib/wiring.ts');
+ const route = smoothWireRoute(a, b, [{x: 30, y: 70}, {x: 30, y: 70}, {x: 100, y: 100}]);
+ assert.equal(route.vertices.length, 3);
+ assert.doesNotMatch(route.path, /NaN/);
+});

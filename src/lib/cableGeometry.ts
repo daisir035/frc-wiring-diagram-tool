@@ -21,7 +21,8 @@ export function cablePolarity(points: RoutePoint[], startAxis?: RoutePoint, endA
   return 1;
 }
 
-export function cableConductorPaths(points: RoutePoint[], twisted: boolean, alignment: CableEndAlignment = {}, radius = 8) {
+/** `spacing` is each conductor's offset from the centreline. */
+export function cableConductorPaths(points: RoutePoint[], twisted: boolean, alignment: CableEndAlignment = {}, radius = 8, spacing = 2.6) {
   const center = sampleRoundedRoute(points, radius);
   const totalLength = routeLength(center);
   const polarity = alignment.polarity ?? cablePolarity(points, alignment.startAxis, alignment.endAxis);
@@ -43,7 +44,7 @@ export function cableConductorPaths(points: RoutePoint[], twisted: boolean, alig
       ? Math.abs((point.x - previous.x) * (next.y - point.y) - (point.y - previous.y) * (next.x - point.x)) : 0;
     const radius = cross > 1e-8 ? Math.hypot(point.x - previous.x, point.y - previous.y)
       * Math.hypot(next.x - point.x, next.y - point.y) * length / (2 * cross) : Infinity;
-    const offset = Math.min(2.6, radius * 0.65) * (twisted ? Math.sin(phase) : 1) * polarity;
+    const offset = Math.min(spacing, radius * 0.65) * (twisted ? Math.sin(phase) : 1) * polarity;
     let ox = -(next.y - previous.y) / length * offset;
     let oy = (next.x - previous.x) / length * offset;
     // Ease only the terminal tails toward their actual pin order; the rest
@@ -55,8 +56,8 @@ export function cableConductorPaths(points: RoutePoint[], twisted: boolean, alig
       const t = Math.max(0, Math.min(1, 1 - remaining / fanoutLength));
       const blend = t * t * (3 - 2 * t);
       const axisLength = Math.hypot(axis.x, axis.y) || 1;
-      ox += (axis.x / axisLength * 2.6 - ox) * blend;
-      oy += (axis.y / axisLength * 2.6 - oy) * blend;
+      ox += (axis.x / axisLength * spacing - ox) * blend;
+      oy += (axis.y / axisLength * spacing - oy) * blend;
     }
     for (const index of [0, 1]) {
       const sign = index === 0 ? 1 : -1;

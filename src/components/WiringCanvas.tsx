@@ -35,6 +35,7 @@ import {
 import { PRESSURE_SIDES, pneumaticPressureSides } from '../lib/pneumaticZones';
 import PartArtwork from './PartArtwork';
 import AnnotationLayer from './AnnotationLayer';
+import { awgStrokeWidth } from '../lib/wireStyle';
 import type { LegendContent } from './AnnotationLayer';
 import { ANNOTATION_MIN } from '../lib/annotations';
 import type { Annotation } from '../lib/annotations';
@@ -369,12 +370,19 @@ export default function WiringCanvas(props: Props) {
   const legend = useMemo<LegendContent>(() => {
     const used = new Set(pressureSides.values());
     const electrical = wires.filter((wire) => !pressureSides.has(wire.id) && !wire.tubeOdMm);
+    const types = new Set(electrical.flatMap((wire) => {
+      const part = parts.find((item) => item.uid === wire.a.uid);
+      const port = part && partDefs.get(part.partId)?.ports.find((item) => item.id === wire.a.portId);
+      return port ? [port.type === 'signal' && /^PWM\d/.test(port.id) ? 'pwm' : port.type] : [];
+    }));
     return {
       sides: (['high', 'working', 'secondary'] as const).filter((side) => used.has(side)),
-      gauges: [...new Set(electrical.flatMap((wire) => wire.awg ? [wire.awg] : []))].sort((a, b) => a - b).slice(0, 3),
-      power: electrical.length > 0,
+      gauges: [...new Set(electrical.flatMap((wire) => wire.awg ? [wire.awg] : []))].sort((a, b) => a - b).slice(0, 7),
+      power: types.has('pwr+') || types.has('pwr-'),
+      can: types.has('canH') || types.has('canL'),
+      pwm: types.has('pwm'),
     };
-  }, [pressureSides, wires]);
+  }, [pressureSides, wires, parts, partDefs]);
   const startAnnotationDrag = (event: React.PointerEvent<SVGElement>, id: string, mode: 'move' | 'resize') => {
     if (event.button !== 0 || spaceRef.current || pendingFrom) return;
     const origin = annotations.find((item) => item.id === id);
@@ -937,7 +945,8 @@ export default function WiringCanvas(props: Props) {
                   <g key={'wire-segment-' + index} style={{ pointerEvents: 'none' }}>
                     {tube ? (
                       <path d={segment} fill="none" stroke={PRESSURE_SIDES[pressureSides.get(wire.id) ?? 'working'].color} strokeWidth={tubeWidth} strokeLinejoin="round" />
-                    ) : cable ? <CableConductors radius={editorWire.cornerRadius} points={route.visiblePoints[index]} colors={[wire.color, cable[1].color]} twisted={commonType === 'canH'}
+                    ) : cable ? <CableConductors radius={editorWire.cornerRadius} points={route.visiblePoints[index]} colors={[wire.color, cable[1].color]} twisted={!posterMode && commonType === 'canH'}
+                      width={posterMode ? awgStrokeWidth(wire.awg) : 2.8} flat={posterMode}
                       polarity={cableVisuals.get(wire.id)?.polarity} {...cableVisuals.get(wire.id)?.segments[index]} /> : <>
                     {!posterMode && <path
                       d={segment}
@@ -952,7 +961,7 @@ export default function WiringCanvas(props: Props) {
                       d={segment}
                       fill="none"
                       stroke={wire.color}
-                      strokeWidth={posterMode ? 2.4 : 3.5}
+                      strokeWidth={posterMode ? awgStrokeWidth(wire.awg) : 3.5}
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     />
@@ -1238,10 +1247,11 @@ export default function WiringCanvas(props: Props) {
                     (event.currentTarget.ownerSVGElement as Element | null)?.setPointerCapture?.(event.pointerId);
                     dragRef.current = { kind: 'label', uid: part.uid, start: toWorld(event.clientX, event.clientY), origin: part.labelOffset ?? { x: 0, y: 0 } };
                   }} />}
-                {pdhLabel && (
+                {pdhLabel && (!posterMode || pdhChannels.length > 1) && (
                   <g
                     transform={`translate(${w / 2} ${h + 24})`}
                     style={{ pointerEvents: 'none', userSelect: 'none' }}
+                    fontFamily="'Saira Semi Condensed', 'Barlow Semi Condensed', 'Noto Sans SC', sans-serif"
                   >
                     <rect
                       x={-pdhLabelWidth / 2}

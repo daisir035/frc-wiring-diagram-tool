@@ -22,6 +22,28 @@ node --experimental-strip-types scripts/build-pneumatics-example.mjs
    - 标题栏会自动生成图例：只列出本页用到的气管压力侧和导线线规。
 6. 打开「出图模式」：隐藏网格和端口圆点，导线改为细实线，背景为白色。这时「导出 PNG」得到的就是海报效果。
 
+## 电路部分
+
+工具栏「示例」打开按 Team 3161 REV 控制系统图布局的电路示例，由 `scripts/build-control-system-example.mjs` 生成：
+
+```
+node --experimental-strip-types scripts/build-control-system-example.mjs
+```
+
+它包含主电源（电池 → 120A 断路器 → PDH）、roboRIO 与无线电、CAN 链（roboRIO → Kraken X60 → X44 → PH → PDH）、RSL，以及 DIO 和模拟输入传感器。
+
+出图模式下电线的画法：
+- 线宽按 AWG 分级：6 AWG 约 5.2 mm，28 AWG 约 1.1 mm，实现在 `src/lib/wireStyle.ts`。
+- 电源正负线和 CAN 都画成紧贴的两根平行线，CAN 不再画成麻花线，去掉白色描边。
+- 电机下方的 PDH 通道徽标会隐藏，只有在正负极接到不同通道时才显示。
+
+标题栏图例按本页实际内容生成：电源（+/−）、PWM（GND / +5V / SIG）、CAN（H / L），以及每种用到的线规。
+
+CTRE PDP 2.0 也重画成同样风格：
+- 两侧是红黑通道端子，中间是带编号的断路器槽；
+- 底部是 CAN 接口、状态灯和电池接线柱；
+- 端口位置不变，已有工程不受影响。
+
 ## 气动元件
 
 所有气动元件都在 `src/components/PneumaticArtwork.tsx` 里用 SVG 矢量绘制，配色取自参考图：

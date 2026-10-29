@@ -962,49 +962,17 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
 
   /* ---------- 示例 ---------- */
 
-  const loadDemo = () => {
-    const mk = (partId: string, x: number, y: number, rot: PlacedPart['rot'] = 0): PlacedPart => ({
-      uid: uid(),
-      partId,
-      x,
-      y,
-      rot,
-    });
-    const battery = mk('battery12v', 40, 120);
-    const breaker = mk('breaker120', 255, 70);
-    const pdp1 = { ...mk('pdh', 430, 55), fuses: { 0: 20, 1: 40, 6: 20 } as Record<number, FuseRating> };
-    const rio = mk('roborio', 720, 60);
-    const vrm1 = mk('vrm', 430, 520);
-    const k60 = mk('krakenX60', 790, 470);
-    const rsl1 = mk('rsl', 1050, 260);
-    const demoParts = [battery, breaker, pdp1, rio, vrm1, k60, rsl1];
-    const demoWires: Wire[] = [
-      { id: uid(), a: { uid: battery.uid, portId: 'positive' }, b: { uid: breaker.uid, portId: 'batt' }, color: '#dc2626', awg: 4, assembly: 'field' },
-      { id: uid(), a: { uid: breaker.uid, portId: 'aux' }, b: { uid: pdp1.uid, portId: 'batt+' }, color: '#dc2626', awg: 4, assembly: 'field' },
-      { id: uid(), a: { uid: battery.uid, portId: 'negative' }, b: { uid: pdp1.uid, portId: 'batt-' }, color: '#1f2937', awg: 4, assembly: 'field' },
-      { id: uid(), a: { uid: pdp1.uid, portId: 'ch0+' }, b: { uid: rio.uid, portId: 'vin+' }, color: '#dc2626', awg: 18, assembly: 'field' },
-      { id: uid(), a: { uid: pdp1.uid, portId: 'ch0-' }, b: { uid: rio.uid, portId: 'vin-' }, color: '#1f2937', awg: 18, assembly: 'field' },
-      { id: uid(), a: { uid: rio.uid, portId: 'canH' }, b: { uid: k60.uid, portId: 'canInH' }, color: '#eab308', awg: 22, assembly: 'field' },
-      { id: uid(), a: { uid: rio.uid, portId: 'canL' }, b: { uid: k60.uid, portId: 'canInL' }, color: '#16a34a', awg: 22, assembly: 'field' },
-      { id: uid(), a: { uid: pdp1.uid, portId: 'ch1+' }, b: { uid: k60.uid, portId: 'pwr+' }, color: '#dc2626', awg: 10, assembly: 'field' },
-      { id: uid(), a: { uid: pdp1.uid, portId: 'ch1-' }, b: { uid: k60.uid, portId: 'pwr-' }, color: '#1f2937', awg: 10, assembly: 'field' },
-      { id: uid(), a: { uid: pdp1.uid, portId: 'ch6+' }, b: { uid: vrm1.uid, portId: 'vin+' }, color: '#dc2626', awg: 18, assembly: 'field' },
-      { id: uid(), a: { uid: pdp1.uid, portId: 'ch6-' }, b: { uid: vrm1.uid, portId: 'vin-' }, color: '#1f2937', awg: 18, assembly: 'field' },
-      { id: uid(), a: { uid: rio.uid, portId: 'rslA' }, b: { uid: rsl1.uid, portId: 'la' }, color: '#2563eb', awg: 22, assembly: 'field' },
-      { id: uid(), a: { uid: rio.uid, portId: 'rslB' }, b: { uid: rsl1.uid, portId: 'lb' }, color: '#2563eb', awg: 22, assembly: 'field' },
-    ];
-    const demo = createEmptyEngineeringProject('示例工程');
-    const rect = svgRef.current?.getBoundingClientRect();
-    demo.pages[0] = { ...demo.pages[0], parts: demoParts, wires: demoWires,
-      view: { x: 30, y: 20, k: Math.max(0.15, Math.min(1, ((rect?.width ?? 1000) - 60) / 1200, ((rect?.height ?? 700) - 40) / 800)) } };
-    setWorkspace(current => {
-      const names = new Set(current.engineeringProjects.map(project => project.name));
-      let name = demo.name, copy = 2;
-      while (names.has(name)) name = `${demo.name} (${copy++})`;
-      return { ...current, engineeringProjects: [...current.engineeringProjects, { ...demo, name }], activeEngineeringProjectId: demo.id };
-    });
-    resetInteraction();
+  /** Bundled examples open as separate projects and never overwrite the current one. */
+  const loadExample = async (file: string, name: string) => {
+    try {
+      const response = await fetch(`${import.meta.env.BASE_URL}examples/${file}`);
+      if (!response.ok) throw new Error('示例下载失败');
+      await openSourceFile(new File([await response.text()], `${name}.frcwire`));
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : '示例加载失败');
+    }
   };
+  const loadDemo = () => loadExample('frc-control-system.frcwire', 'FRC 控制系统示例');
 
   // Demo always opens a separate project; cleanup also prevents StrictMode double loading.
   useEffect(() => {
@@ -1358,10 +1326,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
           <CircuitBoard className="h-3.5 w-3.5" aria-hidden="true" />
           导入器件
         </ToolBtn>
-        <ToolBtn onClick={async () => {
-          try { const response = await fetch(`${import.meta.env.BASE_URL}examples/frc-pneumatics.frcwire`); if (!response.ok) throw new Error('示例下载失败'); await openSourceFile(new File([await response.text()], 'FRC 气动示例.frcwire')); }
-          catch (error) { setNotice(error instanceof Error ? error.message : '示例加载失败'); }
-        }} title="添加完整气动系统示例工程">气动示例</ToolBtn>
+        <ToolBtn onClick={() => loadExample('frc-pneumatics.frcwire', 'FRC 气动示例')} title="添加完整气动系统示例工程">气动示例</ToolBtn>
         <ToolBtn onClick={() => addAnnotation('section')} title="添加虚线分区框，用来划分空压储气、调压、控制等区域">
           <SquareDashed className="h-3.5 w-3.5" aria-hidden="true" />
           分区

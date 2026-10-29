@@ -1,0 +1,1299 @@
+{
+  "format": "frc-wiresheet-source",
+  "version": 2,
+  "savedAt": "2026-10-29T00:00:00.000Z",
+  "customParts": [],
+  "project": {
+    "id": "control-system-demo",
+    "name": "FRC 控制系统示例",
+    "activePageId": "control",
+    "pages": [
+      {
+        "id": "control",
+        "name": "控制系统",
+        "parts": [
+          {
+            "uid": "radio",
+            "partId": "vh109",
+            "x": 200,
+            "y": 60,
+            "rot": 0,
+            "customName": "机器人无线电",
+            "caption": "VH-109 · 由 PDH 低电流通道供电",
+            "labelPos": "bottom"
+          },
+          {
+            "uid": "rio",
+            "partId": "roborio",
+            "x": 160,
+            "y": 300,
+            "rot": 0,
+            "customName": "roboRIO 2.0",
+            "caption": "",
+            "labelPos": "right",
+            "labelOffset": {
+              "x": 4,
+              "y": 40
+            }
+          },
+          {
+            "uid": "rsl",
+            "partId": "rsl",
+            "x": 340,
+            "y": 470,
+            "rot": 0,
+            "customName": "机器人信号灯",
+            "caption": "RSL · 855PB-B12ME522",
+            "labelPos": "bottom"
+          },
+          {
+            "uid": "limit",
+            "partId": "lmSwitch",
+            "x": 60,
+            "y": 650,
+            "rot": 0,
+            "customName": "限位开关",
+            "caption": "通用微动开关 · DIO",
+            "labelPos": "top"
+          },
+          {
+            "uid": "beam",
+            "partId": "beamBreak",
+            "x": 120,
+            "y": 625,
+            "rot": 0,
+            "customName": "对射传感器",
+            "caption": "2168 型 · DIO",
+            "labelPos": "bottom"
+          },
+          {
+            "uid": "pot",
+            "partId": "pot",
+            "x": 260,
+            "y": 655,
+            "rot": 0,
+            "customName": "电位器",
+            "caption": "模拟输入",
+            "labelPos": "top"
+          },
+          {
+            "uid": "ttb",
+            "partId": "ttb",
+            "x": 340,
+            "y": 650,
+            "rot": 0,
+            "customName": "模拟编码器",
+            "caption": "TTB-0040 · 模拟输入",
+            "labelPos": "top"
+          },
+          {
+            "uid": "pdh",
+            "partId": "pdh",
+            "x": 560,
+            "y": 230,
+            "rot": 0,
+            "customName": "电源分配中心",
+            "caption": "REV PDH · 0–19 大电流 40A，20–22 小电流 15A",
+            "labelPos": "top",
+            "fuses": {
+              "0": 40,
+              "1": 40,
+              "2": 40,
+              "3": 40,
+              "20": 10,
+              "21": 10
+            }
+          },
+          {
+            "uid": "breaker",
+            "partId": "breaker120",
+            "x": 690,
+            "y": 520,
+            "rot": 0,
+            "customName": "120A 主断路器",
+            "caption": "CB285-120\n兼作总电源开关",
+            "labelPos": "left",
+            "labelOffset": {
+              "x": -80,
+              "y": -16
+            }
+          },
+          {
+            "uid": "battery",
+            "partId": "battery12v",
+            "x": 560,
+            "y": 620,
+            "rot": 0,
+            "customName": "12V 电池",
+            "caption": "密封铅酸 · 每场比赛更换满电电池",
+            "labelPos": "bottom"
+          },
+          {
+            "uid": "x60",
+            "partId": "krakenX60",
+            "x": 1000,
+            "y": 70,
+            "rot": 0,
+            "customName": "Kraken X60",
+            "caption": "内置 Talon FX · CAN",
+            "labelPos": "right"
+          },
+          {
+            "uid": "x44",
+            "partId": "krakenX44",
+            "x": 1000,
+            "y": 250,
+            "rot": 0,
+            "customName": "Kraken X44",
+            "caption": "内置 Talon FX · CAN",
+            "labelPos": "right"
+          },
+          {
+            "uid": "ph",
+            "partId": "ph",
+            "x": 1000,
+            "y": 520,
+            "rot": 0,
+            "customName": "气动控制器",
+            "caption": "REV-11-1852\n气路见「气动示例」",
+            "labelPos": "right"
+          }
+        ],
+        "wires": [
+          {
+            "id": "w0",
+            "a": {
+              "uid": "battery",
+              "portId": "positive"
+            },
+            "b": {
+              "uid": "breaker",
+              "portId": "batt"
+            },
+            "color": "#e8262c",
+            "awg": 6,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g1-0",
+                "x": 750,
+                "y": 650.4,
+                "kind": "guide"
+              },
+              {
+                "id": "g1-1",
+                "x": 750,
+                "y": 505,
+                "kind": "guide"
+              },
+              {
+                "id": "g1-2",
+                "x": 704.3,
+                "y": 505,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "w1",
+            "a": {
+              "uid": "breaker",
+              "portId": "aux"
+            },
+            "b": {
+              "uid": "pdh",
+              "portId": "batt+"
+            },
+            "color": "#e8262c",
+            "awg": 6,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g2-0",
+                "x": 726.7,
+                "y": 608,
+                "kind": "guide"
+              },
+              {
+                "id": "g2-1",
+                "x": 670,
+                "y": 608,
+                "kind": "guide"
+              },
+              {
+                "id": "g2-2",
+                "x": 670,
+                "y": 480,
+                "kind": "guide"
+              },
+              {
+                "id": "g2-3",
+                "x": 633.8,
+                "y": 480,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "w2",
+            "a": {
+              "uid": "battery",
+              "portId": "negative"
+            },
+            "b": {
+              "uid": "pdh",
+              "portId": "batt-"
+            },
+            "color": "#231f20",
+            "awg": 6,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g3-0",
+                "x": 758,
+                "y": 667.1,
+                "kind": "guide"
+              },
+              {
+                "id": "g3-1",
+                "x": 758,
+                "y": 470,
+                "kind": "guide"
+              },
+              {
+                "id": "g3-2",
+                "x": 648.7,
+                "y": 470,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "w3",
+            "a": {
+              "uid": "x60",
+              "portId": "pwr+"
+            },
+            "b": {
+              "uid": "pdh",
+              "portId": "ch3+"
+            },
+            "color": "#e8262c",
+            "awg": 12,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g4-0",
+                "x": 740,
+                "y": 84.1,
+                "kind": "guide"
+              },
+              {
+                "id": "g4-1",
+                "x": 740,
+                "y": 338,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "w4",
+            "a": {
+              "uid": "x60",
+              "portId": "pwr-"
+            },
+            "b": {
+              "uid": "pdh",
+              "portId": "ch3-"
+            },
+            "color": "#231f20",
+            "awg": 12,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g5-0",
+                "x": 740,
+                "y": 91.8,
+                "kind": "guide"
+              },
+              {
+                "id": "g5-1",
+                "x": 740,
+                "y": 345.2,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "w5",
+            "a": {
+              "uid": "x44",
+              "portId": "pwr+"
+            },
+            "b": {
+              "uid": "pdh",
+              "portId": "ch2+"
+            },
+            "color": "#e8262c",
+            "awg": 12,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g6-0",
+                "x": 760,
+                "y": 259.7,
+                "kind": "guide"
+              },
+              {
+                "id": "g6-1",
+                "x": 760,
+                "y": 353,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "w6",
+            "a": {
+              "uid": "x44",
+              "portId": "pwr-"
+            },
+            "b": {
+              "uid": "pdh",
+              "portId": "ch2-"
+            },
+            "color": "#231f20",
+            "awg": 12,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g7-0",
+                "x": 760,
+                "y": 265,
+                "kind": "guide"
+              },
+              {
+                "id": "g7-1",
+                "x": 760,
+                "y": 360.2,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "w7",
+            "a": {
+              "uid": "radio",
+              "portId": "vin+"
+            },
+            "b": {
+              "uid": "pdh",
+              "portId": "ch20+"
+            },
+            "color": "#e8262c",
+            "awg": 22,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g8-0",
+                "x": 185,
+                "y": 88.8,
+                "kind": "guide"
+              },
+              {
+                "id": "g8-1",
+                "x": 185,
+                "y": 28,
+                "kind": "guide"
+              },
+              {
+                "id": "g8-2",
+                "x": 476,
+                "y": 28,
+                "kind": "guide"
+              },
+              {
+                "id": "g8-3",
+                "x": 476,
+                "y": 405.6,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "w8",
+            "a": {
+              "uid": "radio",
+              "portId": "vin-"
+            },
+            "b": {
+              "uid": "pdh",
+              "portId": "ch20-"
+            },
+            "color": "#231f20",
+            "awg": 22,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g9-0",
+                "x": 185,
+                "y": 98.9,
+                "kind": "guide"
+              },
+              {
+                "id": "g9-1",
+                "x": 185,
+                "y": 28,
+                "kind": "guide"
+              },
+              {
+                "id": "g9-2",
+                "x": 476,
+                "y": 28,
+                "kind": "guide"
+              },
+              {
+                "id": "g9-3",
+                "x": 476,
+                "y": 401.8,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "w9",
+            "a": {
+              "uid": "rio",
+              "portId": "vin+"
+            },
+            "b": {
+              "uid": "pdh",
+              "portId": "ch21+"
+            },
+            "color": "#e8262c",
+            "awg": 18,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g10-0",
+                "x": 186.3,
+                "y": 285,
+                "kind": "guide"
+              },
+              {
+                "id": "g10-1",
+                "x": 470,
+                "y": 285,
+                "kind": "guide"
+              },
+              {
+                "id": "g10-2",
+                "x": 470,
+                "y": 413.5,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "w10",
+            "a": {
+              "uid": "rio",
+              "portId": "vin-"
+            },
+            "b": {
+              "uid": "pdh",
+              "portId": "ch21-"
+            },
+            "color": "#231f20",
+            "awg": 18,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g11-0",
+                "x": 193.6,
+                "y": 285,
+                "kind": "guide"
+              },
+              {
+                "id": "g11-1",
+                "x": 470,
+                "y": 285,
+                "kind": "guide"
+              },
+              {
+                "id": "g11-2",
+                "x": 470,
+                "y": 409.7,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "w11",
+            "a": {
+              "uid": "ph",
+              "portId": "vin+"
+            },
+            "b": {
+              "uid": "pdh",
+              "portId": "ch0+"
+            },
+            "color": "#e8262c",
+            "awg": 18,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g12-0",
+                "x": 1050,
+                "y": 760,
+                "kind": "guide"
+              },
+              {
+                "id": "g12-1",
+                "x": 780,
+                "y": 760,
+                "kind": "guide"
+              },
+              {
+                "id": "g12-2",
+                "x": 780,
+                "y": 383.1,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "w12",
+            "a": {
+              "uid": "ph",
+              "portId": "vin-"
+            },
+            "b": {
+              "uid": "pdh",
+              "portId": "ch0-"
+            },
+            "color": "#231f20",
+            "awg": 18,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g13-0",
+                "x": 1057,
+                "y": 760,
+                "kind": "guide"
+              },
+              {
+                "id": "g13-1",
+                "x": 780,
+                "y": 760,
+                "kind": "guide"
+              },
+              {
+                "id": "g13-2",
+                "x": 780,
+                "y": 390.3,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "w13",
+            "a": {
+              "uid": "rio",
+              "portId": "eth"
+            },
+            "b": {
+              "uid": "radio",
+              "portId": "eth1"
+            },
+            "color": "#2b3a8f",
+            "awg": 24,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "jumper",
+            "waypoints": [
+              {
+                "id": "g14-0",
+                "x": 254.9,
+                "y": 215,
+                "kind": "guide"
+              },
+              {
+                "id": "g14-1",
+                "x": 370,
+                "y": 215,
+                "kind": "guide"
+              },
+              {
+                "id": "g14-2",
+                "x": 370,
+                "y": 88.1,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "w14",
+            "a": {
+              "uid": "rio",
+              "portId": "rslA"
+            },
+            "b": {
+              "uid": "rsl",
+              "portId": "la"
+            },
+            "color": "#e8262c",
+            "awg": 22,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g15-0",
+                "x": 192.1,
+                "y": 470,
+                "kind": "guide"
+              },
+              {
+                "id": "g15-1",
+                "x": 320,
+                "y": 470,
+                "kind": "guide"
+              },
+              {
+                "id": "g15-2",
+                "x": 320,
+                "y": 492.1,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "w15",
+            "a": {
+              "uid": "rio",
+              "portId": "rslB"
+            },
+            "b": {
+              "uid": "rsl",
+              "portId": "lb"
+            },
+            "color": "#231f20",
+            "awg": 22,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g16-0",
+                "x": 199.4,
+                "y": 470,
+                "kind": "guide"
+              },
+              {
+                "id": "g16-1",
+                "x": 320,
+                "y": 470,
+                "kind": "guide"
+              },
+              {
+                "id": "g16-2",
+                "x": 320,
+                "y": 483,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "w16",
+            "a": {
+              "uid": "rio",
+              "portId": "canH"
+            },
+            "b": {
+              "uid": "x60",
+              "portId": "canInH"
+            },
+            "color": "#f2d22e",
+            "awg": 28,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g17-0",
+                "x": 140,
+                "y": 317.2,
+                "kind": "guide"
+              },
+              {
+                "id": "g17-1",
+                "x": 140,
+                "y": 225,
+                "kind": "guide"
+              },
+              {
+                "id": "g17-2",
+                "x": 466,
+                "y": 225,
+                "kind": "guide"
+              },
+              {
+                "id": "g17-3",
+                "x": 466,
+                "y": 15,
+                "kind": "guide"
+              },
+              {
+                "id": "g17-4",
+                "x": 960,
+                "y": 15,
+                "kind": "guide"
+              },
+              {
+                "id": "g17-5",
+                "x": 960,
+                "y": 107.1,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "w17",
+            "a": {
+              "uid": "rio",
+              "portId": "canL"
+            },
+            "b": {
+              "uid": "x60",
+              "portId": "canInL"
+            },
+            "color": "#2fae4a",
+            "awg": 28,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g18-0",
+                "x": 140,
+                "y": 324.3,
+                "kind": "guide"
+              },
+              {
+                "id": "g18-1",
+                "x": 140,
+                "y": 225,
+                "kind": "guide"
+              },
+              {
+                "id": "g18-2",
+                "x": 466,
+                "y": 225,
+                "kind": "guide"
+              },
+              {
+                "id": "g18-3",
+                "x": 466,
+                "y": 15,
+                "kind": "guide"
+              },
+              {
+                "id": "g18-4",
+                "x": 960,
+                "y": 15,
+                "kind": "guide"
+              },
+              {
+                "id": "g18-5",
+                "x": 960,
+                "y": 112.9,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "w18",
+            "a": {
+              "uid": "x60",
+              "portId": "canOutH"
+            },
+            "b": {
+              "uid": "x44",
+              "portId": "canInH"
+            },
+            "color": "#f2d22e",
+            "awg": 28,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g19-0",
+                "x": 970,
+                "y": 120.6,
+                "kind": "guide"
+              },
+              {
+                "id": "g19-1",
+                "x": 970,
+                "y": 275.5,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "w19",
+            "a": {
+              "uid": "x60",
+              "portId": "canOutL"
+            },
+            "b": {
+              "uid": "x44",
+              "portId": "canInL"
+            },
+            "color": "#2fae4a",
+            "awg": 28,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g20-0",
+                "x": 970,
+                "y": 126.3,
+                "kind": "guide"
+              },
+              {
+                "id": "g20-1",
+                "x": 970,
+                "y": 279.5,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "w20",
+            "a": {
+              "uid": "x44",
+              "portId": "canOutH"
+            },
+            "b": {
+              "uid": "ph",
+              "portId": "canH"
+            },
+            "color": "#f2d22e",
+            "awg": 28,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g21-0",
+                "x": 960,
+                "y": 284.8,
+                "kind": "guide"
+              },
+              {
+                "id": "g21-1",
+                "x": 960,
+                "y": 480,
+                "kind": "guide"
+              },
+              {
+                "id": "g21-2",
+                "x": 1030,
+                "y": 480,
+                "kind": "guide"
+              },
+              {
+                "id": "g21-3",
+                "x": 1030,
+                "y": 755,
+                "kind": "guide"
+              },
+              {
+                "id": "g21-4",
+                "x": 1015,
+                "y": 755,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "w21",
+            "a": {
+              "uid": "x44",
+              "portId": "canOutL"
+            },
+            "b": {
+              "uid": "ph",
+              "portId": "canL"
+            },
+            "color": "#2fae4a",
+            "awg": 28,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g22-0",
+                "x": 960,
+                "y": 288.7,
+                "kind": "guide"
+              },
+              {
+                "id": "g22-1",
+                "x": 960,
+                "y": 480,
+                "kind": "guide"
+              },
+              {
+                "id": "g22-2",
+                "x": 1030,
+                "y": 480,
+                "kind": "guide"
+              },
+              {
+                "id": "g22-3",
+                "x": 1030,
+                "y": 755,
+                "kind": "guide"
+              },
+              {
+                "id": "g22-4",
+                "x": 1021,
+                "y": 755,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "w22",
+            "a": {
+              "uid": "ph",
+              "portId": "canH"
+            },
+            "b": {
+              "uid": "pdh",
+              "portId": "canInH"
+            },
+            "color": "#f2d22e",
+            "awg": 28,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g23-0",
+                "x": 1015,
+                "y": 770,
+                "kind": "guide"
+              },
+              {
+                "id": "g23-1",
+                "x": 810,
+                "y": 770,
+                "kind": "guide"
+              },
+              {
+                "id": "g23-2",
+                "x": 810,
+                "y": 500,
+                "kind": "guide"
+              },
+              {
+                "id": "g23-3",
+                "x": 589.4,
+                "y": 500,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "w23",
+            "a": {
+              "uid": "ph",
+              "portId": "canL"
+            },
+            "b": {
+              "uid": "pdh",
+              "portId": "canInL"
+            },
+            "color": "#2fae4a",
+            "awg": 28,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g24-0",
+                "x": 1021,
+                "y": 770,
+                "kind": "guide"
+              },
+              {
+                "id": "g24-1",
+                "x": 810,
+                "y": 770,
+                "kind": "guide"
+              },
+              {
+                "id": "g24-2",
+                "x": 810,
+                "y": 500,
+                "kind": "guide"
+              },
+              {
+                "id": "g24-3",
+                "x": 594.1,
+                "y": 500,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "w24",
+            "a": {
+              "uid": "limit",
+              "portId": "no"
+            },
+            "b": {
+              "uid": "rio",
+              "portId": "DIO0"
+            },
+            "color": "#8e8f92",
+            "awg": 26,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g25-0",
+                "x": 74,
+                "y": 730,
+                "kind": "guide"
+              },
+              {
+                "id": "g25-1",
+                "x": 26,
+                "y": 730,
+                "kind": "guide"
+              },
+              {
+                "id": "g25-2",
+                "x": 26,
+                "y": 352.9,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "w25",
+            "a": {
+              "uid": "beam",
+              "portId": "rS"
+            },
+            "b": {
+              "uid": "rio",
+              "portId": "DIO1"
+            },
+            "color": "#8e8f92",
+            "awg": 26,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g26-0",
+                "x": 184.4,
+                "y": 608,
+                "kind": "guide"
+              },
+              {
+                "id": "g26-1",
+                "x": 31,
+                "y": 608,
+                "kind": "guide"
+              },
+              {
+                "id": "g26-2",
+                "x": 31,
+                "y": 358.5,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "w26",
+            "a": {
+              "uid": "pot",
+              "portId": "w"
+            },
+            "b": {
+              "uid": "rio",
+              "portId": "AI1"
+            },
+            "color": "#8e8f92",
+            "awg": 26,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g27-0",
+                "x": 272,
+                "y": 722,
+                "kind": "guide"
+              },
+              {
+                "id": "g27-1",
+                "x": 249.1,
+                "y": 722,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "w27",
+            "a": {
+              "uid": "ttb",
+              "portId": "s"
+            },
+            "b": {
+              "uid": "rio",
+              "portId": "AI0"
+            },
+            "color": "#8e8f92",
+            "awg": 26,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g28-0",
+                "x": 359,
+                "y": 730,
+                "kind": "guide"
+              },
+              {
+                "id": "g28-1",
+                "x": 243.2,
+                "y": 730,
+                "kind": "guide"
+              }
+            ]
+          }
+        ],
+        "annotations": [
+          {
+            "id": "sec-0",
+            "kind": "section",
+            "x": 20,
+            "y": 20,
+            "w": 440,
+            "h": 190,
+            "title": "通信"
+          },
+          {
+            "id": "sec-1",
+            "kind": "section",
+            "x": 20,
+            "y": 230,
+            "w": 440,
+            "h": 320,
+            "title": "控制器"
+          },
+          {
+            "id": "sec-2",
+            "kind": "section",
+            "x": 20,
+            "y": 570,
+            "w": 440,
+            "h": 170,
+            "title": "传感器"
+          },
+          {
+            "id": "sec-3",
+            "kind": "section",
+            "x": 480,
+            "y": 20,
+            "w": 320,
+            "h": 720,
+            "title": "配电与主电源"
+          },
+          {
+            "id": "sec-4",
+            "kind": "section",
+            "x": 820,
+            "y": 20,
+            "w": 480,
+            "h": 440,
+            "title": "电机控制器（CAN）"
+          },
+          {
+            "id": "note-5",
+            "kind": "note",
+            "x": 990,
+            "y": 360,
+            "w": 300,
+            "h": 80,
+            "title": "CAN 总线",
+            "body": "CAN 线从 roboRIO 依次串过每个设备，\n最后接到 PDH。线对保持平行或双绞，\nPDH 端开启终端电阻。",
+            "framed": true
+          },
+          {
+            "id": "sec-6",
+            "kind": "section",
+            "x": 820,
+            "y": 480,
+            "w": 480,
+            "h": 260,
+            "title": "气动控制"
+          },
+          {
+            "id": "title",
+            "kind": "title",
+            "x": 20,
+            "y": 790,
+            "w": 1280,
+            "h": 110,
+            "title": "FRC 控制系统 · REV",
+            "body": "TEAM 0000 · 2026"
+          }
+        ],
+        "view": {
+          "x": 20,
+          "y": 10,
+          "k": 0.85
+        }
+      }
+    ]
+  }
+}

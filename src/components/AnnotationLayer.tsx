@@ -1,6 +1,7 @@
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { Annotation } from '../lib/annotations';
 import { PRESSURE_SIDES } from '../lib/pneumaticZones';
+import { awgStrokeWidth } from '../lib/wireStyle';
 import type { PressureSide } from '../lib/pneumaticZones';
 
 export interface LegendContent {
@@ -8,6 +9,8 @@ export interface LegendContent {
   /** Wire gauges in use, thickest first. */
   gauges: number[];
   power: boolean;
+  can: boolean;
+  pwm: boolean;
 }
 
 interface Props {
@@ -56,8 +59,8 @@ function Pair({ x, y, h, width, label }: { x: number; y: number; h: number; widt
   return (
     <g>
       <rect x={x} y={y} width={width} height={h} rx={width / 2} fill="#e8262c" />
-      <rect x={x + width * 2.2} y={y} width={width} height={h} rx={width / 2} fill="#231f20" />
-      <text x={x + width * 1.6} y={y + h + 14} fontSize={9} fontWeight={700} fill={INK} textAnchor="middle">{label}</text>
+      <rect x={x + width + 2.5} y={y} width={width} height={h} rx={width / 2} fill="#231f20" />
+      <text x={x + width + 1.25} y={y + h + 14} fontSize={9} fontWeight={700} fill={INK} textAnchor="middle">{label}</text>
     </g>
   );
 }
@@ -92,18 +95,44 @@ function TitleBlock({ a, legend }: { a: Annotation; legend: LegendContent }) {
       </g>
     );
   } });
-  if (legend.power || legend.gauges.length) boxes.push({ weight: 0.5 + legend.gauges.length * 0.25, render: (x) => (
-    <g>
-      <text x={x + 18} y={a.y + 30} fontSize={13} fontWeight={700} fill={INK}>电源</text>
-      <text x={x + 18} y={a.y + 44} fontSize={8} fill={MUTED}>12V DC</text>
-      <Pair x={x + 70} y={a.y + 18} h={swatch} width={3} label="+ / −" />
-      <text x={x + 120} y={a.y + 30} fontSize={13} fontWeight={700} fill={INK}>导线</text>
-      <text x={x + 120} y={a.y + 44} fontSize={8} fill={MUTED}>最小线规</text>
-      {legend.gauges.map((gauge, i) => (
-        <Pair key={gauge} x={x + 180 + i * 46} y={a.y + 18} h={swatch} width={Math.max(1.4, 5 - (gauge - 10) / 5)} label={`${gauge} AWG`} />
-      ))}
-    </g>
-  ) });
+  const signals: Array<{ title: string; detail: string; colors: string[]; labels: string[]; width: number }> = [];
+  if (legend.power) signals.push({ title: '电源', detail: '12V DC 主电', colors: ['#e8262c', '#231f20'], labels: ['+', '−'], width: 3 });
+  if (legend.pwm) signals.push({ title: 'PWM', detail: '最小 26 AWG', colors: ['#231f20', '#e8262c', '#d9d9db'], labels: ['GND', '+5V', 'SIG'], width: 1.6 });
+  if (legend.can) signals.push({ title: 'CAN', detail: '最小 28 AWG', colors: ['#f2d22e', '#2fae4a'], labels: ['H', 'L'], width: 1.6 });
+  if (signals.length || legend.gauges.length) boxes.push({ weight: 0.35 + signals.length * 0.34 + legend.gauges.length * 0.17, render: (x) => {
+    let cursor = x + 18;
+    const groups = signals.map((group) => {
+      const start = cursor;
+      cursor += 64 + group.colors.length * 13 + 16;
+      return (
+        <g key={group.title}>
+          <text x={start} y={a.y + 30} fontSize={13} fontWeight={700} fill={INK}>{group.title}</text>
+          <text x={start} y={a.y + 44} fontSize={8} fill={MUTED}>{group.detail}</text>
+          {group.colors.map((color, i) => (
+            <g key={i}>
+              <rect x={start + 64 + i * 13} y={a.y + 18} width={group.width} height={swatch} rx={group.width / 2} fill={color} />
+              <text x={start + 64 + i * 13 + group.width / 2} y={a.y + 32 + swatch} fontSize={7.5} fontWeight={700} fill={INK} textAnchor="middle">{group.labels[i]}</text>
+            </g>
+          ))}
+        </g>
+      );
+    });
+    const gaugeStart = cursor;
+    return (
+      <g>
+        {groups}
+        {legend.gauges.length > 0 && (
+          <g>
+            <text x={gaugeStart} y={a.y + 30} fontSize={13} fontWeight={700} fill={INK}>导线</text>
+            <text x={gaugeStart} y={a.y + 44} fontSize={8} fill={MUTED}>每路最小线规</text>
+            {legend.gauges.map((gauge, i) => (
+              <Pair key={gauge} x={gaugeStart + 70 + i * 40} y={a.y + 18} h={swatch} width={awgStrokeWidth(gauge)} label={`${gauge} AWG`} />
+            ))}
+          </g>
+        )}
+      </g>
+    );
+  } });
   const total = boxes.reduce((sum, box) => sum + box.weight, 0);
   const gap = 18;
   const usable = a.w - gap * (boxes.length - 1);

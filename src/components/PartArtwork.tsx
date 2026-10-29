@@ -191,8 +191,8 @@ function ImageFuseSlots({
                 rx={4}
                 fill={rating ? FUSE_COLOR[rating] : 'rgba(255,255,255,0.04)'}
                 fillOpacity={rating ? 0.92 : 1}
-                stroke={rating ? '#ffffff' : def.fuseImages ? 'transparent' : 'rgba(255,255,255,0.48)'}
-                strokeWidth={rating ? 2 : 1.4}
+                stroke={rating ? 'none' : def.fuseImages ? 'transparent' : 'rgba(255,255,255,0.3)'}
+                strokeWidth={rating ? 0 : 1.2}
                 strokeDasharray={rating ? undefined : '5 4'}
               />
             )}
@@ -531,38 +531,68 @@ function Battery({ def }: { def: PartDef }) {
   );
 }
 
+/** CTRE PDP 2.0 in the poster style: dark board, red/black channel terminals, breaker bays, battery lugs. */
 function PdpArtwork({ def }: { def: PartDef }) {
   const { w, h } = def;
+  const label = '#c3c4c6';
+  const termW = w * 0.17;
+  const termH = h * 0.024;
   return (
-    <>
-      <rect x={1} y={1} width={w - 2} height={h - 2} rx={9} fill="#22282b" stroke="#111719" strokeWidth={2} />
-      <rect x={w * 0.215} y={h * 0.032} width={w * 0.57} height={h * 0.79} rx={3} fill="#383d40" />
-      <text x={w / 2} y={h * 0.026} textAnchor="middle" fill="#a4ce68" fontSize={10} fontWeight={700} fontFamily="Arial, sans-serif">CTRE</text>
+    <g fontFamily="'Saira Semi Condensed', 'Barlow Semi Condensed', sans-serif">
+      <rect x={0} y={0} width={w} height={h} rx={10} fill="#48484a" />
+      <rect x={w * 0.2} y={h * 0.045} width={w * 0.6} height={h * 0.77} rx={4} fill="#3a3a3c" />
+      {[[11, 11], [w - 11, 11], [11, h - 11], [w - 11, h - 11]].map(([cx, cy]) => (
+        <g key={`${cx}:${cy}`}>
+          <circle cx={cx} cy={cy} r={6.5} fill="#e9e9ea" />
+          <circle cx={cx} cy={cy} r={4} fill="#48484a" />
+        </g>
+      ))}
+      <text x={w / 2} y={h * 0.03} textAnchor="middle" fontSize={11} fontWeight={800} fontStyle="italic" fill="#ffffff">CTRE</text>
+      {/* channel terminals: lever colour by polarity, wire entry on the outer edge */}
       {def.ports.filter((port) => port.id.startsWith('ch')).map((port) => {
         const right = port.side === 'right';
         const y = port.y * h;
-        const color = port.type === 'pwr+' ? '#d94b3f' : '#343a3d';
-        return <g key={port.id}>
-          <rect x={right ? w * 0.81 : 0} y={y - h * 0.012} width={w * 0.19} height={h * 0.024} rx={2} fill={color} stroke="#737c80" strokeWidth={0.7} />
-          <rect x={right ? w * 0.94 : w * 0.018} y={y - h * 0.007} width={w * 0.04} height={h * 0.014} rx={1} fill="#151c20" />
-          <path d={`M ${right ? w * 0.835 : w * 0.095} ${y} h ${w * 0.06}`} stroke={port.type === 'pwr+' ? '#f6aaa1' : '#78858b'} strokeWidth={2} />
-        </g>;
+        const x = right ? w - termW : 0;
+        return (
+          <g key={port.id}>
+            <rect x={x} y={y - termH / 2} width={termW} height={termH} rx={1.5} fill={port.type === 'pwr+' ? '#e8262c' : '#232325'} />
+            <rect x={right ? w - termW * 0.3 : 0} y={y - termH * 0.32} width={termW * 0.3} height={termH * 0.64} fill="#111112" />
+            <rect x={right ? x + termW * 0.1 : x + termW * 0.6} y={y - termH * 0.18} width={termW * 0.3} height={termH * 0.36} rx={1}
+              fill={port.type === 'pwr+' ? '#f47a7e' : '#4b4b4e'} />
+          </g>
+        );
       })}
-      {def.fuseSlots?.map((slot) => <g key={slot.channel}>
-        <rect x={slot.x * w - 2} y={slot.y * h - 2} width={slot.w * w + 4} height={slot.h * h + 4} rx={2} fill="#13191d" stroke="#626e75" />
-        <text x={slot.channel >= 12 ? w * 0.25 : w * 0.75} y={(slot.y + slot.h / 2) * h + 3} textAnchor="middle" fill="#eef3f5" fontFamily="Arial, sans-serif" fontSize={9}>{slot.channel}</text>
-      </g>)}
-      <text x={w / 2} y={h * 0.856} textAnchor="middle" fill="#eef3f5" fontFamily="Arial, sans-serif" fontSize={13} fontWeight={700}>PDP 2.0</text>
-      {[{ x: w * 0.27, color: '#303a40', label: '-' }, { x: w * 0.73, color: '#b6312d', label: '+' }].map((input) => <g key={input.label}>
-        <rect x={input.x - w * 0.18} y={h * 0.88} width={w * 0.36} height={h * 0.095} rx={4} fill={input.color} stroke="#78878f" />
-        <path d={`M ${input.x} ${h * 0.934} V ${h}`} stroke={input.label === '+' ? '#dc2626' : '#7b868c'} strokeWidth={5} />
-        <circle cx={input.x} cy={h * 0.927} r={w * 0.052} fill="#bfc7cb" stroke="#f3f5f6" strokeWidth={2} />
-        <circle cx={input.x} cy={h * 0.927} r={w * 0.026} fill="#505b63" />
-        <text x={input.x + w * 0.09} y={h * 0.922} fill="#ffffff" fontSize={13} fontWeight={700}>{input.label}</text>
-      </g>)}
-      {[[9, 9], [w - 9, 9], [9, h - 10], [w - 9, h - 10]].map(([x, y]) => <circle key={`${x}:${y}`} cx={x} cy={y} r={4} fill="#b5c0c6" />)}
-      <VectorPortPads def={def} />
-    </>
+      {/* breaker bays and channel numbers */}
+      {def.fuseSlots?.map((slot) => {
+        const left = slot.channel >= 12;
+        const cy = (slot.y + slot.h / 2) * h;
+        return (
+          <g key={slot.channel}>
+            <rect x={slot.x * w - 2} y={slot.y * h - 2} width={slot.w * w + 4} height={slot.h * h + 4} rx={2} fill="#1d1d1e" />
+            <rect x={left ? w * 0.215 : w * 0.725} y={cy - 6} width={w * 0.06} height={12} rx={1.5} fill="#f1f1f2" />
+            <text x={left ? w * 0.245 : w * 0.755} y={cy + 4} textAnchor="middle" fontSize={9.5} fontWeight={700} fill="#2a2a2b">{slot.channel}</text>
+          </g>
+        );
+      })}
+      {/* CAN, status and label */}
+      <rect x={w * 0.24} y={h * 0.83} width={w * 0.2} height={h * 0.03} rx={2} fill="#1d1d1e" />
+      <rect x={w * 0.26} y={h * 0.835} width={w * 0.07} height={h * 0.02} rx={1} fill="#f2d22e" />
+      <rect x={w * 0.35} y={h * 0.835} width={w * 0.07} height={h * 0.02} rx={1} fill="#2fae4a" />
+      <text x={w * 0.34} y={h * 0.827} textAnchor="middle" fontSize={7} fill={label}>CAN</text>
+      <circle cx={w * 0.55} cy={h * 0.845} r={3.2} fill="#2fae4a" />
+      <circle cx={w * 0.62} cy={h * 0.845} r={3.2} fill="#1d1d1e" stroke="#6d6e71" strokeWidth={0.8} />
+      <text x={w * 0.585} y={h * 0.827} textAnchor="middle" fontSize={7} fill={label}>STATUS</text>
+      <text x={w / 2} y={h * 0.887} textAnchor="middle" fontSize={13} fontWeight={700} fill="#ffffff" letterSpacing={0.5}>PDP 2.0</text>
+      {/* battery lugs; cables leave downward */}
+      {[{ x: w * 0.27, color: '#232325', label: '−' }, { x: w * 0.73, color: '#e8262c', label: '+' }].map((input) => (
+        <g key={input.label}>
+          <rect x={input.x - w * 0.15} y={h * 0.9} width={w * 0.3} height={h * 0.085} rx={5} fill={input.color} />
+          <circle cx={input.x} cy={h * 0.94} r={w * 0.05} fill="#d9a441" />
+          <circle cx={input.x} cy={h * 0.94} r={w * 0.022} fill="#8a6420" />
+          <text x={input.x + w * 0.1} y={h * 0.928} textAnchor="middle" fontSize={13} fontWeight={700} fill="#ffffff">{input.label}</text>
+        </g>
+      ))}
+    </g>
   );
 }
 

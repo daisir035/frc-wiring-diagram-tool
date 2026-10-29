@@ -18,7 +18,20 @@ npm run build
 npm run preview
 ```
 
-生产静态文件输出到 `dist/`。本次改动未调整部署分支或 Vercel 配置。使用相对资源路径，部署到子目录时需将整个 `dist/` 挂载在该目录，并通过带末尾 `/` 的入口访问。
+生产静态文件输出到 `dist/`。使用相对资源路径，部署到子目录时需将整个 `dist/` 挂载在该目录，并通过带末尾 `/` 的入口访问。
+
+## Cloudflare 自动发布
+
+推送到 `frc-main-backup-20260906` 分支后，GitHub Actions 会使用 Node.js 24 安装锁定依赖，依次运行测试、Lint 和生产构建，再将 `dist/` 发布到现有 Cloudflare Pages 项目 `frc-wiring-diagram-tool`。任一步骤失败都会停止发布，线上保留上一次成功部署。同一时间只保留最新的发布任务。
+
+正式地址为 https://frcwiring.botscience.cn 和 https://wiring.botscience.cn。部署运行在 GitHub，不依赖本机开机；其他分支（包括 FTC 分支）不会触发这条 FRC 发布流水线。
+
+发布配置位于 `.github/workflows/deploy-frc-pages.yml`，需要在 GitHub 仓库中配置：
+
+- Actions secret：`CLOUDFLARE_PAGES_API_TOKEN`，具有目标账号的 Cloudflare Pages 编辑权限。
+- Actions variable：`CLOUDFLARE_ACCOUNT_ID`，目标 Cloudflare 账号 ID。
+
+Token 只放在 GitHub Secrets 中，不提交到源码。可在仓库的 Actions 页面查看 `Deploy FRC to Cloudflare Pages` 的执行记录、检查结果和部署日志。
 
 ## 使用与保存
 

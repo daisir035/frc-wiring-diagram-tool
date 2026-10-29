@@ -81,3 +81,8 @@
 .toolbar-scroll::-webkit-scrollbar {
   display: none;
 }
+
+/* Port focus is shown by the port marker itself, not the browser outline. */
+[data-cable-port-id]:focus {
+  outline: none;
+}

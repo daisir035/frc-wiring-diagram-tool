@@ -260,6 +260,26 @@ function WireTerminalMarker({ port, type, color, centered = false }: { port: Wor
   );
 }
 
+type PortMarkerState = 'open' | 'open-near' | 'connected' | 'hover' | 'source';
+
+/**
+ * Quiet port marks: open ports are small rings in the port-type colour, connected ports leave the
+ * wire end as the only mark, and hover / wire start add a soft static halo.
+ */
+function PortMarker({ x, y, fill, color, state }: { x: number; y: number; fill: string; color: string; state: PortMarkerState }) {
+  if (state === 'connected') return null;
+  if (state === 'open' || state === 'open-near') {
+    return <circle cx={x} cy={y} r={state === 'open' ? 2.3 : 3} fill="#ffffff" stroke={color} strokeWidth={1.3} pointerEvents="none" />;
+  }
+  const halo = state === 'source' ? '#0ea5e9' : color;
+  return (
+    <g pointerEvents="none">
+      <circle cx={x} cy={y} r={6.5} fill={halo} fillOpacity={0.18} stroke={halo} strokeOpacity={state === 'source' ? 0.7 : 0.35} strokeWidth={1} />
+      <circle cx={x} cy={y} r={3.4} fill={fill} stroke="#ffffff" strokeWidth={1.1} />
+    </g>
+  );
+}
+
 /** Shift, Ctrl or Cmd add to the selection instead of replacing it. */
 const additiveKey = (event: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) => event.shiftKey || event.ctrlKey || event.metaKey;
 
@@ -391,6 +411,7 @@ export default function WiringCanvas(props: Props) {
     return result;
   }, [pendingFrom, parts, partDefs]);
   const [hoveredPort, setHoveredPort] = useState<WireEnd | null>(null);
+  const [hoveredPart, setHoveredPart] = useState<string | null>(null);
   const legend = useMemo<LegendContent>(() => {
     const used = new Set(pressureSides.values());
     const electrical = wires.filter((wire) => !pressureSides.has(wire.id) && !wire.tubeOdMm);
@@ -1180,12 +1201,13 @@ export default function WiringCanvas(props: Props) {
                   <path
                     d={wirePath(p1, p2)}
                     fill="none"
-                    stroke={target ? '#16a34a' : '#f97316'}
-                    strokeWidth={3}
-                    strokeDasharray={target ? undefined : '8 6'}
+                    stroke={target ? '#0ea5e9' : '#64748b'}
+                    strokeWidth={target ? 2.4 : 1.8}
+                    strokeDasharray={target ? undefined : '6 5'}
                     strokeLinecap="round"
+                    opacity={target ? 1 : 0.8}
                   />
-                  {end && <circle cx={end.x} cy={end.y} r={9 / Math.sqrt(view.k)} fill="none" stroke="#16a34a" strokeWidth={2.5} />}
+                  {end && <circle cx={end.x} cy={end.y} r={6.5} fill="#0ea5e9" fillOpacity={0.15} stroke="#0ea5e9" strokeWidth={1.4} />}
                 </g>
               );
             })()}
@@ -1202,7 +1224,9 @@ export default function WiringCanvas(props: Props) {
             const pdhLabel = pdhChannels.length > 0 ? `PDH CH ${pdhChannels.join(' / ')}` : '';
             const pdhLabelWidth = Math.max(64, pdhLabel.length * 6 + 16);
             return (
-              <g key={part.uid} transform={`translate(${part.x} ${part.y})`}>
+              <g key={part.uid} transform={`translate(${part.x} ${part.y})`}
+                onPointerEnter={() => setHoveredPart(part.uid)}
+                onPointerLeave={() => setHoveredPart((current) => current === part.uid ? null : current)}>
                 <g transform={`rotate(${part.rot} ${w / 2} ${h / 2})`}>
                   {sel && (
                     <rect
@@ -1247,6 +1271,8 @@ export default function WiringCanvas(props: Props) {
                         role="button"
                         tabIndex={0}
                         opacity={pendingFrom && part.uid !== pendingFrom.uid && !compatiblePorts.has(`${part.uid}:${port.id}`) ? 0.25 : 1}
+                        onFocus={() => setHoveredPort({ uid: part.uid, portId: port.id })}
+                        onBlur={() => setHoveredPort((current) => current?.uid === part.uid && current.portId === port.id ? null : current)}
                         onPointerEnter={() => setHoveredPort({ uid: part.uid, portId: port.id })}
                         onPointerLeave={() => setHoveredPort((current) => current?.uid === part.uid && current.portId === port.id ? null : current)}
                         aria-label={`${displayLabel} · ${port.label}，连接端口`}
@@ -1265,43 +1291,22 @@ export default function WiringCanvas(props: Props) {
                             <stop offset="50%" stopColor={PORT_TYPE_COLOR[paired!.type]} />
                           </linearGradient>
                         </defs>}
-                        {posterMode && !isPending ? null : port.type === 'air' && !isPending ? (
-                          // Push-to-connect fittings are in the artwork; only open ones get a ring.
-                          !connectedPorts.has(`${part.uid}:${port.id}`) && <circle cx={port.x * w} cy={port.y * h} r={3.2}
-                            fill="#ffffff" stroke={PORT_TYPE_COLOR.air} strokeWidth={1.6} pointerEvents="none" />
-                        ) : <circle
-                          cx={port.x * w}
-                          cy={port.y * h}
-                          r={isPending ? 7 : 4.6}
-                          fill={isPending ? '#f97316' : axis ? `url(#${gradientId})` : PORT_TYPE_COLOR[port.type]}
-                          stroke="#ffffff"
-                          strokeWidth={1.5}
-                          pointerEvents="none"
-                        >
-                          <title>{`${displayLabel} · ${port.label}`}</title>
-                        </circle>}
+                        {!(posterMode && !isPending) && (
+                          <PortMarker x={port.x * w} y={port.y * h}
+                            fill={axis ? `url(#${gradientId})` : PORT_TYPE_COLOR[port.type]} color={PORT_TYPE_COLOR[port.type]}
+                            state={isPending ? 'source'
+                              : hoveredPort?.uid === part.uid && hoveredPort.portId === port.id ? 'hover'
+                                : connectedPorts.has(`${part.uid}:${port.id}`) ? 'connected'
+                                  : hoveredPart === part.uid || (pendingFrom && compatiblePorts.has(`${part.uid}:${port.id}`)) ? 'open-near' : 'open'} />
+                        )}
                         <circle
                           data-port-uid={part.uid}
                           data-port-id={port.id}
                           cx={port.x * w} cy={port.y * h}
-                          r={Math.max(isPending ? 7 : 4.6, 10 / view.k)}
+                          r={Math.max(5, 10 / view.k)}
                           fill="transparent"
                           style={{ cursor: 'crosshair', pointerEvents: 'all' }}
                         ><title>{`${displayLabel} · ${port.label}`}</title></circle>
-                        {isPending && (
-                          <circle
-                            cx={port.x * w}
-                            cy={port.y * h}
-                            r={12}
-                            fill="none"
-                            stroke="#f97316"
-                            strokeWidth={2}
-                            pointerEvents="none"
-                          >
-                            <animate attributeName="r" values="9;15;9" dur="1.2s" repeatCount="indefinite" />
-                            <animate attributeName="opacity" values="1;0.2;1" dur="1.2s" repeatCount="indefinite" />
-                          </circle>
-                        )}
                       </g>
                     );
                   })}
@@ -1362,7 +1367,7 @@ export default function WiringCanvas(props: Props) {
             {pendingFrom && [...compatiblePorts].map((key) => {
               const [uid, portId] = [key.slice(0, key.indexOf(':')), key.slice(key.indexOf(':') + 1)];
               const point = getPort({ uid, portId });
-              return point && <circle key={key} cx={point.x} cy={point.y} r={7.5} fill="none" stroke="#16a34a" strokeWidth={1.6} opacity={0.75} />;
+              return point && <circle key={key} cx={point.x} cy={point.y} r={5.5} fill="none" stroke="#0ea5e9" strokeWidth={1} opacity={0.55} />;
             })}
             {hoveredPort && (() => {
               const point = getPort(hoveredPort);
@@ -1376,7 +1381,6 @@ export default function WiringCanvas(props: Props) {
               const width = [...text].reduce((sum, char) => sum + (/[\u2e80-\uffff]/.test(char) ? 1 : 0.58), 0) * size + size * 1.4;
               return (
                 <g transform={`translate(${point.x + 10 / view.k} ${point.y - 10 / view.k - size * 1.6})`}>
-                  <circle cx={-10 / view.k} cy={10 / view.k + size * 1.6} r={7 / view.k + 3} fill="none" stroke={blocked ? '#dc2626' : '#0ea5e9'} strokeWidth={2 / view.k} />
                   <rect width={width} height={size * 1.7} rx={size * 0.35} fill={blocked ? '#fef2f2' : '#0f172a'} opacity={0.92} />
                   <text x={size * 0.7} y={size * 1.2} fontSize={size} fill={blocked ? '#b91c1c' : '#ffffff'}>{text}</text>
                 </g>

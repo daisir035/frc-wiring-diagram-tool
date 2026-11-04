@@ -86,3 +86,16 @@ test('bundled sample loads with valid ports and its tubes survive source round t
  assert.equal(report.lines.filter(l=>l.kind==='气管').length,page.wires.filter(w=>w.tubeOdMm).length);
  assert.ok(page.wires.filter(w=>w.tubeOdMm).length >= 15);
 });
+
+test('vacuum generator starts a vacuum side and the PH takes the REV analog pressure sensor', async () => {
+ const {pneumaticPressureSides} = await import('../src/lib/pneumaticZones.ts');
+ for (const id of ['plug','vacuum-generator','muffler','suction-cup','analog-pressure-sensor']) assert.ok(defs.has(`pneumatic-${id}`), id);
+ const ps=[{uid:'c',partId:'pneumatic-compressor',x:0,y:0,rot:0},{uid:'g',partId:'pneumatic-vacuum-generator',x:300,y:0,rot:0},
+  {uid:'s',partId:'pneumatic-suction-cup',x:300,y:200,rot:0},{uid:'m',partId:'pneumatic-muffler',x:600,y:0,rot:0}];
+ const t=(id,a,b)=>({id,a:{uid:a[0],portId:a[1]},b:{uid:b[0],portId:b[1]},color:'',tubeOdMm:6.35});
+ const sides=pneumaticPressureSides(ps,[t('1',['c','air'],['g','in']),t('2',['g','vac'],['s','air']),t('3',['g','exhaust'],['m','air'])],defs);
+ assert.deepEqual(['1','2','3'].map(id=>sides.get(id)),['high','vacuum',undefined]);
+ const sensor=[{uid:'p',partId:'pneumatic-analog-pressure-sensor',x:0,y:0,rot:0},{uid:'h',partId:'ph',x:200,y:0,rot:0}];
+ assert.equal(connectionIssue({uid:'p',portId:'analogSig'},{uid:'h',portId:'analogSig'},sensor,defs), null);
+ assert.ok(!defs.get('pcm').ports.some(p=>p.id.startsWith('analog')));
+});

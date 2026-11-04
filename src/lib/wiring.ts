@@ -166,7 +166,7 @@ export interface InlineConnector {
 export interface Wire {
   tubeOdMm?: number;
   /** Unset tubes take the side traced from the compressor (lib/pneumaticZones). */
-  pressureSide?: 'high' | 'working' | 'secondary';
+  pressureSide?: 'high' | 'working' | 'secondary' | 'vacuum';
   /** orthogonal: auto elbows; free: straight segments between guides; smooth: spline through guides. */
   pathMode?: 'orthogonal' | 'free' | 'smooth';
   cornerRadius?: number;

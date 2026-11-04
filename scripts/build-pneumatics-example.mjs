@@ -67,7 +67,7 @@ tube(['tank2', 'in'], ['tank3', 'in'], 'y270');
 section(370, 20, 330, 300, '调压');
 place('tee-1', 'pneumatic-tee', 270, 'in', 400, 85);
 place('reg', 'pneumatic-regulator', 0, 'in', ...out('tee-1', 'out', 24), { customName: '主调压阀', labelPos: 'bottom' });
-place('ps', 'pneumatic-pressure-switch', 0, 'a', 450, 215, { labelPos: 'left', caption: 'REV-11-1107\n数字式；am-2006\n模拟式可选' });
+place('ps', 'pneumatic-pressure-switch', 0, 'a', 450, 215, { labelPos: 'left', caption: 'am-2006 Nason\n约 115 psi 断开' });
 place('tee-g', 'pneumatic-tee', 90, 'out', ...out('ps', 'b', 0));
 place('gauge', 'pneumatic-gauge', 0, 'air', ...out('tee-g', 'branch', 0), { customName: '储气压力表', labelPos: 'right' });
 place('vent', 'pneumatic-vent', 0, 'air', ...out('tee-g', 'in', 0), { labelPos: 'right' });

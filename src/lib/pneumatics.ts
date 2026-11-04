@@ -111,7 +111,10 @@ export function cylinderBores() {
  * compressor top left, pressure switch top right, solenoid channels 8–15 down the left edge and 7–0 down
  * the right edge, CAN and power along the bottom. The PCM uses the right column for its 8 channels.
  */
-export const CONTROLLER = { w: 74, h: 180, bankTop: 58, row: 7.6, pin: 1.7 };
+export const CONTROLLER = { w: 74, h: 180, bankTop: 58, row: 7.6, pin: 1.7, analogTop: 37 };
+
+/** 3-pin analog pressure sensor header on the PH, top to bottom; the sensor uses the same ids. */
+export const ANALOG_SENSOR_PINS = [['analog5v', '5V'], ['analogSig', '信号'], ['analogGnd', 'GND']] as const;
 
 /** Channel row centre (mm) and edge, shared by the artwork and the ports. */
 export function controllerChannel(channel: number, channels: number) {
@@ -128,6 +131,9 @@ function controller(id: 'ph' | 'pcm', name: string, channels: number, caption: s
     port('compressor-', '空压机 −', ...at(0, 30 + pin), 'pwr-', 'left'),
     port('switch', '压力开关', ...at(w, 26 - pin), 'signal', 'right'),
     port('switchReturn', '压力开关回线', ...at(w, 26 + pin), 'signal', 'right'),
+    // Only the PH reads an analog pressure sensor; the PCM has the digital switch input alone.
+    ...(id === 'ph' ? ANALOG_SENSOR_PINS.map(([pinId, label], i) =>
+      port(pinId, `模拟压力传感器 ${label}`, ...at(w, CONTROLLER.analogTop + i * pin * 1.6), 'signal', 'right')) : []),
     port('canH', 'CAN H', ...at(15, h), 'canH', 'bottom'),
     port('canL', 'CAN L', ...at(21, h), 'canL', 'bottom'),
     port('vin+', '电源输入 +', ...at(50, h), 'pwr+', 'bottom'),
@@ -153,9 +159,12 @@ export const PNEUMATIC_PARTS: PartDef[] = [
   vectorPart('regulator', '调压阀', { w: 70, h: 64 }, 'R07-100-RNEA 调压阀 + 18-013-212 压力表', [
     port('in', '进气口', 0, 0.6), port('out', '出气口', 1, 0.6)]),
   vectorPart('gauge', '压力表', { w: 40, h: 56 }, '18-013-212，装在 1/8 in 三通上', [port('air', '测压口', 0.5, 1)]),
-  vectorPart('pressure-switch', '压力开关 / 传感器', { w: 34, h: 70 }, 'REV-11-1107 数字式 · am-2006 模拟式可选', [
+  vectorPart('pressure-switch', '数字压力开关', { w: 34, h: 70 }, 'am-2006 Nason · 约 115 psi 断开', [
     port('a', '气口 1', 0, 0.13), port('b', '气口 2', 1, 0.13),
     port('switch', '开关', 0.4, 1, 'signal'), port('return', '回线', 0.6, 1, 'signal')]),
+  vectorPart('analog-pressure-sensor', 'REV 模拟压力传感器', { w: 34, h: 70 }, 'REV-11-1107 · 0–200 psi，实时压力接 PH', [
+    port('a', '气口 1', 0, 0.13), port('b', '气口 2', 1, 0.13),
+    ...ANALOG_SENSOR_PINS.map(([id, label], i) => port(id, label, 0.3 + i * 0.2, 1, 'signal' as const))]),
   vectorPart('relief', '安全阀', { w: 22, h: 52 }, '48435K714 · 125 psi，必须硬接在空压机上', [port('air', '入口（硬接头）', 0.5, 1)]),
   vectorPart('vent', '泄压阀', { w: 48, h: 24 }, 'MV709-2', [port('air', '入口', 0, 0.65)]),
   vectorPart('single-solenoid', '单电控电磁阀', { w: 80, h: 46 }, '通用单电控阀', [
@@ -169,6 +178,11 @@ export const PNEUMATIC_PARTS: PartDef[] = [
     ...power('coilA', '线圈', 1, 0.26, 'right', 0.08)]),
   { ...vectorPart('tee', '三通接头', { w: 16, h: 26 }, '1/4 in 推入式三通', [
     port('in', '口 1', 0.55, 0), port('out', '口 2', 0.55, 1), port('branch', '口 3', 0, 0.5)]), hideLabel: true },
+  { ...vectorPart('plug', '堵头', { w: 14, h: 9 }, '1/4 in 白色推入式堵头', [port('air', '插入端', 0, 0.5)]), hideLabel: true },
+  vectorPart('vacuum-generator', '真空发生器', { w: 70, h: 30 }, '文丘里式 · 进气口接工作压力', [
+    port('in', '进气口', 0, 0.5), port('vac', '真空口', 0.4, 1), port('exhaust', '排气口', 1, 0.5)]),
+  vectorPart('muffler', '消声器', { w: 26, h: 14 }, '烧结铜消声器 · 拧在排气口上', [port('air', '螺纹口', 0, 0.5)]),
+  vectorPart('suction-cup', '吸盘', { w: 40, h: 34 }, '波纹吸盘 · 接真空口', [port('air', '接口', 0.5, 0)]),
   ...CYLINDER_PARTS,
   controller('ph', 'REV Pneumatic Hub', 16, 'REV-11-1852 · 16 路电磁阀'),
   controller('pcm', 'CTRE PCM', 8, 'CTRE 14-806777 · 8 路电磁阀'),

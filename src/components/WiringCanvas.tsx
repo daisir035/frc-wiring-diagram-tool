@@ -449,7 +449,7 @@ export default function WiringCanvas(props: Props) {
       return port ? [port.type === 'signal' && /^PWM\d/.test(port.id) ? 'pwm' : port.type] : [];
     }));
     return {
-      sides: (['high', 'working', 'secondary'] as const).filter((side) => used.has(side)),
+      sides: (['high', 'working', 'secondary', 'vacuum'] as const).filter((side) => used.has(side)),
       gauges: [...new Set(electrical.flatMap((wire) => wire.awg ? [wire.awg] : []))].sort((a, b) => a - b).slice(0, 7),
       power: types.has('pwr+') || types.has('pwr-'),
       can: types.has('canH') || types.has('canL'),

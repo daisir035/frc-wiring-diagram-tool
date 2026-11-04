@@ -286,7 +286,7 @@ function validateWire(value: unknown, path: string): Wire {
   optional(source, 'terminalA', path, terminal);
   optional(source, 'terminalB', path, terminal);
   optional(source, 'tubeOdMm', path, (v, p) => number(v, p, 0.1, 100));
-  optional(source, 'pressureSide', path, (v, p) => member(v, ['high', 'working', 'secondary'], p));
+  optional(source, 'pressureSide', path, (v, p) => member(v, ['high', 'working', 'secondary', 'vacuum'], p));
   optional(source, 'pathMode', path, (v, p) => member(v, ['orthogonal', 'free', 'smooth'], p));
   optional(source, 'cornerRadius', path, (v, p) => number(v, p, 0, 1000));
   optional(source, 'routingStyle', path, (value, path) => member(value, ['standard', 'drag-chain', 'conduit'], path));

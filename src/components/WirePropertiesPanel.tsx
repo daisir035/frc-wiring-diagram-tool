@@ -266,7 +266,7 @@ export default function WirePropertiesPanel({ wire, pressureSide, cableSize, par
               ))}
             </select>
           </label>
-          <p className="mt-2 text-[10px] leading-4 text-slate-400">自动模式从空压机沿气路追踪，每经过一个调压阀降一级并换色。气管不使用 AWG。每个接头只接一根管，分支用三通；承压等级以气管规格为准。</p>
+          <p className="mt-2 text-[10px] leading-4 text-slate-400">自动模式从空压机沿气路追踪，每经过一个调压阀降一级并换色；真空发生器的真空口一侧为真空侧。气管不使用 AWG。每个接头只接一根管，分支用三通；承压等级以气管规格为准。</p>
         </section> : <>
         <section className="border-b border-slate-100 py-3">
           <div className="mb-2 flex items-center gap-2">

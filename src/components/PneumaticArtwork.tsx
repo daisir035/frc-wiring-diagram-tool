@@ -182,6 +182,94 @@ function PressureSwitch({ w, h }: { w: number; h: number }) {
   );
 }
 
+/** REV-11-1107 on the same brass tee as the switch: stainless body, cable boot with the 3-pin leads below. */
+function AnalogPressureSensor({ def }: { def: PartDef }) {
+  const { w, h } = def;
+  const leads = def.ports.filter((p) => p.type === 'signal');
+  return (
+    <g>
+      <rect x={0} y={h * 0.04} width={w} height={h * 0.18} fill={ART.brassDark} />
+      <PushFitting x={0} y={h * 0.13} side="left" size={h * 0.13} />
+      <PushFitting x={w} y={h * 0.13} side="right" size={h * 0.13} />
+      <Hex x={w * 0.2} y={0} w={w * 0.6} h={h * 0.3} />
+      <rect x={w * 0.3} y={h * 0.3} width={w * 0.4} height={h * 0.05} fill={ART.brassDark} />
+      <Hex x={w * 0.26} y={h * 0.35} w={w * 0.48} h={h * 0.12} fill={ART.fittingDark} />
+      <rect x={w * 0.22} y={h * 0.47} width={w * 0.56} height={h * 0.3} rx={1.5} fill="#cfd0d3" />
+      <rect x={w * 0.22} y={h * 0.55} width={w * 0.56} height={h * 0.11} fill={ART.black} />
+      <text x={w / 2} y={h * 0.635} fontFamily="sans-serif" textAnchor="middle" fontSize={h * 0.065} fontWeight={800} fontStyle="italic" fill="#ffffff">REV</text>
+      <path d={`M ${w * 0.26} ${h * 0.77} H ${w * 0.74} L ${w * 0.66} ${h * 0.86} H ${w * 0.34} Z`} fill={ART.black} />
+      {leads.map((p) => (
+        <path key={p.id} d={`M ${w / 2} ${h * 0.85} C ${w / 2} ${h * 0.92} ${p.x * w} ${h * 0.9} ${p.x * w} ${h}`} fill="none" stroke={ART.charcoal} strokeWidth={1.1} />
+      ))}
+    </g>
+  );
+}
+
+/** White push-in stem plug: the stem enters the fitting at the port on the left. */
+function Plug({ w, h }: { w: number; h: number }) {
+  const edge = '#b3b4b1';
+  return (
+    <g>
+      <rect x={0} y={h * 0.3} width={w * 0.6} height={h * 0.4} rx={h * 0.08} fill="#f6f6f3" stroke={edge} strokeWidth={0.4} />
+      <rect x={w * 0.55} y={0.2} width={w * 0.45 - 0.2} height={h - 0.4} rx={h * 0.22} fill="#f6f6f3" stroke={edge} strokeWidth={0.4} />
+      <rect x={w * 0.62} y={h * 0.2} width={w * 0.06} height={h * 0.6} fill="#e3e3df" />
+    </g>
+  );
+}
+
+/** Venturi ejector block: supply in on the left, threaded exhaust on the right, vacuum port below. */
+function VacuumGenerator({ def }: { def: PartDef }) {
+  const { w, h } = def;
+  const vac = def.ports.find((p) => p.id === 'vac')!;
+  const fit = h * 0.32;
+  return (
+    <g fontFamily="'Saira Semi Condensed', 'Barlow Semi Condensed', sans-serif">
+      <rect x={w * 0.12} y={h * 0.08} width={w * 0.72} height={h * 0.6} rx={1.2} fill="#b9bdc4" />
+      <rect x={w * 0.12} y={h * 0.08} width={w * 0.72} height={h * 0.14} fill="#d7dadf" />
+      <rect x={w * 0.62} y={h * 0.08} width={w * 0.04} height={h * 0.6} fill="#9ca1a9" />
+      <text x={w * 0.24} y={h * 0.52} fontSize={h * 0.17} fontWeight={700} fill={ART.charcoal}>P</text>
+      <text x={vac.x * w} y={h * 0.52} textAnchor="middle" fontSize={h * 0.17} fontWeight={700} fill={ART.charcoal}>V</text>
+      <text x={w * 0.74} y={h * 0.52} textAnchor="middle" fontSize={h * 0.13} fontWeight={700} fill={ART.charcoal}>EXH</text>
+      <rect x={vac.x * w - fit * 0.45} y={h * 0.68} width={fit * 0.9} height={h * 0.08} fill={ART.fittingDark} />
+      <PushFitting x={0} y={h * 0.5} side="left" size={fit} />
+      <PushFitting x={vac.x * w} y={h} side="bottom" size={fit} />
+      <Hex x={w * 0.84} y={h * 0.32} w={w * 0.1} h={h * 0.36} />
+      <rect x={w * 0.94} y={h * 0.38} width={w * 0.06} height={h * 0.24} fill={ART.brassDark} />
+    </g>
+  );
+}
+
+/** Sintered bronze silencer on a brass hex; the male thread is the port on the left. */
+function Muffler({ w, h }: { w: number; h: number }) {
+  const dots: ReactNode[] = [];
+  for (let i = 0; i < 4; i++) {
+    for (let j = 0; j < 3; j++) dots.push(<circle key={`${i}-${j}`} cx={w * (0.5 + i * 0.12)} cy={h * (0.28 + j * 0.22)} r={h * 0.05} fill="#8a6a3c" />);
+  }
+  return (
+    <g>
+      <rect x={0} y={h * 0.32} width={w * 0.14} height={h * 0.36} fill={ART.brassDark} />
+      <Hex x={w * 0.12} y={h * 0.12} w={w * 0.24} h={h * 0.76} />
+      <path d={`M ${w * 0.36} ${h * 0.08} H ${w * 0.86} A ${w * 0.14} ${h * 0.42} 0 0 1 ${w * 0.86} ${h * 0.92} H ${w * 0.36} Z`} fill="#b48a52" />
+      {dots}
+    </g>
+  );
+}
+
+/** Two-fold bellows cup hanging from a push fitting on top. */
+function SuctionCup({ w, h }: { w: number; h: number }) {
+  const cx = w / 2;
+  return (
+    <g>
+      <PushFitting x={cx} y={0} side="top" size={h * 0.24} />
+      <Hex x={cx - w * 0.14} y={h * 0.27} w={w * 0.28} h={h * 0.13} />
+      <rect x={cx - w * 0.1} y={h * 0.4} width={w * 0.2} height={h * 0.08} fill={ART.brassDark} />
+      <path d={`M ${cx - w * 0.16} ${h * 0.48} H ${cx + w * 0.16} L ${cx + w * 0.3} ${h * 0.6} L ${cx + w * 0.18} ${h * 0.68} H ${cx - w * 0.18} L ${cx - w * 0.3} ${h * 0.6} Z`} fill={ART.charcoal} />
+      <path d={`M ${cx - w * 0.18} ${h * 0.68} H ${cx + w * 0.18} L ${cx + w * 0.38} ${h * 0.8} L ${cx + w * 0.22} ${h * 0.86} H ${cx - w * 0.22} L ${cx - w * 0.38} ${h * 0.8} Z`} fill={ART.black} />
+      <path d={`M ${cx - w * 0.22} ${h * 0.86} H ${cx + w * 0.22} L ${w} ${h * 0.97} V ${h} H 0 V ${h * 0.97} Z`} fill={ART.charcoal} />
+    </g>
+  );
+}
+
 function Relief({ w, h }: { w: number; h: number }) {
   return (
     <g>
@@ -340,7 +428,7 @@ function Terminal({ x, y, w, h, color, flip }: { x: number; y: number; w: number
 
 /** REV Pneumatic Hub / CTRE PCM board; terminal rows match CONTROLLER in lib/pneumatics. */
 function Controller({ def }: { def: PartDef }) {
-  const { w, h, bankTop, row, pin } = CONTROLLER;
+  const { w, h, bankTop, row, pin, analogTop } = CONTROLLER;
   const ph = def.art === 'ph';
   const channels = def.ports.filter((p) => /^sol\d+\+$/.test(p.id)).length;
   const body = ph ? '#48484a' : '#2f3033';
@@ -371,6 +459,14 @@ function Controller({ def }: { def: PartDef }) {
       <rect x={w - 14} y={26 - pin * 2.2} width={14} height={pin * 4.4} rx={0.6} fill="#f1f1f2" />
       {[-pin, pin].map((dy) => <rect key={dy} x={w - 4} y={26 + dy - 0.8} width={3.4} height={1.6} fill="#9a9b9e" />)}
       <text x={w - 16} y={27} fontSize={2.8} textAnchor="end" fill={label}>PRESSURE SW</text>
+      {/* analog pressure sensor header (PH only), 5V / signal / GND top to bottom */}
+      {ph && (
+        <g>
+          <rect x={w - 6} y={analogTop - pin * 1.3} width={6} height={pin * 5.8} rx={0.6} fill="#f1f1f2" />
+          {[0, 1, 2].map((i) => <rect key={i} x={w - 4} y={analogTop + i * pin * 1.6 - 0.6} width={3.4} height={1.2} fill="#9a9b9e" />)}
+          <text x={w - 8} y={analogTop + pin * 2.2} fontSize={2.8} textAnchor="end" fill={label}>ANALOG</text>
+        </g>
+      )}
       {/* solenoid voltage switch */}
       <rect x={8} y={40} width={12} height={8} rx={1} fill="#1d1d1e" />
       <rect x={14} y={41.5} width={4.5} height={5} rx={0.6} fill="#e9e9ea" />
@@ -417,6 +513,11 @@ export default function PneumaticArtwork({ def }: { def: PartDef }) {
     case 'regulator': return <Regulator w={w} h={height} />;
     case 'gauge': return <StandaloneGauge w={w} h={height} />;
     case 'pressure-switch': return <PressureSwitch w={w} h={height} />;
+    case 'analog-pressure-sensor': return <AnalogPressureSensor def={def} />;
+    case 'plug': return <Plug w={w} h={height} />;
+    case 'vacuum-generator': return <VacuumGenerator def={def} />;
+    case 'muffler': return <Muffler w={w} h={height} />;
+    case 'suction-cup': return <SuctionCup w={w} h={height} />;
     case 'relief': return <Relief w={w} h={height} />;
     case 'vent': return <Vent w={w} h={height} />;
     case 'single-solenoid': return <SingleSolenoid def={def} />;

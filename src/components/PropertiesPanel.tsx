@@ -82,7 +82,7 @@ function ManifoldPicker({ def, disabled, onSelect }: { def: PartDef; disabled: b
           </button>
         ))}
       </div>
-      <p className="mt-2 text-[10px] leading-4 text-slate-400">每联一个双电控阀，共用 P 口供气。减少联数时，被移除工位上的接线和气管会一并删除。</p>
+      <p className="mt-2 text-[10px] leading-4 text-slate-400">每联一个双电控阀，端板三口并排：中间 P 进气，两侧 EA / EB 排气，可装消声器。减少联数时，被移除工位上的接线和气管会一并删除。</p>
     </section>
   );
 }

@@ -133,6 +133,22 @@
             "labelPos": "right"
           },
           {
+            "uid": "muf-a",
+            "partId": "pneumatic-muffler",
+            "x": 984,
+            "y": 105,
+            "rot": 180,
+            "labelPos": "none"
+          },
+          {
+            "uid": "muf-b",
+            "partId": "pneumatic-muffler",
+            "x": 984,
+            "y": 141,
+            "rot": 180,
+            "labelPos": "none"
+          },
+          {
             "uid": "pancake",
             "partId": "am-4388",
             "x": 1214.55,
@@ -1300,7 +1316,7 @@
             "w": 180,
             "h": 92,
             "title": "分立阀与阀岛",
-            "body": "分立阀自带接口，用三通从工作\n气路取气；阀岛共用 P 口供气，\n选中后可切换 1–8 联。",
+            "body": "分立阀自带接口，用三通从工作\n气路取气；阀岛端板中间进气、两侧排气，\n排气口装消声器；可切换 1–8 联。",
             "framed": true
           },
           {

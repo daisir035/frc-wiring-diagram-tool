@@ -151,12 +151,12 @@ function controller(id: 'ph' | 'pcm', name: string, channels: number, caption: s
   };
 }
 
-/** Top view of a valve manifold: stations side by side, shared P on the left end plate, exhausts on the right. */
+/** Top view of a valve manifold: stations side by side; the left end plate carries EA, P and EB in a row. */
 export function manifoldLayout(stations: number) {
   const pitch = 20;
   const end = 15;
   const w = end * 2 + stations * pitch;
-  return { pitch, end, w, h: 94, railTop: 14, railBottom: 87, supplyY: 50, stationX: (i: number) => end + pitch * (i + 0.5) };
+  return { pitch, end, w, h: 94, railTop: 14, railBottom: 87, supplyY: 50, exhaustY: [32, 68], stationX: (i: number) => end + pitch * (i + 0.5) };
 }
 
 /** Port id suffix per station; station 1 keeps the bare ids so wires survive a station count change. */
@@ -165,9 +165,9 @@ const station = (i: number) => i === 0 ? '' : `${i + 1}`;
 export const MANIFOLD_STATIONS = [1, 2, 3, 4, 5, 6, 7, 8];
 
 function manifold(stations: number): PartDef {
-  const { w, h, supplyY, stationX } = manifoldLayout(stations);
+  const { w, h, supplyY, exhaustY, stationX } = manifoldLayout(stations);
   const id = stations === 1 ? 'manifold-solenoid' : `manifold-solenoid-${stations}`;
-  const ports = [port('p', 'P · 共用供气', 0, supplyY / h)];
+  const ports = [port('ea', 'EA · 排气口', 0, exhaustY[0] / h), port('p', 'P · 共用供气', 0, supplyY / h), port('eb', 'EB · 排气口', 0, exhaustY[1] / h)];
   for (let i = 0; i < stations; i++) {
     const n = station(i);
     const at = (dx: number) => (stationX(i) + dx) / w;

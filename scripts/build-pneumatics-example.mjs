@@ -80,6 +80,8 @@ section(720, 20, 600, 560, '执行机构');
 place('tee-2', 'pneumatic-tee', 180, 'out', 760, 150);
 place('tee-3', 'pneumatic-tee', 180, 'out', 760, 260);
 place('mfold', 'pneumatic-manifold-solenoid-2', 0, 'p', 1010, 130, { labelPos: 'right' });
+place('muf-a', 'pneumatic-muffler', 180, 'air', at('mfold', 'ea').x, at('mfold', 'ea').y, { labelPos: 'none' });
+place('muf-b', 'pneumatic-muffler', 180, 'air', at('mfold', 'eb').x, at('mfold', 'eb').y, { labelPos: 'none' });
 place('pancake', 'am-4388', 0, 'a', 1215, 75, { customName: '薄型气缸', labelPos: 'bottom' });
 place('ssol', 'pneumatic-single-solenoid', 0, 'p', 980, 300, { labelPos: 'left' });
 place('cyl1', 'am-4229', 0, 'b', 1110, 410, { customName: '单作用气缸', labelPos: 'bottom' });
@@ -98,7 +100,7 @@ tube(['tee-3', 'in'], ['reg2', 'in']);
 tube(['reg2', 'out'], ['dsol', 'p']);
 tube(['dsol', 'a'], ['cyl2', 'a'], 'y505 x850');
 tube(['dsol', 'b'], ['cyl2', 'b'], `y495 x${Math.round(at('cyl2', 'b').x + 24)}`);
-note(1130, 250, 180, 92, '分立阀与阀岛', '分立阀自带接口，用三通从工作\n气路取气；阀岛共用 P 口供气，\n选中后可切换 1–8 联。');
+note(1130, 250, 180, 92, '分立阀与阀岛', '分立阀自带接口，用三通从工作\n气路取气；阀岛端板中间进气、两侧排气，\n排气口装消声器；可切换 1–8 联。');
 
 // ---------- 气动控制 ----------
 section(370, 340, 330, 240, '气动控制');

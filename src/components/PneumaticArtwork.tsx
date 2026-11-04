@@ -344,9 +344,9 @@ function DoubleSolenoid({ def }: { def: PartDef }) {
   );
 }
 
-/** Top view: each valve lies across the base with a coil at both ends; the leads gather at the top edge. */
+/** Top view: each valve lies across the base with a coil at both ends; the leads gather at the top edge. Threaded EA / EB take a muffler. */
 function ManifoldValve({ def }: { def: PartDef }) {
-  const { w, h, end, pitch, railTop, railBottom, supplyY, stationX } = manifoldLayout(def.stations!);
+  const { w, h, end, pitch, railTop, railBottom, supplyY, exhaustY, stationX } = manifoldLayout(def.stations!);
   const half = pitch * 0.44;
   const coil = 15;
   const top = 5;
@@ -362,11 +362,11 @@ function ManifoldValve({ def }: { def: PartDef }) {
           {[railTop + 2, railBottom - 2].map((y) => <circle key={y} cx={x + end / 2} cy={y} r={1.6} fill={ART.black} />)}
         </g>
       ))}
-      <text {...label} x={11.5} y={supplyY - 7} fontSize={5} fill={ART.face}>P</text>
-      {[['EA', supplyY - 15], ['EB', supplyY + 15]].map(([name, y]) => (
+      <text {...label} x={12} y={supplyY + 1.8} fontSize={5} fill={ART.face}>P</text>
+      {[['EA', exhaustY[0]], ['EB', exhaustY[1]]].map(([name, y]) => (
         <g key={name}>
-          <circle cx={w - end / 2} cy={Number(y)} r={3.4} fill={ART.black} />
-          <text {...label} x={w - end / 2} y={Number(y) + 8.5} fontSize={3.8} fill={ART.face}>{name}</text>
+          <rect x={0} y={Number(y) - 4} width={4} height={8} fill={ART.brassDark} />
+          <text {...label} x={10} y={Number(y) + 1.5} fontSize={4.2} fill={ART.face}>{name}</text>
         </g>
       ))}
       {Array.from({ length: def.stations! }, (_, i) => {
@@ -388,7 +388,7 @@ function ManifoldValve({ def }: { def: PartDef }) {
           </g>
         );
       })}
-      {def.ports.filter((p) => p.type === 'air').map((p) => <PushFitting key={p.id} x={p.x * w} y={p.y * h} side={p.side!} size={p.id === 'p' ? 8 : 6} />)}
+      {def.ports.filter((p) => p.type === 'air' && !p.id.startsWith('e')).map((p) => <PushFitting key={p.id} x={p.x * w} y={p.y * h} side={p.side!} size={p.id === 'p' ? 8 : 6} />)}
     </g>
   );
 }

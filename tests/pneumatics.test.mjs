@@ -76,7 +76,7 @@ test('bundled sample loads with valid ports and its tubes survive source round t
  const raw=JSON.parse(await readFile(new URL('../public/examples/frc-pneumatics.frcwire',import.meta.url),'utf8'));
  const state=parseSourceFile(raw);
  const page=state.engineeringProjects[0].pages[0];
- assert.equal(page.parts.length,22);
+ assert.equal(page.parts.length,24);
  assert.ok(page.annotations.some(a=>a.kind==='title'));
  for(const w of page.wires) assert.equal(connectionIssue(w.a,w.b,page.parts,defs,false),null,w.id);
  const tube=page.wires.find(w=>w.tubeOdMm);

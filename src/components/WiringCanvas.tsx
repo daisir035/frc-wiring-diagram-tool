@@ -63,6 +63,7 @@ interface Props {
   svgRef: React.RefObject<SVGSVGElement | null>;
   onViewChange: (v: ViewTransform) => void;
   onMoveSelectedBy: (dx: number, dy: number, uids: string[]) => void;
+  onPartsDropped: (uids: string[]) => void;
   onPartClick: (uid: string, additive: boolean) => void;
   onMarqueeSelect: (selection: { partUids: string[]; wireIds: string[] }, additive: boolean) => void;
   onWireClick: (id: string, additive: boolean) => void;
@@ -358,6 +359,7 @@ export default function WiringCanvas(props: Props) {
     svgRef,
     onViewChange,
     onMoveSelectedBy,
+    onPartsDropped,
     onPartClick,
     onMarqueeSelect,
     onWireClick,
@@ -896,6 +898,7 @@ export default function WiringCanvas(props: Props) {
     clearLongPress();
     const d = dragRef.current;
     dragRef.current = { kind: 'none' };
+    if (d.kind === 'parts' && d.moved) onPartsDropped(d.uids);
     endInteraction();
     if (e.pointerType === 'touch') setHoveredPort(null);
     if (d.kind === 'pan' && d.touch) {

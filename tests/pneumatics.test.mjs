@@ -93,8 +93,8 @@ test('vacuum generator starts a vacuum side and the PH takes the REV analog pres
  const ps=[{uid:'c',partId:'pneumatic-compressor',x:0,y:0,rot:0},{uid:'g',partId:'pneumatic-vacuum-generator',x:300,y:0,rot:0},
   {uid:'s',partId:'pneumatic-suction-cup',x:300,y:200,rot:0},{uid:'m',partId:'pneumatic-muffler',x:600,y:0,rot:0}];
  const t=(id,a,b)=>({id,a:{uid:a[0],portId:a[1]},b:{uid:b[0],portId:b[1]},color:'',tubeOdMm:6.35});
- const sides=pneumaticPressureSides(ps,[t('1',['c','air'],['g','in']),t('2',['g','vac'],['s','air']),t('3',['g','exhaust'],['m','air'])],defs);
- assert.deepEqual(['1','2','3'].map(id=>sides.get(id)),['high','vacuum',undefined]);
+ const sides=pneumaticPressureSides(ps,[t('1',['c','air'],['g','in']),t('2',['g','vac'],['s','air'])],defs);
+ assert.deepEqual(['1','2'].map(id=>sides.get(id)),['high','vacuum']);
  const sensor=[{uid:'p',partId:'pneumatic-analog-pressure-sensor',x:0,y:0,rot:0},{uid:'h',partId:'ph',x:200,y:0,rot:0}];
  assert.equal(connectionIssue({uid:'p',portId:'analogSig'},{uid:'h',portId:'analogSig'},sensor,defs), null);
  assert.ok(!defs.get('pcm').ports.some(p=>p.id.startsWith('analog')));
@@ -116,9 +116,34 @@ test('valve manifold comes in 1–8 stations that share P and keep station 1 wir
  const ps=[{uid:'c',partId:'pneumatic-compressor',x:0,y:0,rot:0},{uid:'m',partId:four.id,x:300,y:0,rot:0},
   {uid:'x',partId:'am-2034_2',x:300,y:300,rot:0},{uid:'y',partId:'am-2034_2',x:600,y:300,rot:0}];
  const t=(id,a,b)=>({id,a:{uid:a[0],portId:a[1]},b:{uid:b[0],portId:b[1]},color:'',tubeOdMm:6.35});
- const sides=pneumaticPressureSides(ps,[t('1',['c','air'],['m','p']),t('2',['m','a'],['x','a']),t('3',['m','b4'],['y','b']),t('4',['m','ea'],['y','a'])],defs);
- assert.deepEqual(['1','2','3','4'].map(id=>sides.get(id)),['high','high','high',undefined]);
+ const sides=pneumaticPressureSides(ps,[t('1',['c','air'],['m','p']),t('2',['m','a'],['x','a']),t('3',['m','b4'],['y','b'])],defs);
+ assert.deepEqual(['1','2','3'].map(id=>sides.get(id)),['high','high','high']);
  assert.deepEqual(four.ports.filter(p=>p.side==='left').sort((p,q)=>p.y-q.y).map(p=>p.id),['ea','p','eb']);
  const coil=connectWireEnds([],{uid:'m',portId:'coilB3+'},{uid:'h',portId:'sol0+'},[...ps,{uid:'h',partId:'ph',x:0,y:400,rot:0}],defs,'red');
  assert.equal(coil.length,2,'coil leads pair into a two-conductor cable');
+});
+
+test('mufflers screw onto exhaust ports instead of taking a wire and stay mounted on their host', async () => {
+ const {screwOnDropped,followMountedMufflers}=await import('../src/lib/pneumaticMounts.ts');
+ const {portWorld}=await import('../src/lib/wiring.ts');
+ const host={uid:'h',partId:'pneumatic-manifold-solenoid-3',x:300,y:100,rot:0};
+ const near={uid:'m',partId:'pneumatic-muffler',x:270,y:125,rot:0};
+ const parts=[host,near];
+ assert.ok(connectionIssue({uid:'m',portId:'thread'},{uid:'h',portId:'ea'},parts,defs));
+ assert.ok(connectionIssue({uid:'m',portId:'thread'},{uid:'h',portId:'p'},parts,defs));
+ const world=(list,uid,id)=>{const part=list.find(p=>p.uid===uid),def=defs.get(part.partId);return portWorld(part,def,def.ports.find(p=>p.id===id));};
+ const close=(a,b)=>assert.ok(Math.hypot(a.x-b.x,a.y-b.y)<0.01,JSON.stringify([a,b]));
+ const mounted=screwOnDropped(parts,defs,['m']);
+ assert.equal(mounted[1].rot,180,'body points out of the port');
+ close(world(mounted,'m','thread'),world(mounted,'h','ea'));
+ const second=screwOnDropped([...mounted,{...near,uid:'n'}],defs,['n']);
+ close(world(second,'n','thread'),world(second,'h','eb'));
+ assert.deepEqual(screwOnDropped([host,{...near,x:0,y:0}],defs,['m'])[1],{...near,x:0,y:0},'out of reach stays put');
+ const moved=followMountedMufflers(mounted,mounted.map(p=>p.uid==='h'?{...p,x:400,rot:90}:p),defs);
+ assert.equal(moved[1].rot,270);
+ close(world(moved,'m','thread'),world(moved,'h','ea'));
+ const pulled=mounted.map(p=>p.uid==='m'?{...p,x:0}:p);
+ assert.equal(followMountedMufflers(mounted,pulled,defs)[1].x,0,'dragging the muffler itself takes it off');
+ const vac=[{uid:'g',partId:'pneumatic-vacuum-generator',x:0,y:0,rot:0},{...near,x:75,y:5}];
+ assert.equal(screwOnDropped(vac,defs,['m'])[1].rot,0);
 });

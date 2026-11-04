@@ -54,7 +54,7 @@ export function pneumaticPressureSides(parts: PlacedPart[], wires: Wire[], defs:
     for (const group of internalGroups(def)) group.slice(1).forEach((id) => link(`${part.uid}:${group[0]}`, `${part.uid}:${id}`));
     // One-way passages: a regulator steps pressure down, a valve feeds its work ports from P.
     if (def.art === 'regulator') flow.set(`${part.uid}:in`, [{ key: `${part.uid}:out`, step: 1 }]);
-    if (VALVES.has(def.art ?? '')) flow.set(`${part.uid}:p`, def.ports.filter((port) => /^[ab]\d*$/.test(port.id)).map((port) => ({ key: `${part.uid}:${port.id}`, step: 0 })));
+    if (VALVES.has(def.art ?? '')) flow.set(`${part.uid}:p`, def.ports.filter((port) => port.type === 'air' && port.id !== 'p').map((port) => ({ key: `${part.uid}:${port.id}`, step: 0 })));
     if (def.art === 'compressor') sources.push(`${part.uid}:air`);
     if (def.art === 'vacuum-generator') vacuumSources.push(`${part.uid}:vac`);
     for (const port of def.ports) {

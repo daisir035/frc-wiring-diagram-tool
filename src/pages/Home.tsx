@@ -1,3 +1,4 @@
+import { followMountedMufflers, screwOnDropped } from '../lib/pneumaticMounts';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SetStateAction } from 'react';
 import { CircuitBoard, ClipboardPaste, Copy, Download, Eraser, FileSpreadsheet, FolderOpen, GitMerge, ImageOff, ImagePlus, Keyboard, Lock, Maximize, Minus, PanelBottom, Pencil, Plus, PanelLeft, Presentation, SquareDashed, StickyNote, RotateCw, Redo2, Route, Save, Settings2, Trash2, Undo2, Unlock, Wind, Zap } from 'lucide-react';
@@ -657,10 +658,10 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
 
   const rotateSelected = () => {
     const rotated = new Set(parts.filter((part) => selectedParts.has(part.uid) && !part.locked).map((part) => part.uid));
-    setParts((ps) =>
+    setParts((ps) => followMountedMufflers(ps,
       ps.map((p) =>
         rotated.has(p.uid) ? { ...p, rot: (((p.rot + 90) % 360) as PlacedPart['rot']) } : p,
-      ),
+      ), partDefs),
     );
     // Rotating turns the port normals, so frozen 90° corners no longer fit: route those wires afresh.
     setWires((current) => current.map((wire) => (rotated.has(wire.a.uid) || rotated.has(wire.b.uid)) && usesOrthogonalCorners(wire)
@@ -1025,7 +1026,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
     const moved = new Set(project.parts.filter((part) => uids.includes(part.uid) && !part.locked).map((part) => part.uid));
     return {
       ...project,
-      parts: project.parts.map((part) => moved.has(part.uid) ? { ...part, x: part.x + dx, y: part.y + dy } : part),
+      parts: followMountedMufflers(project.parts, project.parts.map((part) => moved.has(part.uid) ? { ...part, x: part.x + dx, y: part.y + dy } : part), partDefs),
       wires: followMovedParts(project.wires, project.parts, partDefs, moved, dx, dy),
     };
   });
@@ -1602,6 +1603,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
             svgRef={svgRef}
             onViewChange={setView}
             onMoveSelectedBy={moveParts}
+            onPartsDropped={(uids) => setParts((current) => screwOnDropped(current, partDefs, uids))}
             onPartClick={(uid2, additive) => {
               setPendingInlineWireId(null);
               if (!additive) setSelectedWires(new Set());
@@ -1795,7 +1797,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
                 const stale = (end: WireEnd) => end.uid === selectedPart.uid && !ports.has(end.portId);
                 setWires((current) => current.filter((wire) => !stale(wire.a) && !stale(wire.b)));
               }
-              setParts((current) => current.map((part) => part.uid === selectedPart.uid ? { ...part, ...changes } : part));
+              setParts((current) => followMountedMufflers(current, current.map((part) => part.uid === selectedPart.uid ? { ...part, ...changes } : part), partDefs));
             }}
             onFuseChange={(channel, rating) => setPartFuse(selectedPart.uid, channel, rating)}
             onClose={() => setSelectedParts(new Set())}

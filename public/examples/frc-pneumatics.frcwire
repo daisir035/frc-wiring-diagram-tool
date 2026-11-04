@@ -137,16 +137,14 @@
             "partId": "pneumatic-muffler",
             "x": 984,
             "y": 105,
-            "rot": 180,
-            "labelPos": "none"
+            "rot": 180
           },
           {
             "uid": "muf-b",
             "partId": "pneumatic-muffler",
             "x": 984,
             "y": 141,
-            "rot": 180,
-            "labelPos": "none"
+            "rot": 180
           },
           {
             "uid": "pancake",

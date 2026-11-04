@@ -391,7 +391,7 @@ function ManifoldValve({ def }: { def: PartDef }) {
           </g>
         );
       })}
-      {def.ports.filter((p) => p.type === 'air' && !p.id.startsWith('e')).map((p) => <PushFitting key={p.id} x={p.x * w} y={p.y * h} side={p.side!} size={p.id === 'p' ? 8 : 6} />)}
+      {def.ports.filter((p) => p.type === 'air').map((p) => <PushFitting key={p.id} x={p.x * w} y={p.y * h} side={p.side!} size={p.id === 'p' ? 8 : 6} />)}
     </g>
   );
 }

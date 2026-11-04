@@ -1426,7 +1426,8 @@ export function cablePort(def: PartDef, port: PortDef): PortDef {
 }
 
 export function cablePorts(def: PartDef): PortDef[] {
-  return def.ports.filter((port) => !pairedCablePort(def, port.id) || port.type === 'pwr+' || port.type === 'canH')
+  // Exhaust ports vent to air or take a screwed-on muffler, so they never offer a wire connection.
+  return def.ports.filter((port) => port.type !== 'airExhaust' && (!pairedCablePort(def, port.id) || port.type === 'pwr+' || port.type === 'canH'))
     .map((port) => cablePort(def, port));
 }
 

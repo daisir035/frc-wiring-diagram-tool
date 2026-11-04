@@ -167,7 +167,7 @@ export const MANIFOLD_STATIONS = [1, 2, 3, 4, 5, 6, 7, 8];
 function manifold(stations: number): PartDef {
   const { w, h, supplyY, exhaustY, stationX } = manifoldLayout(stations);
   const id = stations === 1 ? 'manifold-solenoid' : `manifold-solenoid-${stations}`;
-  const ports = [port('ea', 'EA · 排气口', 0, exhaustY[0] / h), port('p', 'P · 共用供气', 0, supplyY / h), port('eb', 'EB · 排气口', 0, exhaustY[1] / h)];
+  const ports = [port('ea', 'EA · 排气口', 0, exhaustY[0] / h, 'airExhaust'), port('p', 'P · 共用供气', 0, supplyY / h), port('eb', 'EB · 排气口', 0, exhaustY[1] / h, 'airExhaust')];
   for (let i = 0; i < stations; i++) {
     const n = station(i);
     const at = (dx: number) => (stationX(i) + dx) / w;
@@ -210,8 +210,8 @@ export const PNEUMATIC_PARTS: PartDef[] = [
     port('in', '口 1', 0.55, 0), port('out', '口 2', 0.55, 1), port('branch', '口 3', 0, 0.5)]), hideLabel: true },
   { ...vectorPart('plug', '堵头', { w: 14, h: 9 }, '1/4 in 白色推入式堵头', [port('air', '插入端', 0, 0.5)]), hideLabel: true },
   vectorPart('vacuum-generator', '真空发生器', { w: 70, h: 30 }, '文丘里式 · 进气口接工作压力', [
-    port('in', '进气口', 0, 0.5), port('vac', '真空口', 0.4, 1), port('exhaust', '排气口', 1, 0.5)]),
-  vectorPart('muffler', '消声器', { w: 26, h: 14 }, '烧结铜消声器 · 拧在排气口上', [port('air', '螺纹口', 0, 0.5)]),
+    port('in', '进气口', 0, 0.5), port('vac', '真空口', 0.4, 1), port('exhaust', '排气口', 1, 0.5, 'airExhaust')]),
+  { ...vectorPart('muffler', '消声器', { w: 26, h: 14 }, '烧结铜消声器 · 拖到排气口上自动拧上', [port('thread', '螺纹口', 0, 0.5, 'airExhaust')]), hideLabel: true },
   vectorPart('suction-cup', '吸盘', { w: 40, h: 34 }, '波纹吸盘 · 接真空口', [port('air', '接口', 0.5, 0)]),
   ...CYLINDER_PARTS,
   controller('ph', 'REV Pneumatic Hub', 16, 'REV-11-1852 · 16 路电磁阀'),

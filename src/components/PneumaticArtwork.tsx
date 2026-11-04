@@ -382,7 +382,10 @@ function ManifoldValve({ def }: { def: PartDef }) {
             <text {...label} x={cx - 3.4} y={top + coil - 3} fontSize={4.2} fill={ART.face}>A</text>
             <text {...label} x={cx - 3.4} y={bottom - 3} fontSize={4.2} fill={ART.face}>B</text>
             {[-5.1, -1.7].map((dx, k) => <line key={dx} x1={cx + dx} y1={0} x2={cx + dx} y2={top + 4} stroke={k ? '#231f20' : ART.red} strokeWidth={1} />)}
-            {[1.7, 5.1].map((dx, k) => <line key={dx} x1={cx + dx} y1={0} x2={cx + dx} y2={bottom - 5} stroke={k ? '#231f20' : ART.red} strokeWidth={1} />)}
+            {/* coil B leads jog toward the valve edge around the station number */}
+            {[[1.7, 5], [5.1, 7.4]].map(([dx, jog], k) => (
+              <path key={dx} d={`M ${cx + dx} 0 V 27 L ${cx + jog} 30 V 47 L ${cx + dx} 50 V ${bottom - 5}`} fill="none" stroke={k ? '#231f20' : ART.red} strokeWidth={1} strokeLinejoin="round" />
+            ))}
             <text {...label} x={cx - 5} y={railBottom - 3} fontSize={4.2} fill={ART.black}>A</text>
             <text {...label} x={cx + 5} y={railBottom - 3} fontSize={4.2} fill={ART.black}>B</text>
           </g>

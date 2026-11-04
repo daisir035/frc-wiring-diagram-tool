@@ -1,4 +1,4 @@
-import { cylinderBores } from '../lib/pneumatics';
+import { cylinderBores, MANIFOLD_STATIONS } from '../lib/pneumatics';
 import {
   BookOpen,
   CircuitBoard,
@@ -62,14 +62,35 @@ function FuseRow({
 
 const ROTATIONS: PlacedPart['rot'][] = [0, 90, 180, 270];
 
+const pickerOption = (active: boolean) => `h-8 rounded border px-2 text-[11px] disabled:opacity-40 ${active
+  ? 'border-sky-500 bg-sky-50 font-semibold text-sky-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`;
+
 const inches = (mm: number) => `${Math.round(mm / 25.4 * 100) / 100} in`;
+
+function ManifoldPicker({ def, disabled, onSelect }: { def: PartDef; disabled: boolean; onSelect: (partId: string) => void }) {
+  return (
+    <section className="border-b border-slate-100 py-3">
+      <div className="mb-2 flex items-center gap-2">
+        <Ruler className="h-4 w-4 text-sky-600" aria-hidden="true" />
+        <span className="text-xs font-semibold text-slate-700">电磁阀数量</span>
+      </div>
+      <div className="grid grid-cols-4 gap-1">
+        {MANIFOLD_STATIONS.map((count) => (
+          <button key={count} type="button" disabled={disabled} className={pickerOption(count === def.stations)}
+            onClick={() => count !== def.stations && onSelect(count === 1 ? 'pneumatic-manifold-solenoid' : `pneumatic-manifold-solenoid-${count}`)}>
+            {count} 联
+          </button>
+        ))}
+      </div>
+      <p className="mt-2 text-[10px] leading-4 text-slate-400">每联一个双电控阀，共用 P 口供气。减少联数时，被移除工位上的接线和气管会一并删除。</p>
+    </section>
+  );
+}
 
 function CylinderPicker({ def, disabled, onSelect }: { def: PartDef; disabled: boolean; onSelect: (partId: string) => void }) {
   const spec = def.cylinder!;
   const bores = cylinderBores();
   const current = bores.find((bore) => bore.boreMm === spec.boreMm)!;
-  const option = (active: boolean) => `h-8 rounded border px-2 text-[11px] disabled:opacity-40 ${active
-    ? 'border-sky-500 bg-sky-50 font-semibold text-sky-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`;
   return (
     <section className="border-b border-slate-100 py-3">
       <div className="mb-2 flex items-center gap-2">
@@ -79,7 +100,7 @@ function CylinderPicker({ def, disabled, onSelect }: { def: PartDef; disabled: b
       <div className="mb-1 text-[10px] text-slate-500">缸径</div>
       <div className="mb-2 grid grid-cols-2 gap-1">
         {bores.map((bore) => (
-          <button key={bore.boreMm} type="button" disabled={disabled} className={option(bore.boreMm === spec.boreMm)}
+          <button key={bore.boreMm} type="button" disabled={disabled} className={pickerOption(bore.boreMm === spec.boreMm)}
             onClick={() => bore.boreMm !== spec.boreMm && onSelect(bore.options[0].id)}>
             {bore.boreMm > 15 ? `Ø${inches(bore.boreMm)} · ${bore.boreMm} mm` : `Ø${bore.boreMm} mm`}
           </button>
@@ -88,7 +109,7 @@ function CylinderPicker({ def, disabled, onSelect }: { def: PartDef; disabled: b
       <div className="mb-1 text-[10px] text-slate-500">行程 / 型号</div>
       <div className="grid grid-cols-3 gap-1">
         {current.options.map((item) => (
-          <button key={item.id} type="button" disabled={disabled} className={option(item.id === def.id)} title={item.name}
+          <button key={item.id} type="button" disabled={disabled} className={pickerOption(item.id === def.id)} title={item.name}
             onClick={() => onSelect(item.id)}>
             {item.cylinder!.family === 'compact' ? `${item.cylinder!.strokeMm} mm` : inches(item.cylinder!.strokeMm)}
             {item.cylinder!.action === 'spring-extend' ? ' 弹簧' : ''}
@@ -136,6 +157,7 @@ export default function PropertiesPanel({ part, def, onPartChange, onFuseChange,
 
       <div className="flex-1 overflow-y-auto px-3 pb-4">
         {def.cylinder && <CylinderPicker def={def} disabled={Boolean(part.locked)} onSelect={(partId) => onPartChange({ partId, sizeMm: undefined })} />}
+        {def.stations && <ManifoldPicker def={def} disabled={Boolean(part.locked)} onSelect={(partId) => onPartChange({ partId, sizeMm: undefined })} />}
         <section className="border-b border-slate-100 py-3">
           <div className="mb-2 flex items-center gap-2">
             <Ruler className="h-4 w-4 text-sky-600" aria-hidden="true" />

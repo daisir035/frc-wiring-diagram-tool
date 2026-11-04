@@ -151,6 +151,38 @@ function controller(id: 'ph' | 'pcm', name: string, channels: number, caption: s
   };
 }
 
+/** Top view of a valve manifold: stations side by side, shared P on the left end plate, exhausts on the right. */
+export function manifoldLayout(stations: number) {
+  const pitch = 20;
+  const end = 15;
+  const w = end * 2 + stations * pitch;
+  return { pitch, end, w, h: 94, railTop: 14, railBottom: 87, supplyY: 50, stationX: (i: number) => end + pitch * (i + 0.5) };
+}
+
+/** Port id suffix per station; station 1 keeps the bare ids so wires survive a station count change. */
+const station = (i: number) => i === 0 ? '' : `${i + 1}`;
+
+export const MANIFOLD_STATIONS = [1, 2, 3, 4, 5, 6, 7, 8];
+
+function manifold(stations: number): PartDef {
+  const { w, h, supplyY, stationX } = manifoldLayout(stations);
+  const id = stations === 1 ? 'manifold-solenoid' : `manifold-solenoid-${stations}`;
+  const ports = [port('p', 'P · 共用供气', 0, supplyY / h)];
+  for (let i = 0; i < stations; i++) {
+    const n = station(i);
+    const at = (dx: number) => (stationX(i) + dx) / w;
+    const prefix = stations === 1 ? '' : `${i + 1} 联 `;
+    ports.push(
+      port(`a${n}`, `${prefix}A · 工作口`, at(-5), 1), port(`b${n}`, `${prefix}B · 工作口`, at(5), 1),
+      port(`coilA${n}+`, `${prefix}线圈 A +`, at(-5.1), 0, 'pwr+'), port(`coilA${n}-`, `${prefix}线圈 A −`, at(-1.7), 0, 'pwr-'),
+      port(`coilB${n}+`, `${prefix}线圈 B +`, at(1.7), 0, 'pwr+'), port(`coilB${n}-`, `${prefix}线圈 B −`, at(5.1), 0, 'pwr-'));
+  }
+  return {
+    ...vectorPart(id, `阀岛电磁阀（${stations} 联）`, { w, h }, `SMC SY3240-6LZ × ${stations} · SS5Y3-41 阀岛`, ports),
+    art: 'manifold-solenoid', stations, hideInLibrary: stations !== 3,
+  };
+}
+
 export const PNEUMATIC_PARTS: PartDef[] = [
   vectorPart('compressor', '空压机', { w: 150, h: 105 }, 'Viair 90C 示意 · 必须装在机器人上', [
     port('air', '压缩空气出口（硬接头）', 146 / 150, 17 / 105, 'air', 'right'),
@@ -173,9 +205,7 @@ export const PNEUMATIC_PARTS: PartDef[] = [
   vectorPart('double-solenoid', '双电控电磁阀', { w: 110, h: 46 }, '通用双电控阀', [
     port('p', 'P · 供气', 0.5, 0), port('a', 'A · 工作口', 0.43, 1), port('b', 'B · 工作口', 0.57, 1),
     ...power('coilA', '线圈 A', 0, 0.5, 'left', 0.1), ...power('coilB', '线圈 B', 1, 0.5, 'right', 0.1)]),
-  vectorPart('manifold-solenoid', '阀岛电磁阀', { w: 100, h: 64 }, 'SMC SY3240-6LZ + SS5Y3-41-03 阀岛', [
-    port('a', 'A · 工作口', 0, 0.62), port('b', 'B · 工作口', 0, 0.8), port('p', 'P · 供气', 0.52, 0.72, 'air', 'bottom'),
-    ...power('coilA', '线圈', 1, 0.26, 'right', 0.08)]),
+  ...MANIFOLD_STATIONS.map(manifold),
   { ...vectorPart('tee', '三通接头', { w: 16, h: 26 }, '1/4 in 推入式三通', [
     port('in', '口 1', 0.55, 0), port('out', '口 2', 0.55, 1), port('branch', '口 3', 0, 0.5)]), hideLabel: true },
   { ...vectorPart('plug', '堵头', { w: 14, h: 9 }, '1/4 in 白色推入式堵头', [port('air', '插入端', 0, 0.5)]), hideLabel: true },

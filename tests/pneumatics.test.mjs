@@ -99,3 +99,25 @@ test('vacuum generator starts a vacuum side and the PH takes the REV analog pres
  assert.equal(connectionIssue({uid:'p',portId:'analogSig'},{uid:'h',portId:'analogSig'},sensor,defs), null);
  assert.ok(!defs.get('pcm').ports.some(p=>p.id.startsWith('analog')));
 });
+
+test('valve manifold comes in 1–8 stations that share P and keep station 1 wires across a count change', async () => {
+ const {pneumaticPressureSides} = await import('../src/lib/pneumaticZones.ts');
+ const {MANIFOLD_STATIONS} = await import('../src/lib/pneumatics.ts');
+ const manifolds=BUILTIN_PARTS.filter(d=>d.stations);
+ assert.deepEqual(manifolds.map(d=>d.stations),MANIFOLD_STATIONS);
+ assert.deepEqual(manifolds.filter(d=>!d.hideInLibrary).map(d=>d.stations),[3]);
+ for (const def of manifolds) {
+  assert.equal(new Set(def.ports.map(p=>p.id)).size,def.ports.length,def.id);
+  assert.equal(def.ports.length,1+def.stations*6,def.id);
+  assert.ok(def.w>manifolds[0].w||def.stations===1,def.id);
+ }
+ const one=defs.get('pneumatic-manifold-solenoid'), four=defs.get('pneumatic-manifold-solenoid-4');
+ for (const port of one.ports) assert.ok(four.ports.some(p=>p.id===port.id),port.id);
+ const ps=[{uid:'c',partId:'pneumatic-compressor',x:0,y:0,rot:0},{uid:'m',partId:four.id,x:300,y:0,rot:0},
+  {uid:'x',partId:'am-2034_2',x:300,y:300,rot:0},{uid:'y',partId:'am-2034_2',x:600,y:300,rot:0}];
+ const t=(id,a,b)=>({id,a:{uid:a[0],portId:a[1]},b:{uid:b[0],portId:b[1]},color:'',tubeOdMm:6.35});
+ const sides=pneumaticPressureSides(ps,[t('1',['c','air'],['m','p']),t('2',['m','a'],['x','a']),t('3',['m','b4'],['y','b'])],defs);
+ assert.deepEqual(['1','2','3'].map(id=>sides.get(id)),['high','high','high']);
+ const coil=connectWireEnds([],{uid:'m',portId:'coilB3+'},{uid:'h',portId:'sol0+'},[...ps,{uid:'h',partId:'ph',x:0,y:400,rot:0}],defs,'red');
+ assert.equal(coil.length,2,'coil leads pair into a two-conductor cable');
+});

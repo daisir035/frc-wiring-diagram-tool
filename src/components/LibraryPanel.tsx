@@ -15,8 +15,9 @@ export default function LibraryPanel({ defs, onAdd, onDeleteCustom, onOpenCustom
   const [query, setQuery] = useState('');
   const filtered = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
-    if (!normalized) return defs;
-    return defs.filter((def) => `${def.name} ${def.category}`.toLocaleLowerCase().includes(normalized));
+    const listed = defs.filter((def) => !def.hideInLibrary);
+    if (!normalized) return listed;
+    return listed.filter((def) => `${def.name} ${def.category}`.toLocaleLowerCase().includes(normalized));
   }, [defs, query]);
 
   return (

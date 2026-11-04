@@ -70,7 +70,7 @@ place('reg', 'pneumatic-regulator', 0, 'in', ...out('tee-1', 'out', 24), { custo
 place('ps', 'pneumatic-pressure-switch', 0, 'a', 450, 215, { labelPos: 'left', caption: 'am-2006 Nason\n约 115 psi 断开' });
 place('tee-g', 'pneumatic-tee', 90, 'out', ...out('ps', 'b', 0));
 place('gauge', 'pneumatic-gauge', 0, 'air', ...out('tee-g', 'branch', 0), { customName: '储气压力表', labelPos: 'right' });
-place('vent', 'pneumatic-vent', 0, 'air', ...out('tee-g', 'in', 0), { labelPos: 'right' });
+place('vent', 'pneumatic-vent', 0, 'air', ...out('tee-g', 'in', 0), { labelPos: 'bottom' });
 tube(['tank3', 'out'], ['tee-1', 'in'], 'y555 x362');
 tube(['tee-1', 'out'], ['reg', 'in']);
 tube(['tee-1', 'branch'], ['ps', 'a']);
@@ -79,8 +79,8 @@ tube(['tee-1', 'branch'], ['ps', 'a']);
 section(720, 20, 600, 560, '执行机构');
 place('tee-2', 'pneumatic-tee', 180, 'out', 760, 150);
 place('tee-3', 'pneumatic-tee', 180, 'out', 760, 260);
-place('mfold', 'pneumatic-manifold-solenoid', 0, 'p', 1040, 165, { labelPos: 'top' });
-place('pancake', 'am-4388', 0, 'a', 820, 60, { customName: '薄型气缸', labelPos: 'bottom' });
+place('mfold', 'pneumatic-manifold-solenoid-2', 0, 'p', 1010, 130, { labelPos: 'right' });
+place('pancake', 'am-4388', 0, 'a', 1215, 75, { customName: '薄型气缸', labelPos: 'bottom' });
 place('ssol', 'pneumatic-single-solenoid', 0, 'p', 980, 300, { labelPos: 'left' });
 place('cyl1', 'am-4229', 0, 'b', 1110, 410, { customName: '单作用气缸', labelPos: 'bottom' });
 place('reg2', 'pneumatic-regulator', 90, 'in', 760, 330, { customName: '二级调压阀', caption: '可选：某个机构需要低于主工作压力时使用', labelPos: 'right' });
@@ -88,16 +88,17 @@ place('dsol', 'pneumatic-double-solenoid', 0, 'p', ...out('reg2', 'out', 34), { 
 place('cyl2', 'am-2034_4', 0, 'a', 880, 520, { customName: '双作用气缸', labelPos: 'bottom' });
 tube(['reg', 'out'], ['tee-2', 'out'], '');
 tube(['tee-2', 'in'], ['tee-3', 'out']);
-tube(['tee-2', 'branch'], ['mfold', 'p'], 'x790 y230');
-tube(['mfold', 'a'], ['pancake', 'a'], 'x960 y42 x804');
-tube(['mfold', 'b'], ['pancake', 'b'], 'x900');
+tube(['tee-2', 'branch'], ['mfold', 'p'], 'x800');
+// A and B swap at the cylinder so the two tubes leaving the manifold's front edge never cross.
+tube(['mfold', 'a'], ['pancake', 'b'], 'y205 x1285');
+tube(['mfold', 'b'], ['pancake', 'a'], 'y190 x1200');
 tube(['tee-3', 'branch'], ['ssol', 'p'], '');
 tube(['ssol', 'a'], ['cyl1', 'b'], `y380 x${Math.round(at('cyl1', 'b').x + 24)}`);
 tube(['tee-3', 'in'], ['reg2', 'in']);
 tube(['reg2', 'out'], ['dsol', 'p']);
 tube(['dsol', 'a'], ['cyl2', 'a'], 'y505 x850');
 tube(['dsol', 'b'], ['cyl2', 'b'], `y495 x${Math.round(at('cyl2', 'b').x + 24)}`);
-note(1130, 250, 180, 92, '分立阀与阀岛', '分立阀自带接口，用三通从工作\n气路取气；阀岛共用一个分配块，\n给多个电磁阀供气和排气。');
+note(1130, 250, 180, 92, '分立阀与阀岛', '分立阀自带接口，用三通从工作\n气路取气；阀岛共用 P 口供气，\n选中后可切换 1–8 联。');
 
 // ---------- 气动控制 ----------
 section(370, 340, 330, 240, '气动控制');
@@ -108,7 +109,8 @@ wire(['ps', 'switch'], ['ph', 'switchReturn'], '#e8262c', 22, 'y300 x570');
 wire(['ps', 'return'], ['ph', 'switch'], '#231f20', 22, 'y294 x564');
 // Right column runs 7 → 0 top to bottom. Cables dropping from above take the upper rows, nearest riser
 // first; the double valve's left coil comes in underneath everything.
-pair(['mfold', 'coilA'], ['ph', 'sol3'], 22, 'x1110 y225 x608');
+pair(['mfold', 'coilA'], ['ph', 'sol3'], 22, 'y60 x975 y225 x608');
+pair(['mfold', 'coilB'], ['ph', 'sol4'], 22, 'y46 x961 y211 x594');
 pair(['ssol', 'coilA'], ['ph', 'sol2'], 22, 'x1060 y240 x622');
 pair(['dsol', 'coilB'], ['ph', 'sol1'], 22, 'x840 y415 x655');
 pair(['dsol', 'coilA'], ['ph', 'sol0'], 22, 'x690');

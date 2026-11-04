@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { PartDef } from '../lib/wiring';
-import { CONTROLLER, controllerChannel, cylinderLayout } from '../lib/pneumatics';
+import { CONTROLLER, controllerChannel, cylinderLayout, manifoldLayout } from '../lib/pneumatics';
 
 /*
  * Flat pneumatic artwork after Team 3161's FRC control system diagrams: solid fills, no outlines,
@@ -344,29 +344,51 @@ function DoubleSolenoid({ def }: { def: PartDef }) {
   );
 }
 
+/** Top view: each valve lies across the base with a coil at both ends; the leads gather at the top edge. */
 function ManifoldValve({ def }: { def: PartDef }) {
-  const { w, h } = def;
-  const top = h * 0.5;
+  const { w, h, end, pitch, railTop, railBottom, supplyY, stationX } = manifoldLayout(def.stations!);
+  const half = pitch * 0.44;
+  const coil = 15;
+  const top = 5;
+  const bottom = 73;
+  const label = { fontFamily: "'Saira Semi Condensed', 'Barlow Semi Condensed', sans-serif", textAnchor: 'middle', fontWeight: 700 } as const;
   return (
     <g>
-      <ValveBody x={w * 0.2} y={0} w={w * 0.6} h={top} />
-      <Coil x={0} y={0} w={w * 0.22} h={top} flip />
-      <Coil x={w * 0.78} y={0} w={w * 0.22} h={top} />
-      <path d={`M ${w * 0.04} ${top} H ${w * 0.96} V ${h * 0.95} H ${w * 0.86} V ${h * 0.85} H ${w * 0.14} V ${h * 0.95} H ${w * 0.04} Z`} fill="#d3d4d6" />
-      {['EB', 'EA'].map((label, i) => (
-        <g key={label}>
-          <circle cx={w * (i ? 0.75 : 0.3)} cy={h * 0.72} r={h * 0.09} fill={ART.steel} />
-          <text x={w * (i ? 0.75 : 0.3)} y={h * 0.58} fontSize={h * 0.06} textAnchor="middle" fill={ART.fittingDark}>{label}</text>
+      <rect x={end - 1} y={railTop} width={w - end * 2 + 2} height={railBottom - railTop} fill="#d3d4d6" />
+      <rect x={end - 1} y={railBottom - 12} width={w - end * 2 + 2} height={12} fill={ART.grey} />
+      {[0, w - end].map((x) => (
+        <g key={x}>
+          <rect x={x} y={railTop - 4} width={end} height={railBottom - railTop + 8} rx={1.5} fill={ART.steel} />
+          {[railTop + 2, railBottom - 2].map((y) => <circle key={y} cx={x + end / 2} cy={y} r={1.6} fill={ART.black} />)}
         </g>
       ))}
-      <circle cx={w * 0.52} cy={h * 0.72} r={h * 0.08} fill={ART.black} />
-      <circle cx={w * 0.52} cy={h * 0.72} r={h * 0.045} fill={ART.steel} />
-      {def.ports.filter((p) => p.type === 'air' && p.side === 'left').map((p) => (
-        <g key={p.id}>
-          <rect x={0} y={p.y * h - h * 0.065} width={w * 0.06} height={h * 0.13} fill={ART.orange} />
-          <rect x={-w * 0.01} y={p.y * h - h * 0.05} width={w * 0.02} height={h * 0.1} fill="#c74a22" />
+      <text {...label} x={11.5} y={supplyY - 7} fontSize={5} fill={ART.face}>P</text>
+      {[['EA', supplyY - 15], ['EB', supplyY + 15]].map(([name, y]) => (
+        <g key={name}>
+          <circle cx={w - end / 2} cy={Number(y)} r={3.4} fill={ART.black} />
+          <text {...label} x={w - end / 2} y={Number(y) + 8.5} fontSize={3.8} fill={ART.face}>{name}</text>
         </g>
       ))}
+      {Array.from({ length: def.stations! }, (_, i) => {
+        const cx = stationX(i);
+        return (
+          <g key={i}>
+            <rect x={cx - half} y={top} width={half * 2} height={bottom - top} rx={1} fill={ART.beige} />
+            <rect x={cx - half} y={top + coil} width={half * 2} height={2} fill={ART.beigeDark} />
+            <rect x={cx - half} y={bottom - coil - 2} width={half * 2} height={2} fill={ART.beigeDark} />
+            <rect x={cx - half} y={top} width={half * 2} height={coil} rx={1} fill={ART.greyDark} />
+            <rect x={cx - half} y={bottom - coil} width={half * 2} height={coil} rx={1} fill={ART.greyDark} />
+            <text {...label} x={cx} y={(top + bottom) / 2 + 3.5} fontSize={10} fill={ART.charcoal}>{i + 1}</text>
+            <text {...label} x={cx - 3.4} y={top + coil - 3} fontSize={4.2} fill={ART.face}>A</text>
+            <text {...label} x={cx - 3.4} y={bottom - 3} fontSize={4.2} fill={ART.face}>B</text>
+            {[-5.1, -1.7].map((dx, k) => <line key={dx} x1={cx + dx} y1={0} x2={cx + dx} y2={top + 4} stroke={k ? '#231f20' : ART.red} strokeWidth={1} />)}
+            {[1.7, 5.1].map((dx, k) => <line key={dx} x1={cx + dx} y1={0} x2={cx + dx} y2={bottom - 5} stroke={k ? '#231f20' : ART.red} strokeWidth={1} />)}
+            <text {...label} x={cx - 5} y={railBottom - 3} fontSize={4.2} fill={ART.black}>A</text>
+            <text {...label} x={cx + 5} y={railBottom - 3} fontSize={4.2} fill={ART.black}>B</text>
+          </g>
+        );
+      })}
+      {def.ports.filter((p) => p.type === 'air').map((p) => <PushFitting key={p.id} x={p.x * w} y={p.y * h} side={p.side!} size={p.id === 'p' ? 8 : 6} />)}
     </g>
   );
 }

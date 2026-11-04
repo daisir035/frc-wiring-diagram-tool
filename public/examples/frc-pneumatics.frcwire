@@ -108,7 +108,7 @@
             "x": 510,
             "y": 199.4,
             "rot": 0,
-            "labelPos": "right"
+            "labelPos": "bottom"
           },
           {
             "uid": "tee-2",
@@ -126,17 +126,17 @@
           },
           {
             "uid": "mfold",
-            "partId": "pneumatic-manifold-solenoid",
-            "x": 988,
-            "y": 118.92,
+            "partId": "pneumatic-manifold-solenoid-2",
+            "x": 1010,
+            "y": 80,
             "rot": 0,
-            "labelPos": "top"
+            "labelPos": "right"
           },
           {
             "uid": "pancake",
             "partId": "am-4388",
-            "x": 819.55,
-            "y": 55.05,
+            "x": 1214.55,
+            "y": 70.05,
             "rot": 0,
             "customName": "薄型气缸",
             "labelPos": "bottom"
@@ -447,20 +447,14 @@
             "waypoints": [
               {
                 "id": "g9-0",
-                "x": 790,
+                "x": 800,
                 "y": 163,
                 "kind": "guide"
               },
               {
                 "id": "g9-1",
-                "x": 790,
-                "y": 230,
-                "kind": "guide"
-              },
-              {
-                "id": "g9-2",
-                "x": 1040,
-                "y": 230,
+                "x": 800,
+                "y": 130,
                 "kind": "guide"
               }
             ]
@@ -473,7 +467,7 @@
             },
             "b": {
               "uid": "pancake",
-              "portId": "a"
+              "portId": "b"
             },
             "color": "#6298d1",
             "tubeOdMm": 6.35,
@@ -483,26 +477,20 @@
             "waypoints": [
               {
                 "id": "g10-0",
-                "x": 960,
-                "y": 159,
+                "x": 1030,
+                "y": 205,
                 "kind": "guide"
               },
               {
                 "id": "g10-1",
-                "x": 960,
-                "y": 42,
+                "x": 1285,
+                "y": 205,
                 "kind": "guide"
               },
               {
                 "id": "g10-2",
-                "x": 804,
-                "y": 42,
-                "kind": "guide"
-              },
-              {
-                "id": "g10-3",
-                "x": 804,
-                "y": 60,
+                "x": 1285,
+                "y": 75,
                 "kind": "guide"
               }
             ]
@@ -515,7 +503,7 @@
             },
             "b": {
               "uid": "pancake",
-              "portId": "b"
+              "portId": "a"
             },
             "color": "#6298d1",
             "tubeOdMm": 6.35,
@@ -525,14 +513,20 @@
             "waypoints": [
               {
                 "id": "g11-0",
-                "x": 900,
-                "y": 170,
+                "x": 1040,
+                "y": 190,
                 "kind": "guide"
               },
               {
                 "id": "g11-1",
-                "x": 900,
-                "y": 60,
+                "x": 1200,
+                "y": 190,
+                "kind": "guide"
+              },
+              {
+                "id": "g11-2",
+                "x": 1200,
+                "y": 75,
                 "kind": "guide"
               }
             ]
@@ -867,24 +861,30 @@
             "waypoints": [
               {
                 "id": "g22-0",
-                "x": 1110,
-                "y": 136,
+                "x": 1030,
+                "y": 60,
                 "kind": "guide"
               },
               {
                 "id": "g22-1",
-                "x": 1110,
-                "y": 225,
+                "x": 975,
+                "y": 60,
                 "kind": "guide"
               },
               {
                 "id": "g22-2",
-                "x": 608,
+                "x": 975,
                 "y": 225,
                 "kind": "guide"
               },
               {
                 "id": "g22-3",
+                "x": 608,
+                "y": 225,
+                "kind": "guide"
+              },
+              {
+                "id": "g22-4",
                 "x": 608,
                 "y": 451,
                 "kind": "guide"
@@ -909,24 +909,30 @@
             "waypoints": [
               {
                 "id": "g23-0",
-                "x": 1110,
-                "y": 141,
+                "x": 1033,
+                "y": 60,
                 "kind": "guide"
               },
               {
                 "id": "g23-1",
-                "x": 1110,
-                "y": 225,
+                "x": 975,
+                "y": 60,
                 "kind": "guide"
               },
               {
                 "id": "g23-2",
-                "x": 608,
+                "x": 975,
                 "y": 225,
                 "kind": "guide"
               },
               {
                 "id": "g23-3",
+                "x": 608,
+                "y": 225,
+                "kind": "guide"
+              },
+              {
+                "id": "g23-4",
                 "x": 608,
                 "y": 454,
                 "kind": "guide"
@@ -935,6 +941,102 @@
           },
           {
             "id": "wire-23",
+            "a": {
+              "uid": "mfold",
+              "portId": "coilB+"
+            },
+            "b": {
+              "uid": "ph",
+              "portId": "sol4+"
+            },
+            "color": "#e8262c",
+            "awg": 22,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g24-0",
+                "x": 1037,
+                "y": 46,
+                "kind": "guide"
+              },
+              {
+                "id": "g24-1",
+                "x": 961,
+                "y": 46,
+                "kind": "guide"
+              },
+              {
+                "id": "g24-2",
+                "x": 961,
+                "y": 211,
+                "kind": "guide"
+              },
+              {
+                "id": "g24-3",
+                "x": 594,
+                "y": 211,
+                "kind": "guide"
+              },
+              {
+                "id": "g24-4",
+                "x": 594,
+                "y": 443,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "wire-24",
+            "a": {
+              "uid": "mfold",
+              "portId": "coilB-"
+            },
+            "b": {
+              "uid": "ph",
+              "portId": "sol4-"
+            },
+            "color": "#231f20",
+            "awg": 22,
+            "pathMode": "free",
+            "cornerRadius": 8,
+            "assembly": "field",
+            "waypoints": [
+              {
+                "id": "g25-0",
+                "x": 1040,
+                "y": 46,
+                "kind": "guide"
+              },
+              {
+                "id": "g25-1",
+                "x": 961,
+                "y": 46,
+                "kind": "guide"
+              },
+              {
+                "id": "g25-2",
+                "x": 961,
+                "y": 211,
+                "kind": "guide"
+              },
+              {
+                "id": "g25-3",
+                "x": 594,
+                "y": 211,
+                "kind": "guide"
+              },
+              {
+                "id": "g25-4",
+                "x": 594,
+                "y": 446,
+                "kind": "guide"
+              }
+            ]
+          },
+          {
+            "id": "wire-25",
             "a": {
               "uid": "ssol",
               "portId": "coilA+"
@@ -950,25 +1052,25 @@
             "assembly": "field",
             "waypoints": [
               {
-                "id": "g24-0",
+                "id": "g26-0",
                 "x": 1060,
                 "y": 323,
                 "kind": "guide"
               },
               {
-                "id": "g24-1",
+                "id": "g26-1",
                 "x": 1060,
                 "y": 240,
                 "kind": "guide"
               },
               {
-                "id": "g24-2",
+                "id": "g26-2",
                 "x": 622,
                 "y": 240,
                 "kind": "guide"
               },
               {
-                "id": "g24-3",
+                "id": "g26-3",
                 "x": 622,
                 "y": 458,
                 "kind": "guide"
@@ -976,7 +1078,7 @@
             ]
           },
           {
-            "id": "wire-24",
+            "id": "wire-26",
             "a": {
               "uid": "ssol",
               "portId": "coilA-"
@@ -992,25 +1094,25 @@
             "assembly": "field",
             "waypoints": [
               {
-                "id": "g25-0",
+                "id": "g27-0",
                 "x": 1060,
                 "y": 328,
                 "kind": "guide"
               },
               {
-                "id": "g25-1",
+                "id": "g27-1",
                 "x": 1060,
                 "y": 240,
                 "kind": "guide"
               },
               {
-                "id": "g25-2",
+                "id": "g27-2",
                 "x": 622,
                 "y": 240,
                 "kind": "guide"
               },
               {
-                "id": "g25-3",
+                "id": "g27-3",
                 "x": 622,
                 "y": 462,
                 "kind": "guide"
@@ -1018,7 +1120,7 @@
             ]
           },
           {
-            "id": "wire-25",
+            "id": "wire-27",
             "a": {
               "uid": "dsol",
               "portId": "coilB+"
@@ -1034,25 +1136,25 @@
             "assembly": "field",
             "waypoints": [
               {
-                "id": "g26-0",
+                "id": "g28-0",
                 "x": 840,
                 "y": 457,
                 "kind": "guide"
               },
               {
-                "id": "g26-1",
+                "id": "g28-1",
                 "x": 840,
                 "y": 415,
                 "kind": "guide"
               },
               {
-                "id": "g26-2",
+                "id": "g28-2",
                 "x": 655,
                 "y": 415,
                 "kind": "guide"
               },
               {
-                "id": "g26-3",
+                "id": "g28-3",
                 "x": 655,
                 "y": 466,
                 "kind": "guide"
@@ -1060,7 +1162,7 @@
             ]
           },
           {
-            "id": "wire-26",
+            "id": "wire-28",
             "a": {
               "uid": "dsol",
               "portId": "coilB-"
@@ -1076,25 +1178,25 @@
             "assembly": "field",
             "waypoints": [
               {
-                "id": "g27-0",
+                "id": "g29-0",
                 "x": 840,
                 "y": 462,
                 "kind": "guide"
               },
               {
-                "id": "g27-1",
+                "id": "g29-1",
                 "x": 840,
                 "y": 415,
                 "kind": "guide"
               },
               {
-                "id": "g27-2",
+                "id": "g29-2",
                 "x": 655,
                 "y": 415,
                 "kind": "guide"
               },
               {
-                "id": "g27-3",
+                "id": "g29-3",
                 "x": 655,
                 "y": 469,
                 "kind": "guide"
@@ -1102,7 +1204,7 @@
             ]
           },
           {
-            "id": "wire-27",
+            "id": "wire-29",
             "a": {
               "uid": "dsol",
               "portId": "coilA+"
@@ -1118,13 +1220,13 @@
             "assembly": "field",
             "waypoints": [
               {
-                "id": "g28-0",
+                "id": "g30-0",
                 "x": 690,
                 "y": 457,
                 "kind": "guide"
               },
               {
-                "id": "g28-1",
+                "id": "g30-1",
                 "x": 690,
                 "y": 473,
                 "kind": "guide"
@@ -1132,7 +1234,7 @@
             ]
           },
           {
-            "id": "wire-28",
+            "id": "wire-30",
             "a": {
               "uid": "dsol",
               "portId": "coilA-"
@@ -1148,13 +1250,13 @@
             "assembly": "field",
             "waypoints": [
               {
-                "id": "g29-0",
+                "id": "g31-0",
                 "x": 690,
                 "y": 462,
                 "kind": "guide"
               },
               {
-                "id": "g29-1",
+                "id": "g31-1",
                 "x": 690,
                 "y": 477,
                 "kind": "guide"
@@ -1198,7 +1300,7 @@
             "w": 180,
             "h": 92,
             "title": "分立阀与阀岛",
-            "body": "分立阀自带接口，用三通从工作\n气路取气；阀岛共用一个分配块，\n给多个电磁阀供气和排气。",
+            "body": "分立阀自带接口，用三通从工作\n气路取气；阀岛共用 P 口供气，\n选中后可切换 1–8 联。",
             "framed": true
           },
           {

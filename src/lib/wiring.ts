@@ -58,6 +58,10 @@ export interface PartDef {
   footprintMm?: { w: number; h: number };
   dimensionSource?: string;
   cylinder?: CylinderSpec;
+  /** Valve manifold station count; lib/pneumatics generates one part per count. */
+  stations?: number;
+  /** Reached through the properties panel instead of its own library card. */
+  hideInLibrary?: boolean;
   /** Small fittings such as tees omit the canvas name unless the user names them. */
   hideLabel?: boolean;
   /** Vector drawing key in components/PneumaticArtwork. */

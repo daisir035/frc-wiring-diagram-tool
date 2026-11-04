@@ -147,3 +147,17 @@ test('mufflers screw onto exhaust ports instead of taking a wire and stay mounte
  const vac=[{uid:'g',partId:'pneumatic-vacuum-generator',x:0,y:0,rot:0},{...near,x:75,y:5}];
  assert.equal(screwOnDropped(vac,defs,['m'])[1].rot,0);
 });
+
+test('standalone valves are AndyMark 5/2 valves whose exhausts take mufflers, not tubes', async () => {
+ const {screwOnDropped}=await import('../src/lib/pneumaticMounts.ts');
+ for (const [id,sku] of [['pneumatic-single-solenoid','am-2344a'],['pneumatic-double-solenoid','am-2343a']]) {
+  const def=defs.get(id);
+  assert.match(def.caption,new RegExp(sku));
+  assert.deepEqual(def.ports.filter(p=>p.type==='air'||p.type==='airExhaust').map(p=>p.id).sort(),['a','b','p','r1','r2']);
+  const r1=def.ports.find(p=>p.id==='r1');
+  const parts=[{uid:'v',partId:id,x:300,y:100,rot:0},{uid:'m',partId:'pneumatic-muffler',x:300+r1.x*def.w-13,y:60,rot:0}];
+  assert.ok(connectionIssue({uid:'m',portId:'thread'},{uid:'v',portId:'r1'},parts,defs));
+  assert.equal(screwOnDropped(parts,defs,['m'])[1].rot,270,'body points up, out of the port');
+ }
+ assert.equal(defs.get('pneumatic-double-solenoid').ports.filter(p=>p.id.startsWith('coil')).length,4);
+});

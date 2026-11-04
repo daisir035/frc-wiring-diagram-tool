@@ -183,6 +183,12 @@ function manifold(stations: number): PartDef {
   };
 }
 
+/** 5/2 valve body ports: R1, P, R2 along the top edge, A and B opposite. */
+const fivePort = (x: number, exhaust: number, work: number) => [
+  port('r1', 'R1 · 排气口', x - exhaust, 0, 'airExhaust'), port('p', 'P · 供气', x, 0), port('r2', 'R2 · 排气口', x + exhaust, 0, 'airExhaust'),
+  port('a', 'A · 工作口', x - work, 1), port('b', 'B · 工作口', x + work, 1),
+];
+
 export const PNEUMATIC_PARTS: PartDef[] = [
   vectorPart('compressor', '空压机', { w: 150, h: 105 }, 'Viair 90C 示意 · 必须装在机器人上', [
     port('air', '压缩空气出口（硬接头）', 146 / 150, 17 / 105, 'air', 'right'),
@@ -199,12 +205,12 @@ export const PNEUMATIC_PARTS: PartDef[] = [
     ...ANALOG_SENSOR_PINS.map(([id, label], i) => port(id, label, 0.3 + i * 0.2, 1, 'signal' as const))]),
   vectorPart('relief', '安全阀', { w: 22, h: 52 }, '48435K714 · 125 psi，必须硬接在空压机上', [port('air', '入口（硬接头）', 0.5, 1)]),
   vectorPart('vent', '泄压阀', { w: 48, h: 24 }, 'MV709-2', [port('air', '入口', 0, 0.65)]),
-  vectorPart('single-solenoid', '单电控电磁阀', { w: 80, h: 46 }, '通用单电控阀', [
-    port('p', 'P · 供气', 0.34, 0), port('a', 'A · 工作口', 0.24, 1), port('b', 'B · 工作口', 0.44, 1),
-    ...power('coilA', '线圈', 1, 0.5, 'right', 0.1)]),
-  vectorPart('double-solenoid', '双电控电磁阀', { w: 110, h: 46 }, '通用双电控阀', [
-    port('p', 'P · 供气', 0.5, 0), port('a', 'A · 工作口', 0.43, 1), port('b', 'B · 工作口', 0.57, 1),
-    ...power('coilA', '线圈 A', 0, 0.5, 'left', 0.1), ...power('coilB', '线圈 B', 1, 0.5, 'right', 0.1)]),
+  { ...vectorPart('single-solenoid', '二位五通单电控阀', { w: 80, h: 46 }, 'AndyMark am-2344a · CKD 4GA110-M5-4，弹簧复位', [
+    ...fivePort(0.34, 13 / 80, 0.1),
+    ...power('coilA', '线圈', 1, 0.5, 'right', 0.1)]), productUrl: 'https://andymark.com/products/ckd-single-solenoid-valve' },
+  { ...vectorPart('double-solenoid', '二位五通双电控阀', { w: 110, h: 46 }, 'AndyMark am-2343a · CKD 4GA120，无弹簧保位', [
+    ...fivePort(0.5, 13 / 110, 0.07),
+    ...power('coilA', '线圈 A', 0, 0.5, 'left', 0.1), ...power('coilB', '线圈 B', 1, 0.5, 'right', 0.1)]), productUrl: 'https://andymark.com/products/ckd-double-solenoid-valve' },
   ...MANIFOLD_STATIONS.map(manifold),
   { ...vectorPart('tee', '三通接头', { w: 16, h: 26 }, '1/4 in 推入式三通', [
     port('in', '口 1', 0.55, 0), port('out', '口 2', 0.55, 1), port('branch', '口 3', 0, 0.5)]), hideLabel: true },

@@ -319,6 +319,14 @@ function Coil({ x, y, w, h, flip = false }: { x: number; y: number; w: number; h
   );
 }
 
+/** R1 / R2 threaded stubs on the valve's port face; a muffler screws on here. */
+function ExhaustStubs({ def }: { def: PartDef }) {
+  const { w, h } = def;
+  return def.ports.filter((p) => p.type === 'airExhaust').map((p) => (
+    <rect key={p.id} x={p.x * w - h * 0.08} y={0} width={h * 0.16} height={h * 0.2} fill={ART.brassDark} />
+  ));
+}
+
 function SingleSolenoid({ def }: { def: PartDef }) {
   const { w, h } = def;
   const body = w * 0.68;
@@ -326,6 +334,7 @@ function SingleSolenoid({ def }: { def: PartDef }) {
     <g>
       <ValveBody x={0} y={h * 0.18} w={body} h={h * 0.64} />
       <Coil x={body} y={h * 0.16} w={w - body} h={h * 0.64} />
+      <ExhaustStubs def={def} />
       {def.ports.filter((p) => p.type === 'air').map((p) => <PushFitting key={p.id} x={p.x * w} y={p.y * h} side={p.side!} size={h * 0.16} />)}
     </g>
   );
@@ -339,6 +348,7 @@ function DoubleSolenoid({ def }: { def: PartDef }) {
       <ValveBody x={coil} y={h * 0.18} w={w - coil * 2} h={h * 0.64} />
       <Coil x={0} y={h * 0.16} w={coil} h={h * 0.64} flip />
       <Coil x={w - coil} y={h * 0.16} w={coil} h={h * 0.64} />
+      <ExhaustStubs def={def} />
       {def.ports.filter((p) => p.type === 'air').map((p) => <PushFitting key={p.id} x={p.x * w} y={p.y * h} side={p.side!} size={h * 0.16} />)}
     </g>
   );

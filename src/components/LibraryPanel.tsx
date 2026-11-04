@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { BookOpen, ImagePlus, Search, ShoppingBag, X } from 'lucide-react';
+import { BookOpen, ChevronRight, ImagePlus, Search, ShoppingBag, X } from 'lucide-react';
 import type { PartDef } from '../lib/wiring';
 import { PART_CATEGORIES } from '../lib/wiring';
 import PartArtwork from './PartArtwork';
@@ -13,6 +13,12 @@ interface Props {
 
 export default function LibraryPanel({ defs, onAdd, onDeleteCustom, onOpenCustomModal }: Props) {
   const [query, setQuery] = useState('');
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set(['气动']));
+  const toggleCategory = (cat: string) => setCollapsed((current) => {
+    const next = new Set(current);
+    if (!next.delete(cat)) next.add(cat);
+    return next;
+  });
   const filtered = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
     const listed = defs.filter((def) => !def.hideInLibrary);
@@ -41,15 +47,26 @@ export default function LibraryPanel({ defs, onAdd, onDeleteCustom, onOpenCustom
       <div className="flex-1 overflow-y-auto px-2 py-2 space-y-3">
         {PART_CATEGORIES.map((cat) => {
           const list = filtered.filter((d) => d.category === cat);
-          if (cat === '自定义') {
-            return (
-              <div key={cat}>
-                <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide px-1 mb-1">
-                  {cat}
-                </div>
-                {list.map((d) => (
-                  <PartCard key={d.id} def={d} onAdd={onAdd} onDelete={onDeleteCustom} />
-                ))}
+          const isCustom = cat === '自定义';
+          if (!isCustom && list.length === 0) return null;
+          // Searching shows every match, whatever is folded.
+          const open = Boolean(query.trim()) || !collapsed.has(cat);
+          return (
+            <div key={cat}>
+              <button
+                type="button"
+                aria-expanded={open}
+                onClick={() => toggleCategory(cat)}
+                className="mb-1 flex w-full items-center gap-1 rounded px-1 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+              >
+                <ChevronRight className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-90' : ''}`} aria-hidden="true" />
+                <span className="flex-1 text-left">{cat}</span>
+                <span className="font-normal tabular-nums text-slate-400">{list.length}</span>
+              </button>
+              {open && list.map((d) => (
+                <PartCard key={d.id} def={d} onAdd={onAdd} onDelete={isCustom ? onDeleteCustom : undefined} />
+              ))}
+              {open && isCustom && (
                 <button
                   onClick={onOpenCustomModal}
                   className="flex w-full items-center justify-center gap-1.5 mt-1 border border-dashed border-slate-300 rounded-md py-2 text-xs text-slate-500 hover:border-sky-400 hover:text-sky-600 transition-colors"
@@ -57,18 +74,7 @@ export default function LibraryPanel({ defs, onAdd, onDeleteCustom, onOpenCustom
                   <ImagePlus className="h-3.5 w-3.5" aria-hidden="true" />
                   导入自定义器件
                 </button>
-              </div>
-            );
-          }
-          if (list.length === 0) return null;
-          return (
-            <div key={cat}>
-              <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide px-1 mb-1">
-                {cat}
-              </div>
-              {list.map((d) => (
-                <PartCard key={d.id} def={d} onAdd={onAdd} />
-              ))}
+              )}
             </div>
           );
         })}

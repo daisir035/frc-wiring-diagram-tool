@@ -1014,6 +1014,9 @@ export default function WiringCanvas(props: Props) {
               return;
             }
           }
+          // A press on the drawing ends any typing in the side panels, so Delete / Backspace act on the selection.
+          const active = document.activeElement;
+          if (active instanceof HTMLElement && !event.currentTarget.contains(active) && active.matches('input, select, textarea, [contenteditable]:not([contenteditable="false"])')) active.blur();
           if (!(event.target instanceof Element && event.target.closest('[role="button"], button, a'))) event.currentTarget.focus();
         }}
         onPointerDown={onSvgPointerDown}
@@ -1380,6 +1383,8 @@ export default function WiringCanvas(props: Props) {
                     const gradientId = `${portFillId}-port-${partIndex}-${portIndex}`;
                     const isPending =
                       pendingFrom?.uid === part.uid && (pendingFrom?.portId === port.id || pendingFrom?.portId === paired?.id);
+                    // Endpoints stay hidden until the part is selected, a wire is being drawn to them, or the pointer is on one.
+                    const isHoveredPort = hoveredPort?.uid === part.uid && hoveredPort.portId === port.id;
                     return (
                       <g key={port.id}
                         data-cable-port-id={port.id}
@@ -1406,11 +1411,12 @@ export default function WiringCanvas(props: Props) {
                             <stop offset="50%" stopColor={PORT_TYPE_COLOR[paired!.type]} />
                           </linearGradient>
                         </defs>}
-                        {!(posterMode && !isPending) && (
+                        {!(posterMode && !isPending) && (isPending || sel || isHoveredPort
+                          || (pendingFrom && compatiblePorts.has(`${part.uid}:${port.id}`))) && (
                           <PortMarker x={port.x * w} y={port.y * h}
                             fill={axis ? `url(#${gradientId})` : PORT_TYPE_COLOR[port.type]} color={PORT_TYPE_COLOR[port.type]}
                             state={isPending ? 'source'
-                              : hoveredPort?.uid === part.uid && hoveredPort.portId === port.id ? 'hover'
+                              : isHoveredPort ? 'hover'
                                 : connectedPorts.has(`${part.uid}:${port.id}`) ? 'connected'
                                   : hoveredPart === part.uid || (pendingFrom && compatiblePorts.has(`${part.uid}:${port.id}`)) ? 'open-near' : 'open'} />
                         )}

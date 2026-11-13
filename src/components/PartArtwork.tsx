@@ -127,6 +127,20 @@ const FUSE_COLOR: Record<FuseRating, string> = {
   40: '#df9a22',
 };
 
+/** The RSL's jumper between the La and N screw terminals (RSL.png pixel coordinates). */
+function RslJumper() {
+  const path = 'M 28 84 C 46 84 47 109 28 109';
+  return (
+    <g data-rsl-jumper="La-N" pointerEvents="none">
+      <path d={path} fill="none" stroke="#1f2937" strokeWidth={5.5} strokeLinecap="round" />
+      <path d={path} fill="none" stroke="#f8fafc" strokeWidth={3.2} strokeLinecap="round" />
+      <circle cx={28} cy={84} r={3.6} fill="#c9a43a" stroke="#6b5313" strokeWidth={1} />
+      <circle cx={28} cy={109} r={3.6} fill="#c9a43a" stroke="#6b5313" strokeWidth={1} />
+      <title>La–N 跳线</title>
+    </g>
+  );
+}
+
 function ImageFuseSlots({
   def,
   fuses,
@@ -173,6 +187,15 @@ function ImageFuseSlots({
             } : undefined}
             style={{ cursor: onFuseClick ? 'pointer' : 'default' }}
           >
+            {def.fuseSlotCover && (
+              <>
+                {/* Wide enough to hide the larger breakers fitted in the product photo. */}
+                <rect x={x - 6} y={y - 3} width={width + 22} height={height + 6} rx={3} fill="#2a2b2e" />
+                <rect x={x - 2} y={y - 2} width={width + 4} height={height + 4} rx={3} fill="#111214" stroke="#e5e7eb" strokeWidth={2.5} />
+                {!rating && <text x={x + width / 2} y={y + height * 0.66} textAnchor="middle" fill="#e5e7eb" fontFamily="Arial, sans-serif"
+                  fontSize={height * 0.42} fontWeight={700} letterSpacing={0} pointerEvents="none">{slot.channel}</text>}
+              </>
+            )}
             {fuseImage ? (
               <image
                 href={partAssetSrc(fuseImage)}
@@ -188,27 +211,28 @@ function ImageFuseSlots({
                 y={y}
                 width={width}
                 height={height}
-                rx={4}
+                rx={Math.min(width, height) * 0.28}
                 fill={rating ? FUSE_COLOR[rating] : 'rgba(255,255,255,0.04)'}
-                fillOpacity={rating ? 0.92 : 1}
-                stroke={rating ? 'none' : def.fuseImages ? 'transparent' : 'rgba(255,255,255,0.3)'}
-                strokeWidth={rating ? 0 : 1.2}
+                stroke={rating ? 'rgba(0,0,0,0.25)' : def.fuseImages || def.visual === 'vector' ? 'transparent' : 'rgba(255,255,255,0.3)'}
+                strokeWidth={rating ? Math.min(width, height) * 0.05 : 1.2}
                 strokeDasharray={rating ? undefined : '5 4'}
               />
             )}
             {rating && !fuseImage && (
               <text
                 x={x + width / 2}
-                y={y + height * 0.69}
+                y={y + height * 0.66}
                 textAnchor="middle"
-                fill="#111827"
+                fill="#000000"
+                fillOpacity={0.38}
                 fontFamily="Arial, sans-serif"
-                fontSize={height * 0.48}
+                fontSize={Math.min(height * 0.46, width / (def.fuseSlotCover ? 5 : 4.2))}
                 fontWeight={700}
                 letterSpacing={0}
                 pointerEvents="none"
               >
-                {rating}A
+                {/* Covered bays keep their channel number visible once a breaker is fitted. */}
+                {def.fuseSlotCover ? `${slot.channel} · ${rating}A` : `12V${rating}A`}
               </text>
             )}
             <title>{`CH ${slot.channel} · ${rating ? `${rating}A 保险丝` : '空槽'}${onFuseClick ? ' · 点击更改' : ''}`}</title>
@@ -328,6 +352,36 @@ function CanMotor({ def }: { def: PartDef }) {
   );
 }
 
+/** Motor seen from above: the round face with its bolt circle and shaft; endpoints sit on the rim. */
+function CanMotorTop({ def }: { def: PartDef }) {
+  const base = def.variantOf ?? def.id;
+  const accent = base === 'falcon500' ? '#7c3aed' : base === 'krakenX44' ? '#0ea5e9' : '#16a34a';
+  const r = def.h / 2 - 2;
+  const cx = def.w / 2;
+  const cy = def.h / 2;
+  return (
+    <g data-motor-view="top">
+      <circle cx={cx} cy={cy} r={r} fill="#24272c" stroke="#101216" strokeWidth={2.5} />
+      <circle cx={cx} cy={cy} r={r * 0.9} fill="none" stroke={accent} strokeWidth={r * 0.06} opacity={0.85} />
+      {Array.from({ length: 12 }, (_, i) => {
+        const a = (i * Math.PI) / 6;
+        return <line key={i} x1={cx + Math.cos(a) * r * 0.5} y1={cy + Math.sin(a) * r * 0.5} x2={cx + Math.cos(a) * r * 0.76} y2={cy + Math.sin(a) * r * 0.76}
+          stroke="#3b4048" strokeWidth={r * 0.05} strokeLinecap="round" />;
+      })}
+      {[45, 135, 225, 315].map((deg) => {
+        const a = (deg * Math.PI) / 180;
+        return <circle key={deg} cx={cx + Math.cos(a) * r * 0.66} cy={cy + Math.sin(a) * r * 0.66} r={r * 0.07} fill="#0b0c0e" stroke="#6b7280" strokeWidth={1} />;
+      })}
+      <circle cx={cx} cy={cy} r={r * 0.34} fill="#17191d" stroke="#505761" strokeWidth={1.5} />
+      <circle cx={cx} cy={cy} r={r * 0.15} fill="#aeb5bf" stroke="#4b5563" strokeWidth={1} />
+      <circle cx={cx} cy={cy} r={r * 0.06} fill="#4b5563" />
+      <text x={cx} y={cy + r * 0.56} textAnchor="middle" fill="#f8fafc" fontFamily="Arial, sans-serif" fontSize={r * 0.17} fontWeight={700} letterSpacing={0}>
+        {base === 'falcon500' ? 'FALCON' : base === 'krakenX44' ? 'X44' : 'X60'}
+      </text>
+    </g>
+  );
+}
+
 function BeamBreak({ def }: { def: PartDef }) {
   return (
     <>
@@ -397,23 +451,11 @@ function ThroughBore({ def }: { def: PartDef }) {
   );
 }
 
-function CANcoder({ def }: { def: PartDef }) {
-  const wireStarts: Record<string, number> = { 'vin+': 63, 'vin-': 71, canInH: 83, canInL: 91, canOutH: 103, canOutL: 111 };
+function CANcoder() {
   // Top view: the mounting ears mirror the manufacturer's bottom-view drawing.
   const housing = 'M 90 4 C 101 4 111 8 119 13 C 130 13 139 22 139 34 C 139 39 137 43 136 46 C 137 60 133 69 127 77 V 115 Q 127 124 118 124 H 62 Q 53 124 53 115 V 84 C 46 81 41 74 41 66 C 41 61 42 58 45 56 C 44 54 44 52 44 50 C 44 24 64 4 90 4 Z';
   return (
-    <g data-cancoder-artwork="wired-top">
-      {def.ports.map((port) => (
-        <path
-          key={port.id}
-          data-cancoder-lead={port.id}
-          d={`M ${wireStarts[port.id] ?? 90} 108 C ${wireStarts[port.id] ?? 90} 131 ${port.x * def.w} 133 ${port.x * def.w} ${port.y * def.h}`}
-          fill="none"
-          stroke={PORT_TYPE_COLOR[port.type]}
-          strokeWidth={4.5}
-          strokeLinecap="round"
-        />
-      ))}
+    <g data-cancoder-artwork="wired-top" transform="translate(-40 -2)">
       <g transform="translate(90 2) scale(0.908 0.915) translate(-90 0)">
         <path data-cancoder-outline="true" d={housing} fill="#d8dcda" stroke="#77847f" strokeWidth={2.5} />
         <path d="M 90 15 C 112 15 127 32 127 52 C 127 65 119 76 119 85 V 111 H 61 V 85 C 61 76 53 64 53 52 C 53 31 69 15 90 15 Z"
@@ -437,7 +479,6 @@ function CANcoder({ def }: { def: PartDef }) {
         <path d="M 66 101 H 114 M 79 101 V 112 M 99 101 V 112" stroke="#e8ece3" strokeWidth={1.5} />
         <circle cx={112} cy={61} r={3.5} fill="#8dbb48" stroke="#dfebc9" strokeWidth={1} />
       </g>
-      <VectorPortPads def={def} />
     </g>
   );
 }
@@ -531,71 +572,6 @@ function Battery({ def }: { def: PartDef }) {
   );
 }
 
-/** CTRE PDP 2.0 in the poster style: dark board, red/black channel terminals, breaker bays, battery lugs. */
-function PdpArtwork({ def }: { def: PartDef }) {
-  const { w, h } = def;
-  const label = '#c3c4c6';
-  const termW = w * 0.17;
-  const termH = h * 0.024;
-  return (
-    <g fontFamily="'Saira Semi Condensed', 'Barlow Semi Condensed', sans-serif">
-      <rect x={0} y={0} width={w} height={h} rx={10} fill="#48484a" />
-      <rect x={w * 0.2} y={h * 0.045} width={w * 0.6} height={h * 0.77} rx={4} fill="#3a3a3c" />
-      {[[11, 11], [w - 11, 11], [11, h - 11], [w - 11, h - 11]].map(([cx, cy]) => (
-        <g key={`${cx}:${cy}`}>
-          <circle cx={cx} cy={cy} r={6.5} fill="#e9e9ea" />
-          <circle cx={cx} cy={cy} r={4} fill="#48484a" />
-        </g>
-      ))}
-      <text x={w / 2} y={h * 0.03} textAnchor="middle" fontSize={11} fontWeight={800} fontStyle="italic" fill="#ffffff">CTRE</text>
-      {/* channel terminals: lever colour by polarity, wire entry on the outer edge */}
-      {def.ports.filter((port) => port.id.startsWith('ch')).map((port) => {
-        const right = port.side === 'right';
-        const y = port.y * h;
-        const x = right ? w - termW : 0;
-        return (
-          <g key={port.id}>
-            <rect x={x} y={y - termH / 2} width={termW} height={termH} rx={1.5} fill={port.type === 'pwr+' ? '#e8262c' : '#232325'} />
-            <rect x={right ? w - termW * 0.3 : 0} y={y - termH * 0.32} width={termW * 0.3} height={termH * 0.64} fill="#111112" />
-            <rect x={right ? x + termW * 0.1 : x + termW * 0.6} y={y - termH * 0.18} width={termW * 0.3} height={termH * 0.36} rx={1}
-              fill={port.type === 'pwr+' ? '#f47a7e' : '#4b4b4e'} />
-          </g>
-        );
-      })}
-      {/* breaker bays and channel numbers */}
-      {def.fuseSlots?.map((slot) => {
-        const left = slot.channel >= 12;
-        const cy = (slot.y + slot.h / 2) * h;
-        return (
-          <g key={slot.channel}>
-            <rect x={slot.x * w - 2} y={slot.y * h - 2} width={slot.w * w + 4} height={slot.h * h + 4} rx={2} fill="#1d1d1e" />
-            <rect x={left ? w * 0.215 : w * 0.725} y={cy - 6} width={w * 0.06} height={12} rx={1.5} fill="#f1f1f2" />
-            <text x={left ? w * 0.245 : w * 0.755} y={cy + 4} textAnchor="middle" fontSize={9.5} fontWeight={700} fill="#2a2a2b">{slot.channel}</text>
-          </g>
-        );
-      })}
-      {/* CAN, status and label */}
-      <rect x={w * 0.24} y={h * 0.83} width={w * 0.2} height={h * 0.03} rx={2} fill="#1d1d1e" />
-      <rect x={w * 0.26} y={h * 0.835} width={w * 0.07} height={h * 0.02} rx={1} fill="#f2d22e" />
-      <rect x={w * 0.35} y={h * 0.835} width={w * 0.07} height={h * 0.02} rx={1} fill="#2fae4a" />
-      <text x={w * 0.34} y={h * 0.827} textAnchor="middle" fontSize={7} fill={label}>CAN</text>
-      <circle cx={w * 0.55} cy={h * 0.845} r={3.2} fill="#2fae4a" />
-      <circle cx={w * 0.62} cy={h * 0.845} r={3.2} fill="#1d1d1e" stroke="#6d6e71" strokeWidth={0.8} />
-      <text x={w * 0.585} y={h * 0.827} textAnchor="middle" fontSize={7} fill={label}>STATUS</text>
-      <text x={w / 2} y={h * 0.887} textAnchor="middle" fontSize={13} fontWeight={700} fill="#ffffff" letterSpacing={0.5}>PDP 2.0</text>
-      {/* battery lugs; cables leave downward */}
-      {[{ x: w * 0.27, color: '#232325', label: '−' }, { x: w * 0.73, color: '#e8262c', label: '+' }].map((input) => (
-        <g key={input.label}>
-          <rect x={input.x - w * 0.15} y={h * 0.9} width={w * 0.3} height={h * 0.085} rx={5} fill={input.color} />
-          <circle cx={input.x} cy={h * 0.94} r={w * 0.05} fill="#d9a441" />
-          <circle cx={input.x} cy={h * 0.94} r={w * 0.022} fill="#8a6420" />
-          <text x={input.x + w * 0.1} y={h * 0.928} textAnchor="middle" fontSize={13} fontWeight={700} fill="#ffffff">{input.label}</text>
-        </g>
-      ))}
-    </g>
-  );
-}
-
 function LeverTerminal({ def }: { def: PartDef }) {
   return (
     <>
@@ -621,8 +597,8 @@ function LeverTerminal({ def }: { def: PartDef }) {
 
 function renderVector(def: PartDef) {
   if (def.cylinder || def.art) return <PneumaticArtwork def={def} />;
+  if (def.view === 'top' && def.category === '电机') return <CanMotorTop def={def} />;
   switch (def.id) {
-    case 'pdp': return <PdpArtwork def={def} />;
     case 'roborio': return <RoboRIO def={def} />;
     case 'vrm': return <VRM def={def} />;
     case 'vh109': return <Radio def={def} />;
@@ -637,7 +613,7 @@ function renderVector(def: PartDef) {
     case 'lmSwitch': return <LimitSwitch def={def} />;
     case 'pot': return <Potentiometer def={def} />;
     case 'ttb': return <ThroughBore def={def} />;
-    case 'cancoder': return <CANcoder def={def} />;
+    case 'cancoder': return <CANcoder />;
     case 'limelight3':
     case 'limelight4': return <Limelight def={def} />;
     case 'ws2812': return <LedStrip def={def} />;
@@ -675,6 +651,7 @@ export default function PartArtwork({ def, width, height, fuses, onFuseClick, ca
       ) : (
         <>
           <image href={partImageSrc(def)} width={def.w} height={def.h} preserveAspectRatio="xMidYMid meet" />
+          {def.id === 'rsl' && <RslJumper />}
           <ImageFuseSlots def={def} fuses={fuses} onFuseClick={onFuseClick} canActivateFuse={canActivateFuse} />
         </>
       )}

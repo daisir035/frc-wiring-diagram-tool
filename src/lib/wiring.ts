@@ -64,6 +64,10 @@ export interface PartDef {
   hideInLibrary?: boolean;
   /** Small fittings such as tees omit the canvas name unless the user names them. */
   hideLabel?: boolean;
+  /** Same physical product drawn from another angle; BOM and the view picker group by this id. */
+  variantOf?: string;
+  /** Drawing angle of a part offered in several views, such as motors seen from the side or from above. */
+  view?: 'side' | 'top';
   /** Vector drawing key in components/PneumaticArtwork. */
   art?: string;
   /** Default second label line, e.g. the model shown. */
@@ -94,6 +98,8 @@ export interface PartDef {
   fuseImages?: Partial<Record<FuseRating, string>>;
   /** 此器件允许的默认保险丝规格 */
   fuseRatings?: FuseRating[];
+  /** Draw every breaker bay (empty ones as a numbered bay) over a photo that shows fitted breakers. */
+  fuseSlotCover?: boolean;
   /** 从指定通道开始覆盖允许的保险丝规格 */
   fuseRatingRules?: Array<{ fromChannel: number; ratings: FuseRating[] }>;
 }
@@ -363,13 +369,14 @@ export function wireGaugeRule(
     }
     if (rating !== undefined) {
       const smallPdhFuse = distribution.part.partId === 'pdh' && channel >= 20;
-      if (smallPdhFuse && rating === 10 && partIds.includes('cancoder')) {
+      const leadDevice = ctre22AwgDevice(partIds);
+      if (smallPdhFuse && rating === 10 && leadDevice) {
         return {
           id: 'cancoder-10a-fuse',
-          label: `${distribution.def?.name ?? '配电'} CH ${channel} · CANcoder`,
+          label: `${distribution.def?.name ?? '配电'} CH ${channel} · ${leadDevice}`,
           recommended: 22,
           allowed: [18, 20, 22],
-          note: 'CANcoder 原厂电源引线为 22 AWG，适合由 PDH 10A 小保险丝端口供电。',
+          note: `${leadDevice} 原厂电源引线为 22 AWG，适合由 PDH 10A 小保险丝端口供电。`,
         };
       }
       if (smallPdhFuse && rating === 10) {
@@ -441,13 +448,14 @@ export function wireGaugeRule(
   }
 
   if (portTypes.every((type) => type === 'pwr+' || type === 'pwr-')) {
-    if (partIds.includes('cancoder')) {
+    const leadDevice = ctre22AwgDevice(partIds);
+    if (leadDevice) {
       return {
         id: 'cancoder-power',
-        label: 'CANcoder 电源线',
+        label: `${leadDevice} 电源线`,
         recommended: 22,
         allowed: [18, 20, 22],
-        note: 'CTRE 有线版 CANcoder 的红黑电源引线为 22 AWG；接入配电时仍需匹配上游保护规格。',
+        note: `CTRE 有线版 ${leadDevice} 的红黑电源引线为 22 AWG；接入配电时仍需匹配上游保护规格。`,
       };
     }
     const controlPower = partIds.some((id) => ['roborio', 'vrm', 'vh109', 'limelight3', 'limelight4', 'rsl'].includes(id));
@@ -541,43 +549,58 @@ const roboRIO = imagePart('RoboRIO 2.0.png', {
   ],
 });
 
+/**
+ * Rows in the perspective-corrected CTRE photo (public/parts/CTRE PDP 2.0 Top.png), as fractions of
+ * its height: left column CH 12-23 and right column CH 11-0, top to bottom. Each channel has a
+ * red (+) and black (-) WAGO 745 lever at the outer edge.
+ */
+const PDP_LEFT_ROW = (row: number) => (138 + 83 * row) / 1354;
+const PDP_RIGHT_ROW = (row: number) => (140 + 85.4 * row) / 1354;
+const PDP_LEVER_OFFSET = 21 / 1354;
+
 function pdpChannelPorts(): PortDef[] {
   const ports: PortDef[] = [];
-  const ys = spread(0.065, 0.785, 12);
-  ys.forEach((y, row) => {
+  for (let row = 0; row < 12; row++) {
+    const right = PDP_RIGHT_ROW(row);
     const rightChannel = 11 - row;
-    ports.push(p(`ch${rightChannel}+`, `CH ${rightChannel} +`, 1, y - 0.014, 'pwr+', 'right'));
-    ports.push(p(`ch${rightChannel}-`, `CH ${rightChannel} -`, 1, y + 0.014, 'pwr-', 'right'));
+    ports.push(p(`ch${rightChannel}+`, `CH ${rightChannel} +`, 1, right - PDP_LEVER_OFFSET, 'pwr+', 'right'));
+    ports.push(p(`ch${rightChannel}-`, `CH ${rightChannel} -`, 1, right + PDP_LEVER_OFFSET, 'pwr-', 'right'));
 
+    const left = PDP_LEFT_ROW(row);
     const leftChannel = 12 + row;
-    ports.push(p(`ch${leftChannel}-`, `CH ${leftChannel} -`, 0, y - 0.014, 'pwr-', 'left'));
-    ports.push(p(`ch${leftChannel}+`, `CH ${leftChannel} +`, 0, y + 0.014, 'pwr+', 'left'));
-  });
+    ports.push(p(`ch${leftChannel}-`, `CH ${leftChannel} -`, 0, left - PDP_LEVER_OFFSET, 'pwr-', 'left'));
+    ports.push(p(`ch${leftChannel}+`, `CH ${leftChannel} +`, 0, left + PDP_LEVER_OFFSET, 'pwr+', 'left'));
+  }
   return ports;
 }
 
+/** Breaker bays measured on the photo; the app draws every bay so the photo's fitted breakers never show. */
 function pdpFuseSlots(): NonNullable<PartDef['fuseSlots']> {
+  const h = 72 / 1354;
   const slots: NonNullable<PartDef['fuseSlots']> = [];
-  spread(0.065, 0.785, 12).forEach((y, row) => {
-    slots.push({ channel: 12 + row, x: 0.3, y: y - 0.023, w: 0.16, h: 0.046 });
-    slots.push({ channel: 11 - row, x: 0.54, y: y - 0.023, w: 0.16, h: 0.046 });
-  });
+  for (let row = 0; row < 12; row++) {
+    slots.push({ channel: 12 + row, x: 178 / 600, y: PDP_LEFT_ROW(row) - h / 2, w: 97 / 600, h });
+    slots.push({ channel: 11 - row, x: 311 / 600, y: PDP_RIGHT_ROW(row) - h / 2, w: 98 / 600, h });
+  }
   return slots;
 }
 
-const pdp = vector({
+const pdp = imagePart('CTRE PDP 2.0 Top.png', {
   id: 'pdp',
   name: 'CTRE PDP 2.0',
   category: '配电',
   productUrl: 'https://store.ctr-electronics.com/products/pdp-2',
-  w: 207.264,
-  h: 467.868,
+  docsUrl: 'https://ctre.download/files/user-manual/PDP%202.0%20User%27s%20Guide.pdf',
+  // Photo is 600 x 1354 px; height set so it matches the 4.08 x 9.21 in footprint exactly.
+  w: 600,
+  h: 600 * 233.934 / 103.632,
   displayWidth: 220,
   fuseChannels: 24,
   fuseSlots: pdpFuseSlots(),
+  fuseSlotCover: true,
   ports: [
-    p('batt-', '电池输入 -', 0.27, 1, 'pwr-', 'bottom'),
-    p('batt+', '电池输入 +', 0.73, 1, 'pwr+', 'bottom'),
+    p('batt-', '电池输入 -', 0.225, 1, 'pwr-', 'bottom'),
+    p('batt+', '电池输入 +', 0.758, 1, 'pwr+', 'bottom'),
     ...pdpChannelPorts(),
   ],
 });
@@ -720,8 +743,9 @@ const rsl = imagePart('RSL.png', {
   h: 219,
   displayWidth: 105,
   ports: [
-    p('lb', 'Lb', 0, 0.37, 'signal', 'left'),
-    p('la', 'La', 0, 0.63, 'signal', 'left'),
+    // Screw terminals top to bottom: La, N, Lb; La and N are bridged by the factory jumper.
+    p('la', 'La', 0, 84 / 219, 'signal', 'left'),
+    p('lb', 'Lb', 0, 135 / 219, 'signal', 'left'),
   ],
 });
 
@@ -766,6 +790,8 @@ function canMotor(id: string, name: string): PartDef {
       ? 'https://store.ctr-electronics.com/products/falcon-500-powered-by-talon-fx'
       : 'https://wcproducts.com/products/kraken',
     docsUrl: 'https://pro.docs.ctr-electronics.com/en/stable/docs/hardware-reference/talonfx/index.html',
+    variantOf: id,
+    view: 'side',
     ...size,
     displayWidth: 175,
     ports: [
@@ -776,6 +802,30 @@ function canMotor(id: string, name: string): PartDef {
       p('canOutH', 'CAN OUT H', 0, 0.79, 'canH', 'left'),
       p('canOutL', 'CAN OUT L', 0, 0.88, 'canL', 'left'),
     ],
+  });
+}
+
+/** Motor seen from above, for chassis layouts: round face on the right, the leads fan out to the left. */
+function canMotorTop(id: string, name: string): PartDef {
+  const face = id === 'krakenX44' ? 44 : 64;
+  const side = canMotor(id, name);
+  // Three endpoints on the left rim of the round face: power, CAN in, CAN out.
+  const rows: Record<string, number> = { 'pwr+': 0.27, 'pwr-': 0.35, canInH: 0.46, canInL: 0.54, canOutH: 0.65, canOutL: 0.73 };
+  const rimX = (y: number) => 0.5 - Math.sqrt(0.25 - (y - 0.5) ** 2);
+  return vector({
+    ...side,
+    img: undefined,
+    id: `${id}-top`,
+    name: `${name}（俯视）`,
+    variantOf: id,
+    view: 'top',
+    // Reached from the motor's view switch in the properties panel, not as its own library card.
+    hideInLibrary: true,
+    w: face * 2,
+    h: face * 2,
+    displayWidth: face,
+    footprintMm: { w: face, h: face },
+    ports: side.ports.map((port) => ({ ...port, x: rimX(rows[port.id]), y: rows[port.id] })),
   });
 }
 
@@ -857,18 +907,49 @@ const cancoder = vector({
   category: '传感器',
   productUrl: 'https://store.ctr-electronics.com/products/cancoder',
   docsUrl: 'https://pro.docs.ctr-electronics.com/en/stable/docs/hardware-reference/cancoder/index.html',
-  w: 180,
-  h: 155,
-  displayWidth: 135,
+  // Housing only; the three lead pairs (power, CAN 1, CAN 2) end on its bottom edge.
+  w: 100,
+  h: 116,
+  footprintMm: { w: 24.4, h: 28.4 },
+  displayWidth: 24.4,
   ports: [
-    p('vin+', '电源 V+（红，22 AWG）', 0.14, 1, 'pwr+', 'bottom'),
-    p('vin-', '电源 GND（黑，22 AWG）', 0.27, 1, 'pwr-', 'bottom'),
-    p('canInH', 'CAN 1 H（黄，22 AWG）', 0.43, 1, 'canH', 'bottom'),
-    p('canInL', 'CAN 1 L（绿，22 AWG）', 0.55, 1, 'canL', 'bottom'),
-    p('canOutH', 'CAN 2 H（黄，22 AWG）', 0.71, 1, 'canH', 'bottom'),
-    p('canOutL', 'CAN 2 L（绿，22 AWG）', 0.83, 1, 'canL', 'bottom'),
+    p('vin+', '电源 V+（红，22 AWG）', 0.22, 0.97, 'pwr+', 'bottom'),
+    p('vin-', '电源 GND（黑，22 AWG）', 0.32, 0.97, 'pwr-', 'bottom'),
+    p('canInH', 'CAN 1 H（黄，22 AWG）', 0.45, 0.97, 'canH', 'bottom'),
+    p('canInL', 'CAN 1 L（绿，22 AWG）', 0.55, 0.97, 'canL', 'bottom'),
+    p('canOutH', 'CAN 2 H（黄，22 AWG）', 0.68, 0.97, 'canH', 'bottom'),
+    p('canOutL', 'CAN 2 L（绿，22 AWG）', 0.78, 0.97, 'canL', 'bottom'),
   ],
 });
+
+const pigeon2 = imagePart('CTRE Pigeon 2.0.png', {
+  id: 'pigeon2',
+  name: 'CTRE Pigeon 2.0 陀螺仪',
+  category: '传感器',
+  productUrl: 'https://store.ctr-electronics.com/products/pigeon-2',
+  docsUrl: 'https://v6.docs.ctr-electronics.com/en/stable/docs/hardware-reference/pigeon2/index.html',
+  // 1.77 in square housing (user guide) plus the connector edge the photo shows below it.
+  footprintMm: { w: 49.2, h: 49.2 * 441 / 400 },
+  w: 400,
+  h: 441,
+  displayWidth: 49.2,
+  ports: [
+    p('vin+', '电源 V+（红，22 AWG）', 0.26, 0.97, 'pwr+', 'bottom'),
+    p('vin-', '电源 GND（黑，22 AWG）', 0.34, 0.97, 'pwr-', 'bottom'),
+    p('canInH', 'CAN 1 H（黄，22 AWG）', 0.46, 0.97, 'canH', 'bottom'),
+    p('canInL', 'CAN 1 L（绿，22 AWG）', 0.54, 0.97, 'canL', 'bottom'),
+    p('canOutH', 'CAN 2 H（黄，22 AWG）', 0.66, 0.97, 'canH', 'bottom'),
+    p('canOutL', 'CAN 2 L（绿，22 AWG）', 0.74, 0.97, 'canL', 'bottom'),
+  ],
+});
+
+/** CTRE sensors whose factory leads are 22 AWG, by part id. */
+const CTRE_22AWG_LEADS: Record<string, string> = { cancoder: 'CANcoder', pigeon2: 'Pigeon 2.0' };
+
+function ctre22AwgDevice(partIds: string[]): string | undefined {
+  const id = partIds.find((item) => item in CTRE_22AWG_LEADS);
+  return id && CTRE_22AWG_LEADS[id];
+}
 
 const ws2812 = imagePart('WS2812B Strip.png', {
   id: 'ws2812',
@@ -1012,12 +1093,16 @@ export const BUILTIN_PARTS: PartDef[] = [
   canMotor('falcon500', 'Falcon 500 (Talon FX)'),
   canMotor('krakenX60', 'Kraken X60'),
   canMotor('krakenX44', 'Kraken X44'),
+  canMotorTop('falcon500', 'Falcon 500 (Talon FX)'),
+  canMotorTop('krakenX60', 'Kraken X60'),
+  canMotorTop('krakenX44', 'Kraken X44'),
   beamBreak,
   npnPhoto,
   lmSwitch,
   potentiometer,
   ttbEncoder,
   cancoder,
+  pigeon2,
   ws2812,
   c270,
   limelight3,
@@ -1062,7 +1147,6 @@ const PART_FOOTPRINTS_MM: Record<string, { w: number; h: number }> = {
   lmSwitch: { w: 28, h: 50 },
   pot: { w: 24, h: 34 },
   ttb: { w: 38, h: 43 },
-  cancoder: { w: 44, h: 38 },
   c270: { w: 70, h: 31 },
   limelight3: { w: 80.61, h: 49.01 },
   limelight4: { w: 80.11, h: 48.11 },

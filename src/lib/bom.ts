@@ -115,8 +115,11 @@ export function buildBom(project: string, pages: BomPage[], defs: ReadonlyMap<st
         instance: part.customName ?? '', deviceId: part.deviceId ?? '', w: size?.w ?? null, h: size?.h ?? null,
         sizeStatus: def ? sizeStatus : '未知', source: size?.source ?? def?.productUrl ?? '' });
       const notes = def ? (sizeStatus === '参考尺寸' ? ['型号或尺寸待核对'] : []) : ['器件定义缺失'];
-      add({ key: keyOf('part', part.partId, size?.w, size?.h), category: part.partId.startsWith('terminal') ? '端子台' : def?.category ?? '未识别',
-        name: part.partId === 'terminalPair' ? '2 转 2 接线端子' : def?.name ?? `未识别器件 ${part.partId}`, specification: size ? `${size.w} × ${size.h} mm` : '',
+      // A motor drawn from above is still the same motor: count it with its side view.
+      const product = def?.variantOf ? defs.get(def.variantOf) ?? def : def;
+      const productSize = product && product !== def ? partDimensions(product, part) : size;
+      add({ key: keyOf('part', product?.id ?? part.partId, productSize?.w, productSize?.h), category: part.partId.startsWith('terminal') ? '端子台' : def?.category ?? '未识别',
+        name: part.partId === 'terminalPair' ? '2 转 2 接线端子' : product?.name ?? `未识别器件 ${part.partId}`, specification: productSize ? `${productSize.w} × ${productSize.h} mm` : '',
         quantity: 1, unit: '件', pages: [pageName], notes, source: def?.productUrl ?? def?.docsUrl ?? '' });
       if (!def) report.warnings.push(`${pageName}：器件 ${part.uid} 的定义缺失。`);
       for (const [channel, rating] of Object.entries(part.fuses ?? {})) {

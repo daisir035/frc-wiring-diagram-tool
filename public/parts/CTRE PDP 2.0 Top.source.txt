@@ -1,0 +1,7 @@
+CTRE PDP 2.0 top-view asset
+Source: https://cdn.shopify.com/s/files/1/0668/2981/1885/files/Power_Distribution_PDP_for_robotics_FRC_1.png?v=1762192241
+Product: https://store.ctr-electronics.com/products/pdp-2
+Retrieved: 2026-11-09
+Processing: perspective-corrected top plate quad (296,106) (706,106) (776,835) (250,835) to 600 x 1354 px
+(4.08 x 9.21 in, PDP 2.0 User's Guide), then resized to 480 x 1083. Breakers fitted in the photo are covered
+in the app by the selectable breaker bays.

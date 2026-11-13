@@ -14,7 +14,7 @@ import {
   Zap,
 } from 'lucide-react';
 import type { FuseRating, PartDef, PlacedPart } from '../lib/wiring';
-import { allowedFuseRatings, isPhysicalSize, partDimensions, partSize } from '../lib/wiring';
+import { BUILTIN_PARTS, allowedFuseRatings, isPhysicalSize, partDimensions, partSize } from '../lib/wiring';
 
 interface Props {
   part: PlacedPart;
@@ -83,6 +83,34 @@ function ManifoldPicker({ def, disabled, onSelect }: { def: PartDef; disabled: b
         ))}
       </div>
       <p className="mt-2 text-[10px] leading-4 text-slate-400">每联一个双电控阀，端板三口并排：中间 P 进气，两侧 EA / EB 排气，可装消声器。减少联数时，被移除工位上的接线和气管会一并删除。</p>
+    </section>
+  );
+}
+
+/** Side or top drawing of the same motor; the top view suits chassis layouts drawn from above. */
+function ViewPicker({ part, def, onChange }: { part: PlacedPart; def: PartDef; onChange: (changes: Partial<PlacedPart>) => void }) {
+  const views = BUILTIN_PARTS.filter((item) => item.variantOf === def.variantOf && item.view);
+  const select = (next: PartDef) => {
+    if (next.id === def.id) return;
+    const previous = partSize(def, part);
+    const size = partSize(next);
+    // Keep the part centred where it was.
+    onChange({ partId: next.id, sizeMm: undefined, x: part.x + (previous.w - size.w) / 2, y: part.y + (previous.h - size.h) / 2 });
+  };
+  return (
+    <section className="border-b border-slate-100 py-3">
+      <div className="mb-2 flex items-center gap-2">
+        <RotateCw className="h-4 w-4 text-sky-600" aria-hidden="true" />
+        <span className="text-xs font-semibold text-slate-700">电机视角</span>
+      </div>
+      <div className="grid grid-cols-2 gap-1">
+        {views.map((item) => (
+          <button key={item.id} type="button" disabled={Boolean(part.locked)} className={pickerOption(item.id === def.id)} onClick={() => select(item)}>
+            {item.view === 'top' ? '俯视（底盘图）' : '侧视'}
+          </button>
+        ))}
+      </div>
+      <p className="mt-2 text-[10px] leading-4 text-slate-400">俯视图画出电机端面，适合在底盘俯视图上布线。切换视图会保留已有接线。</p>
     </section>
   );
 }
@@ -157,6 +185,7 @@ export default function PropertiesPanel({ part, def, onPartChange, onFuseChange,
 
       <div className="flex-1 overflow-y-auto px-3 pb-4">
         {def.cylinder && <CylinderPicker def={def} disabled={Boolean(part.locked)} onSelect={(partId) => onPartChange({ partId, sizeMm: undefined })} />}
+        {def.variantOf && def.view && <ViewPicker part={part} def={def} onChange={onPartChange} />}
         {def.stations && <ManifoldPicker def={def} disabled={Boolean(part.locked)} onSelect={(partId) => onPartChange({ partId, sizeMm: undefined })} />}
         <section className="border-b border-slate-100 py-3">
           <div className="mb-2 flex items-center gap-2">

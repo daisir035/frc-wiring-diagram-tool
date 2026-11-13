@@ -94,7 +94,8 @@ test('miniPDH keeps legacy six-channel IDs while using REV artwork and connector
 
 test('PDP artwork retains all 24 selectable breaker slots and paired side outputs', () => {
   const def = defs.get('pdp');
-  assert.equal(def.visual, 'vector');
+  assert.equal(def.visual, 'image');
+  assert.equal(def.fuseSlotCover, true);
   assert.equal(def.fuseSlots.length, 24);
   assert.equal(new Set(def.fuseSlots.map((slot) => slot.channel)).size, 24);
   near(def.w / def.h, partSize(def).w / partSize(def).h);
@@ -102,4 +103,29 @@ test('PDP artwork retains all 24 selectable breaker slots and paired side output
     const port = def.ports.find((port) => port.id === `ch${slot.channel}+`);
     assert.ok(Math.abs(port.y - slot.y - slot.h / 2) < 0.02);
   }
+});
+
+test('motor top views keep the side view ports so switching views keeps the wiring', () => {
+  for (const id of ['falcon500', 'krakenX60', 'krakenX44']) {
+    const side = defs.get(id);
+    const top = defs.get(`${id}-top`);
+    assert.equal(top.variantOf, id);
+    assert.equal(top.view, 'top');
+    assert.equal(top.visual, 'vector');
+    assert.equal(top.img, undefined);
+    assert.deepEqual(top.ports.map((port) => port.id), side.ports.map((port) => port.id));
+    // A round face as tall as the side view, with the endpoints on its left rim.
+    const size = partSize(top);
+    near(size.h, partSize(side).h);
+    near(size.w, size.h);
+    for (const port of top.ports) near((port.x - 0.5) ** 2 + (port.y - 0.5) ** 2, 0.25);
+    assert.equal(cablePorts(top).length, 3);
+  }
+});
+
+test('Pigeon 2.0 uses the product photo with CANcoder-style 22 AWG leads', () => {
+  const pigeon = defs.get('pigeon2');
+  assert.equal(pigeon.img, 'CTRE Pigeon 2.0.png');
+  near(partSize(pigeon).w / partSize(pigeon).h, pigeon.w / pigeon.h);
+  assert.deepEqual(pigeon.ports.map((port) => port.id), defs.get('cancoder').ports.map((port) => port.id));
 });

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { BookOpen, ChevronRight, ImagePlus, Search, ShoppingBag, X } from 'lucide-react';
+import { BookOpen, ChevronRight, Search, ShoppingBag, X } from 'lucide-react';
 import type { PartDef } from '../lib/wiring';
 import { PART_CATEGORIES } from '../lib/wiring';
 import PartArtwork from './PartArtwork';
@@ -8,11 +8,10 @@ interface Props {
   defs: PartDef[];
   onAdd: (partId: string) => void;
   onDeleteCustom: (partId: string) => void;
-  onOpenCustomModal: () => void;
   usedPartIds?: ReadonlySet<string>;
 }
 
-export default function LibraryPanel({ defs, onAdd, onDeleteCustom, onOpenCustomModal, usedPartIds }: Props) {
+export default function LibraryPanel({ defs, onAdd, onDeleteCustom, usedPartIds }: Props) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set(['气动']));
@@ -29,9 +28,9 @@ export default function LibraryPanel({ defs, onAdd, onDeleteCustom, onOpenCustom
   }, [defs, query, category]);
 
   return (
-    <aside aria-label="器件库" className="flex h-full w-[264px] shrink-0 flex-col border-r border-slate-200 bg-white">
-      <div className="shrink-0 space-y-2 border-b border-slate-200 p-3">
-        <div className="flex h-9 items-center gap-2 rounded-lg bg-slate-100 px-2.5 focus-within:bg-white focus-within:ring-2 focus-within:ring-accent-600/40">
+    <section aria-label="器件库" className="flex h-full w-full flex-col">
+      <div className="shrink-0 space-y-2 px-1 pb-2">
+        <div className="flex h-9 items-center gap-2 rounded-lg bg-white px-2.5 ring-1 ring-black/5 focus-within:bg-white focus-within:ring-2 focus-within:ring-accent-600/40">
           <Search className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
           <input
             value={query}
@@ -44,17 +43,17 @@ export default function LibraryPanel({ defs, onAdd, onDeleteCustom, onOpenCustom
             ? <button type="button" onClick={() => setQuery('')} aria-label="清除搜索" className="rounded p-1 text-slate-400 hover:text-slate-700"><X className="h-3 w-3" aria-hidden="true" /></button>
             : <span className="text-xs tabular-nums text-slate-400">{filtered.length}</span>}
         </div>
-        <div className="chip-scroll -mx-3 flex gap-1 overflow-x-auto px-3" role="group" aria-label="筛选器件类别">
+        <div className="chip-scroll -mx-1 flex gap-1 overflow-x-auto px-1" role="group" aria-label="筛选器件类别">
           {['all', ...PART_CATEGORIES].map((cat) => (
             <button key={cat} type="button" aria-pressed={category === cat}
               onClick={() => { setCategory(cat); setCollapsed(new Set()); }}
-              className={`h-6 shrink-0 rounded-full px-2.5 text-xs ${category === cat ? 'bg-slate-800 font-medium text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}>
+              className={`h-6 shrink-0 rounded-full px-2.5 text-xs ${category === cat ? 'bg-white font-medium text-slate-900 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:bg-black/5 hover:text-slate-800'}`}>
               {cat === 'all' ? '全部' : cat}
             </button>
           ))}
         </div>
       </div>
-      <div className="flex-1 space-y-2 overflow-y-auto p-2">
+      <div className="h-full min-h-0 flex-1 space-y-2 overflow-y-auto px-1 pb-2">
         {PART_CATEGORIES.map((cat) => {
           const list = filtered.filter((d) => d.category === cat);
           const isCustom = cat === '自定义';
@@ -86,12 +85,7 @@ export default function LibraryPanel({ defs, onAdd, onDeleteCustom, onOpenCustom
           <div className="px-3 py-8 text-center text-[13px] text-slate-500">没有匹配的器件<button type="button" onClick={() => { setQuery(''); setCategory('all'); }} className="mx-auto mt-3 block rounded px-2 py-1 text-accent-700 hover:bg-accent-50">清除筛选</button></div>
         )}
       </div>
-      <div className="shrink-0 border-t border-slate-200 p-2">
-        <button type="button" onClick={onOpenCustomModal} className="flex h-8 w-full items-center justify-center gap-2 rounded-md text-[13px] text-slate-600 hover:bg-slate-100 hover:text-slate-900">
-          <ImagePlus className="h-4 w-4" aria-hidden="true" />导入自定义器件
-        </button>
-      </div>
-    </aside>
+    </section>
   );
 }
 
@@ -107,7 +101,7 @@ function PartCard({
   inUse?: boolean;
 }) {
   return (
-    <div className="group relative rounded-lg transition-colors hover:bg-slate-100 focus-within:bg-slate-100">
+    <div className="group relative rounded-lg transition-colors hover:bg-black/5 focus-within:bg-black/5">
       <button
         type="button"
         draggable
@@ -120,7 +114,7 @@ function PartCard({
         aria-label={`添加 ${def.name}`}
         className="flex w-full cursor-grab flex-col rounded-lg text-left focus-visible:outline-none active:cursor-grabbing"
       >
-        <span className="flex h-[68px] w-full items-center justify-center overflow-hidden rounded-lg bg-slate-50 p-2" aria-hidden="true">
+        <span className="flex h-[68px] w-full items-center justify-center overflow-hidden rounded-lg bg-white p-2" aria-hidden="true">
           <PartArtwork def={def} width="100%" height="100%" className="max-h-full max-w-full" />
         </span>
         <span className="line-clamp-2 min-h-[38px] w-full px-2 py-1.5 text-xs font-medium leading-4 text-slate-700">{def.name}</span>

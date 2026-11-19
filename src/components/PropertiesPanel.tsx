@@ -172,7 +172,7 @@ export default function PropertiesPanel({ part, def, onPartChange, onFuseChange,
     onPartChange({ sizeMm, x: part.x + (previous.w - next.w) / 2, y: part.y + (previous.h - next.h) / 2 });
   };
   return (
-    <aside aria-label="器件属性" className="absolute inset-y-0 right-0 z-30 flex h-full w-72 shrink-0 flex-col border-l border-slate-200 bg-white shadow-xl lg:static lg:z-auto lg:shadow-none">
+    <aside aria-label="器件属性" className="absolute inset-y-2 right-2 z-30 flex w-72 shrink-0 flex-col overflow-hidden rounded-xl border border-black/5 bg-white shadow-xl lg:static lg:h-full lg:z-auto lg:shadow-sm">
       <div className="flex min-h-16 shrink-0 items-center gap-2 border-b border-slate-200 px-4 py-3">
         <CircuitBoard className="h-4 w-4 text-accent-600" aria-hidden="true" />
         <div className="min-w-0 flex-1">

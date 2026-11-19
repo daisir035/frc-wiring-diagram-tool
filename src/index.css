@@ -112,6 +112,11 @@
 }
 
 /* Long presses on the canvas start a marquee, not the iOS callout or text selection. */
+/* The canvas takes focus for shortcuts; a full outline would frame the whole card. */
+svg[aria-label="接线图画布"]:focus {
+  outline: none;
+}
+
 svg[aria-label="接线图画布"] {
   -webkit-touch-callout: none;
   -webkit-user-select: none;

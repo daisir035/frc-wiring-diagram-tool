@@ -1057,7 +1057,7 @@ export default function WiringCanvas(props: Props) {
               <g key={'routing:' + visual.key} data-bundle-id={visual.key} style={{ pointerEvents: 'none' }}
                 data-trace-dim={!posterMode && tracedWireIds.size > 0 && !visual.wireIds.some((id) => tracedWireIds.has(id)) ? 'true' : undefined}>
                 {visual.wireIds.some((id) => selectedWires.has(id)) && (
-                  <path data-export-ignore="true" d={visual.path} fill="none" stroke="#0ea5e9" strokeWidth={jacketWidth + 8} opacity={0.22} strokeLinejoin="round" />
+                  <path data-export-ignore="true" data-selection-outline="" d={visual.path} fill="none" stroke="#0ea5e9" strokeWidth={jacketWidth + 8} opacity={0.22} strokeLinejoin="round" />
                 )}
                 <g>
                   {visual.style === 'drag-chain' ? (
@@ -1132,7 +1132,7 @@ export default function WiringCanvas(props: Props) {
               <g key={wire.id} data-wire-id={wire.id} data-cable-members={cable?.map((wire) => wire.id).join(',')}
                 data-trace-dim={!posterMode && tracedWireIds.size > 0 && !tracedWireIds.has(wire.id) ? 'true' : undefined}>
                 {sel && visiblePaths.map((segment, index) => (
-                  <path data-export-ignore="true" key={'selection-' + index} d={segment} fill="none" stroke="#0ea5e9" strokeWidth={selectionWidth} opacity={0.22} strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />
+                  <path data-export-ignore="true" data-selection-outline="" key={'selection-' + index} d={segment} fill="none" stroke="#0ea5e9" strokeWidth={selectionWidth} opacity={0.22} strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />
                 ))}
                 <g id={`${portFillId}-wire-paint-${wireIndex}`}>
                   {visiblePaths.map((segment, index) => (
@@ -1362,6 +1362,7 @@ export default function WiringCanvas(props: Props) {
                   {sel && (
                     <rect
                       data-export-ignore="true"
+                      data-selection-outline=""
                       x={-5}
                       y={-5}
                       width={w + 10}

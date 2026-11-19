@@ -55,7 +55,7 @@ export default function ToolMenu({ label, items, title, icon }: {
   return (
     <>
       <button ref={button} type="button" onClick={toggle} title={title ?? label} aria-label={label} aria-haspopup="menu" aria-expanded={Boolean(open)}
-        className={`flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-xs font-medium transition-colors ${icon ? 'w-8' : 'px-2.5'} ${open ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
+        className={`flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-[13px] font-medium transition-colors ${icon ? 'w-8' : 'px-2.5'} ${open ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
         {icon ?? label}
       </button>
       {open && (
@@ -75,10 +75,10 @@ export default function ToolMenu({ label, items, title, icon }: {
               {item.divider && <div className="my-1 h-px bg-slate-100" />}
               <button type="button" role="menuitem" disabled={item.disabled}
                 onClick={() => { setOpen(null); button.current?.focus(); item.onSelect(); }}
-                className={`flex h-8 w-full items-center gap-2 px-3 text-left text-xs disabled:cursor-not-allowed disabled:opacity-35 ${item.danger ? 'text-red-600 hover:bg-red-50' : 'text-slate-700 hover:bg-slate-50'}`}>
+                className={`flex h-8 w-full items-center gap-2 px-3 text-left text-[13px] disabled:cursor-not-allowed disabled:opacity-35 ${item.danger ? 'text-red-600 hover:bg-red-50' : 'text-slate-700 hover:bg-slate-50'}`}>
                 {item.swatch && <span className="h-3 w-3 shrink-0 rounded-full ring-1 ring-black/15" style={{ background: item.swatch }} />}
                 <span className="flex-1">{item.label}</span>
-                {item.hint && <span className="text-[10px] text-slate-400">{item.hint}</span>}
+                {item.hint && <span className="text-xs text-slate-400">{item.hint}</span>}
               </button>
             </div>
           ))}

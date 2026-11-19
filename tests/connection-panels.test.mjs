@@ -28,7 +28,7 @@ test('connection panels preserve paired cable and library behavior', async () =>
     const properties = renderToStaticMarkup(createElement(PropertiesPanel, { part: parts[0], def, parts, partDefs, wires,
       pendingFrom: wires[0].a, onPartChange: noop, onFuseChange: noop, onClose: noop, onPortClick: noop, onSelectWire: noop }));
     assert.equal((properties.match(/aria-label="取消起点/g) ?? []).length, 1, 'one clickable interface represents paired pins');
-    assert.match(properties, /当前元件连接/);
+    assert.match(properties, /当前器件连接/);
     assert.match(properties, /外形尺寸（mm）/);
     assert.match(properties, /器件命名与编号/);
 

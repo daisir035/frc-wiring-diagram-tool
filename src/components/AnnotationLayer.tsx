@@ -178,8 +178,8 @@ export default function AnnotationLayer({ annotations, selectedId, legend, k, on
             )}
             {selected && (
               <g data-export-ignore="true">
-                <rect x={a.x - 4} y={a.y - 4} width={a.w + 8} height={a.h + 8} rx={12} fill="none" stroke="#0f766e" strokeWidth={1.5 / k * 1.2} strokeDasharray="5 4" pointerEvents="none" />
-                <rect x={a.x + a.w - handle / 2} y={a.y + a.h - handle / 2} width={handle} height={handle} rx={2} fill="#ffffff" stroke="#0f766e" strokeWidth={1.5}
+                <rect x={a.x - 4} y={a.y - 4} width={a.w + 8} height={a.h + 8} rx={12} fill="none" stroke="#0ea5e9" strokeWidth={1.5 / k * 1.2} strokeDasharray="5 4" pointerEvents="none" />
+                <rect x={a.x + a.w - handle / 2} y={a.y + a.h - handle / 2} width={handle} height={handle} rx={2} fill="#ffffff" stroke="#0ea5e9" strokeWidth={1.5}
                   style={{ cursor: 'nwse-resize' }} onPointerDown={(e) => onPointerDown(e, a.id, 'resize')} />
               </g>
             )}

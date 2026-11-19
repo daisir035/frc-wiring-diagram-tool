@@ -1,7 +1,7 @@
 import { followMountedMufflers, screwOnDropped } from '../lib/pneumaticMounts';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SetStateAction } from 'react';
-import { CircuitBoard, Keyboard, Maximize, Minus, Plus, MousePointer2, Hand,
+import { Keyboard, Maximize, Minus, Plus, MousePointer2, Hand,
   Undo2, Redo2, Ellipsis, Type, ImagePlus, Settings2, Download, PanelLeft, Menu, Folders } from 'lucide-react';
 import WiringCanvas, { ZOOM_MAX, ZOOM_MIN } from '../components/WiringCanvas';
 import LibraryPanel from '../components/LibraryPanel';
@@ -118,7 +118,7 @@ export default function Home() {
       {failure && <>
         <p className="text-sm text-slate-600">原存档不会被覆盖。可以导出备份后重试，或在临时工作区导入工程。</p>
         <div className="flex flex-wrap gap-3">
-          {failure.raw !== undefined && <button className="rounded bg-teal-600 px-3 py-2 text-white" onClick={() => downloadRecovery(failure.raw)}>导出原始存档</button>}
+          {failure.raw !== undefined && <button className="rounded bg-accent-600 px-3 py-2 text-white" onClick={() => downloadRecovery(failure.raw)}>导出原始存档</button>}
           <button className="rounded border px-3 py-2" onClick={() => { setFailure(undefined); setAttempt(n => n + 1); }}>重试读取</button>
           <button className="rounded border px-3 py-2" onClick={() => setSession({ initial: createEmptySavedState(), backend: null, message: '' })}>以临时工作区继续</button>
         </div>
@@ -1112,7 +1112,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
   const exportPNG = async () => {
     const svg = svgRef.current;
     if (!svg || (parts.length === 0 && !backgroundImage && annotations.length === 0)) {
-      window.alert('画布上还没有底盘图或元件');
+      window.alert('画布上还没有底盘图或器件');
       return;
     }
     // 计算内容包围盒（世界坐标）
@@ -1336,7 +1336,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
       {/* 顶部只有一条图标工具栏；工程与页面名称在底部页签栏。 */}
       <div className="toolbar-scroll editor-toolbar flex h-12 min-w-0 shrink-0 items-center gap-0.5 overflow-x-auto border-b border-slate-200 bg-white px-2" role="toolbar" aria-label="编辑工具栏">
         <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label="工程与文件">
-          <ToolBtn icon onClick={() => setLibraryOpen((open) => !open)} active={libraryOpen} title={libraryOpen ? '收起元件库' : '打开元件库'}><PanelLeft aria-hidden="true" /></ToolBtn>
+          <ToolBtn icon onClick={() => setLibraryOpen((open) => !open)} active={libraryOpen} title={libraryOpen ? '收起器件库' : '打开器件库'}><PanelLeft aria-hidden="true" /></ToolBtn>
           <ToolMenu label="文件" title="文件、导出与示例" icon={<Menu aria-hidden="true" />} items={[
             { label: '导入工程', hint: 'Ctrl+O', onSelect: () => sourceInputRef.current?.click() },
             { label: '导出工程', hint: 'Ctrl+S', onSelect: saveSourceFile },
@@ -1406,7 +1406,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
         </div>
         <ToolSep />
         <button type="button" onClick={exportPNG} title="导出当前页面为 PNG" aria-label="导出当前页面为 PNG"
-          className="flex h-8 w-9 shrink-0 items-center justify-center rounded-md bg-teal-700 text-white hover:bg-teal-800">
+          className="flex h-8 w-9 shrink-0 items-center justify-center rounded-md bg-accent-700 text-white hover:bg-accent-800">
           <Download aria-hidden="true" />
         </button>
       </div>
@@ -1416,7 +1416,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
           <button
             className="absolute inset-0 z-40 bg-slate-950/15 md:hidden"
             onClick={() => setLibraryOpen(false)}
-            aria-label="关闭元件库"
+            aria-label="关闭器件库"
           />
         )}
         <div className={`${libraryOpen ? 'flex' : 'hidden'} absolute inset-y-0 left-0 z-[45] md:static md:z-auto`}>
@@ -1556,23 +1556,13 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
             onInteractionStart={history.begin} onInteractionEnd={history.end}
             onReplace={() => backgroundInputRef.current?.click()} onRemove={() => { setBackgroundImage(undefined); setBackgroundPanelOpen(false); setBackgroundEditing(false); }}
             onClose={() => { setBackgroundPanelOpen(false); setBackgroundEditing(false); }} />}
-          {parts.length === 0 && !backgroundImage && annotations.length === 0 && <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="max-w-sm px-6 text-center">
-              <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-teal-100 bg-white text-teal-700 shadow-sm"><CircuitBoard className="h-8 w-8" strokeWidth={1.25} /></div>
-              <h1 className="text-xl font-semibold tracking-tight text-slate-800">从第一个元件开始</h1>
-              <p className="mt-3 text-sm leading-6 text-slate-500">从左侧拖入器件，点击两个端口即可接线。<br />也可以导入底盘图，按实际布局开始设计。</p>
-              <div className="pointer-events-auto mt-6 flex justify-center gap-3"><button onClick={loadDemo} className="rounded-lg bg-teal-700 px-4 py-2.5 text-xs font-medium text-white hover:bg-teal-800">打开控制系统示例</button><button onClick={() => backgroundInputRef.current?.click()} className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-xs text-slate-600 hover:bg-slate-50">导入背景图</button></div>
-              <p className="mt-5 text-[11px] text-slate-400">空格 + 拖动平移 · 滚轮缩放 · Ctrl + Z 撤销</p>
-            </div>
-          </div>}
-          {pendingFrom && <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 whitespace-nowrap rounded-lg border border-teal-200 bg-white/95 px-4 py-2 text-xs text-teal-800 shadow-sm" role="status">选择目标端口完成连接 <kbd className="ml-3 rounded border border-slate-200 bg-slate-50 px-1 text-[10px] text-slate-500">Esc 取消</kbd></div>}
           {showShortcuts && (
-            <div className="absolute bottom-3 right-3 z-10 max-h-[calc(100%-24px)] w-80 max-w-[calc(100%-24px)] overflow-y-auto rounded-lg border border-slate-200 bg-white p-3 text-[11px] text-slate-600 shadow-lg" role="dialog" aria-label="快捷键">
-              <div className="mb-2 text-xs font-semibold text-slate-800">快捷键与操作</div>
+            <div className="absolute bottom-3 right-3 z-10 max-h-[calc(100%-24px)] w-80 max-w-[calc(100%-24px)] overflow-y-auto rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600 shadow-lg" role="dialog" aria-label="快捷键">
+              <div className="mb-2 text-[13px] font-semibold text-slate-800">快捷键与操作</div>
               <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
                 {SHORTCUTS.map(([keys, action]) => (
                   <div key={keys} className="contents">
-                    <dt className="whitespace-nowrap"><kbd className="rounded border border-slate-200 bg-slate-50 px-1 text-[10px] text-slate-700">{keys}</kbd></dt>
+                    <dt className="whitespace-nowrap"><kbd className="rounded border border-slate-200 bg-slate-50 px-1 text-xs text-slate-700">{keys}</kbd></dt>
                     <dd>{action}</dd>
                   </div>
                 ))}
@@ -1666,7 +1656,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
         )}
       </div>
 
-      {(notice || persistence.error) && <div className={`flex shrink-0 flex-wrap items-center gap-3 border-t border-slate-200 bg-white px-3 py-1.5 text-xs ${persistence.error ? 'text-red-600' : 'text-slate-500'}`} role={persistence.error ? 'alert' : 'status'}>
+      {(notice || persistence.error) && <div className={`flex shrink-0 flex-wrap items-center gap-3 border-t border-slate-200 bg-white px-3 py-1.5 text-[13px] ${persistence.error ? 'text-red-600' : 'text-slate-500'}`} role={persistence.error ? 'alert' : 'status'}>
         <span className="flex-1">{persistence.error || notice}</span>
         {persistence.error && <><button className="underline" onClick={saveSourceFile}>导出工程备份</button>{backend && <button className="underline" onClick={persistence.retry}>重试保存</button>}</>}
         {recovery !== undefined && <button className="underline" onClick={() => downloadRecovery(recovery)}>导出原始存档</button>}
@@ -1674,7 +1664,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
       </div>}
 
       {/* 底部页签栏：工程名、页面标签和状态 */}
-      <div className="workspace-nav flex h-10 shrink-0 items-center gap-2 border-t border-slate-200 bg-white px-2 text-[11px] text-slate-500">
+      <div className="workspace-nav flex h-10 shrink-0 items-center gap-2 border-t border-slate-200 bg-white px-2 text-xs text-slate-500">
         {renamingEngineeringProjectId ? (
           <input autoFocus value={engineeringProjectNameDraft} onChange={(event) => setEngineeringProjectNameDraft(event.target.value)}
             onFocus={(event) => event.currentTarget.select()} onBlur={() => commitEngineeringProjectRename(activeEngineeringProjectId)}
@@ -1682,14 +1672,14 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
             aria-label="工程名称" className="field-input mt-0 h-7 w-40 shrink-0" />
         ) : (
           <button type="button" onClick={renameActiveEngineeringProject} title="重命名工程"
-            className="h-7 max-w-40 shrink-0 truncate rounded-md px-2 text-xs font-semibold text-slate-800 hover:bg-slate-100">{activeEngineeringProject.name}</button>
+            className="h-7 max-w-40 shrink-0 truncate rounded-md px-2 text-[13px] font-semibold text-slate-800 hover:bg-slate-100">{activeEngineeringProject.name}</button>
         )}
         <span className="h-4 w-px shrink-0 bg-slate-200" aria-hidden="true" />
         <div className="toolbar-scroll flex h-full min-w-0 flex-1 items-center gap-1 overflow-x-auto" role="group" aria-label="页面">
         {projects.map((project) => renamingProjectId === project.id ? (
           <div
             key={project.id}
-            className="flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-teal-500 bg-white px-1.5 text-xs ring-2 ring-teal-600/10"
+            className="flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-accent-500 bg-white px-1.5 text-[13px] ring-2 ring-accent-600/10"
           >
             <input
               autoFocus
@@ -1708,9 +1698,9 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
                 }
               }}
               aria-label="页面名称"
-              className="h-5 w-32 rounded border-0 bg-transparent px-1 font-semibold text-teal-800 outline-none"
+              className="h-5 w-32 rounded border-0 bg-transparent px-1 font-semibold text-accent-800 outline-none"
             />
-            <span className="rounded bg-slate-100 px-1 text-[9px] font-normal text-slate-400">{project.parts.length}</span>
+            <span className="rounded bg-slate-100 px-1 text-[11px] font-normal text-slate-400">{project.parts.length}</span>
           </div>
         ) : (
           <button
@@ -1720,15 +1710,15 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
               if (project.id === activeProjectId) renameActiveProject();
             }}
             aria-pressed={project.id === activeProjectId}
-            title={`${project.name}：${project.parts.length} 个元件、${project.wires.length} 根导线；双击当前页面标签可重命名`}
-            className={`flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs transition-colors ${
+            title={`${project.name}：${project.parts.length} 个器件、${project.wires.length} 根导线；双击当前页面标签可重命名`}
+            className={`flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-[13px] transition-colors ${
               project.id === activeProjectId
-                ? 'border-teal-200 bg-teal-50 font-semibold text-teal-800'
+                ? 'border-accent-200 bg-accent-50 font-semibold text-accent-800'
                 : 'border-transparent text-slate-500 hover:bg-slate-100 hover:text-slate-700'
             }`}
           >
             <span className="max-w-36 truncate">{project.name}</span>
-            <span className="rounded bg-slate-100 px-1 text-[9px] font-normal text-slate-400">{project.parts.length}</span>
+            <span className="rounded bg-slate-100 px-1 text-[11px] font-normal text-slate-400">{project.parts.length}</span>
           </button>
         ))}
           <button type="button" onClick={addProject} title="在当前工程中新建空白页面" aria-label="新建页面"
@@ -1744,9 +1734,9 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
           ]} />
         </div>
         <span className="hidden shrink-0 whitespace-nowrap tabular-nums md:inline">
-          <b className="font-medium text-slate-700">{parts.length}</b> 个元件 · <b className="font-medium text-slate-700">{wires.length - cables.size / 2}</b> 条线路
-          {selCount > 0 && <span className="text-teal-700"> · 已选 {selCount} 项</span>}
-          {pendingInlineWireId && selectedWire?.id === pendingInlineWireId && <span className="text-teal-700"> · 放置{INLINE_CONNECTOR_STYLES[inlineKind].label}</span>}
+          <b className="font-medium text-slate-700">{parts.length}</b> 个器件 · <b className="font-medium text-slate-700">{wires.length - cables.size / 2}</b> 条线路
+          {selCount > 0 && <span className="text-accent-700"> · 已选 {selCount} 项</span>}
+          {pendingInlineWireId && selectedWire?.id === pendingInlineWireId && <span className="text-accent-700"> · 放置{INLINE_CONNECTOR_STYLES[inlineKind].label}</span>}
         </span>
         <span className={`hidden shrink-0 whitespace-nowrap sm:inline ${persistence.error ? 'text-red-600' : 'text-slate-400'}`} role="status">{persistence.status}</span>
         <span className="h-4 w-px shrink-0 bg-slate-200" aria-hidden="true" />
@@ -1828,8 +1818,8 @@ function ToolBtn({
       title={title}
       aria-label={title}
       aria-pressed={active}
-      className={`flex h-8 shrink-0 items-center justify-center gap-1.5 text-xs font-medium rounded-md transition-colors disabled:opacity-35 disabled:cursor-not-allowed whitespace-nowrap ${icon ? 'w-8' : 'px-2'} ${
-        active ? 'bg-teal-50 text-teal-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+      className={`flex h-8 shrink-0 items-center justify-center gap-1.5 text-[13px] font-medium rounded-md transition-colors disabled:opacity-35 disabled:cursor-not-allowed whitespace-nowrap ${icon ? 'w-8' : 'px-2'} ${
+        active ? 'bg-accent-50 text-accent-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
       }`}
     >
       {children}

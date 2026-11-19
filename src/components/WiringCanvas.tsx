@@ -1057,7 +1057,7 @@ export default function WiringCanvas(props: Props) {
               <g key={'routing:' + visual.key} data-bundle-id={visual.key} style={{ pointerEvents: 'none' }}
                 data-trace-dim={!posterMode && tracedWireIds.size > 0 && !visual.wireIds.some((id) => tracedWireIds.has(id)) ? 'true' : undefined}>
                 {visual.wireIds.some((id) => selectedWires.has(id)) && (
-                  <path data-export-ignore="true" d={visual.path} fill="none" stroke="#0f766e" strokeWidth={jacketWidth + 8} opacity={0.22} strokeLinejoin="round" />
+                  <path data-export-ignore="true" d={visual.path} fill="none" stroke="#0ea5e9" strokeWidth={jacketWidth + 8} opacity={0.22} strokeLinejoin="round" />
                 )}
                 <g>
                   {visual.style === 'drag-chain' ? (
@@ -1132,7 +1132,7 @@ export default function WiringCanvas(props: Props) {
               <g key={wire.id} data-wire-id={wire.id} data-cable-members={cable?.map((wire) => wire.id).join(',')}
                 data-trace-dim={!posterMode && tracedWireIds.size > 0 && !tracedWireIds.has(wire.id) ? 'true' : undefined}>
                 {sel && visiblePaths.map((segment, index) => (
-                  <path data-export-ignore="true" key={'selection-' + index} d={segment} fill="none" stroke="#0f766e" strokeWidth={selectionWidth} opacity={0.22} strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />
+                  <path data-export-ignore="true" key={'selection-' + index} d={segment} fill="none" stroke="#0ea5e9" strokeWidth={selectionWidth} opacity={0.22} strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />
                 ))}
                 <g id={`${portFillId}-wire-paint-${wireIndex}`}>
                   {visiblePaths.map((segment, index) => (
@@ -1368,7 +1368,7 @@ export default function WiringCanvas(props: Props) {
                       height={h + 10}
                       rx={8}
                       fill="none"
-                      stroke={part.locked ? '#f59e0b' : '#0f766e'}
+                      stroke={part.locked ? '#f59e0b' : '#0ea5e9'}
                       strokeWidth={2.5}
                       strokeDasharray="7 5"
                     />
@@ -1526,10 +1526,10 @@ export default function WiringCanvas(props: Props) {
                 const fontSize = 10 / view.k;
                 const width = [...label].reduce((sum, char) => sum + (/[\u2e80-\uffff]/.test(char) ? 1 : 0.58), 0) * fontSize + 14 / view.k;
                 return <g key={key} transform={`translate(${point.x} ${point.y})`}>
-                  <circle r={7 / view.k} fill="#ccfbf1" fillOpacity={0.65} stroke="#0f766e" strokeWidth={1.4 / view.k} />
+                  <circle r={7 / view.k} fill="#e0f2fe" fillOpacity={0.65} stroke="#0ea5e9" strokeWidth={1.4 / view.k} />
                   {tracedEndpoints.size <= 2 && <g transform={`translate(${10 / view.k} ${8 / view.k})`}>
                     <rect width={width} height={21 / view.k} rx={4 / view.k} fill="#ffffff" stroke="#99d5c9" strokeWidth={1 / view.k} />
-                    <text x={7 / view.k} y={14 / view.k} fontSize={fontSize} fontWeight={600} fill="#0f766e">{label}</text>
+                    <text x={7 / view.k} y={14 / view.k} fontSize={fontSize} fontWeight={600} fill="#0369a1">{label}</text>
                   </g>}
                 </g>;
               })}
@@ -1677,8 +1677,8 @@ export default function WiringCanvas(props: Props) {
               <rect
                 x={backgroundImage.x} y={backgroundImage.y}
                 width={backgroundImage.width} height={backgroundImage.height}
-                fill="#0f766e" fillOpacity={0.025}
-                stroke="#0f766e" strokeWidth={1.5 / view.k} strokeDasharray={`${6 / view.k} ${4 / view.k}`}
+                fill="#0ea5e9" fillOpacity={0.025}
+                stroke="#0ea5e9" strokeWidth={1.5 / view.k} strokeDasharray={`${6 / view.k} ${4 / view.k}`}
                 style={{ cursor: 'move' }} role="button" tabIndex={0}
                 aria-label="移动背景图；拖动或使用方向键，Shift 加速"
                 onPointerDown={(event) => startBackgroundDrag(event)}
@@ -1711,7 +1711,7 @@ export default function WiringCanvas(props: Props) {
                     }));
                   }}>
                   <rect x={-12 * hit / view.k} y={-12 * hit / view.k} width={24 * hit / view.k} height={24 * hit / view.k} fill="transparent" />
-                  <rect x={-5 / view.k} y={-5 / view.k} width={10 / view.k} height={10 / view.k} rx={2 / view.k} fill="#ffffff" stroke="#0f766e" strokeWidth={1.5 / view.k} pointerEvents="none" />
+                  <rect x={-5 / view.k} y={-5 / view.k} width={10 / view.k} height={10 / view.k} rx={2 / view.k} fill="#ffffff" stroke="#0ea5e9" strokeWidth={1.5 / view.k} pointerEvents="none" />
                 </g>;
               })}
             </g>

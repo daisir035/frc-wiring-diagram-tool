@@ -270,22 +270,22 @@ test('one connection creates both power conductors and reconnecting adds no dupl
   const b = end('krakenX60', 'pwr+');
   const wires = connect([], a, b);
   assert.equal(wires.length, 2);
-  assert.deepEqual(wires.map((wire) => wire.color), ['#dc2626', '#1f2937']);
+  assert.deepEqual(wires.map((wire) => wire.color), ['#e8262c', '#231f20']);
   assert.equal(connect(wires, b, a), wires);
   assert.equal(connect([wires[0]], a, b).length, 2);
   const cable = pairedWireGroups(wires, cableParts, defs);
   assert.equal(cable.get(wires[0].id), cable.get(wires[1].id));
 });
 
-test('battery negative resolves the negative conductor of a merged connector in either direction', () => {
+test('battery negative resolves the negative conductor of a merged branch connector in either direction', () => {
   const battery = end('battery12v', 'negative');
-  const power = end('pdh', 'batt+');
+  const power = end('pdh', 'ch1+');
   for (const [a, b] of [[battery, power], [power, battery]]) {
     const wires = connect([], a, b);
     assert.equal(wires.length, 1);
-    assert.equal(wires[0].color, '#1f2937');
+    assert.equal(wires[0].color, '#231f20');
     const pdhEnd = wires[0].a.uid === 'pdh' ? wires[0].a : wires[0].b;
-    assert.equal(pdhEnd.portId, 'batt-');
+    assert.equal(pdhEnd.portId, 'ch1-');
     assert.equal(pairedWireGroups(wires, cableParts, defs).size, 0);
   }
 });
@@ -294,7 +294,7 @@ test('CAN pairing retains IN/OUT and never pairs unrelated low-side wires', () =
   const a = end('canivore', 'canH');
   const b = end('krakenX60', 'canInH');
   const wires = connect([], a, b);
-  assert.deepEqual(wires.map((wire) => wire.color), ['#eab308', '#16a34a']);
+  assert.deepEqual(wires.map((wire) => wire.color), ['#f2d22e', '#2fae4a']);
   assert.equal(wires[1].b.portId, 'canInL');
   assert.equal(pairedWireGroups(wires, cableParts, defs).size, 2);
   const unrelated = [wires[0], { ...wires[1], b: end('krakenX60', 'canOutL') }];

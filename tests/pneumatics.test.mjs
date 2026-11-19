@@ -81,7 +81,7 @@ test('bundled sample loads with valid ports and its tubes survive source round t
  for(const w of page.wires) assert.equal(connectionIssue(w.a,w.b,page.parts,defs,false),null,w.id);
  const tube=page.wires.find(w=>w.tubeOdMm);
  assert.equal(tube.awg,undefined);
- assert.equal(tube.pathMode,'free');
+ assert.equal(tube.pathMode,'orthogonal');
  const report=buildBom('Example',[page],defs,DEFAULT_BOM_OPTIONS);
  assert.equal(report.lines.filter(l=>l.kind==='气管').length,page.wires.filter(w=>w.tubeOdMm).length);
  assert.ok(page.wires.filter(w=>w.tubeOdMm).length >= 15);

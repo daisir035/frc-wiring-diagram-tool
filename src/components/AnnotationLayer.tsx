@@ -2,6 +2,7 @@ import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { Annotation } from '../lib/annotations';
 import { PRESSURE_SIDES } from '../lib/pneumaticZones';
 import { awgStrokeWidth } from '../lib/wireStyle';
+import { PORT_TYPE_COLOR } from '../lib/wiring';
 import type { PressureSide } from '../lib/pneumaticZones';
 
 export interface LegendContent {
@@ -58,8 +59,8 @@ function Note({ a }: { a: Annotation }) {
 function Pair({ x, y, h, width, label }: { x: number; y: number; h: number; width: number; label: string }) {
   return (
     <g>
-      <rect x={x} y={y} width={width} height={h} rx={width / 2} fill="#e8262c" />
-      <rect x={x + width + 2.5} y={y} width={width} height={h} rx={width / 2} fill="#231f20" />
+      <rect x={x} y={y} width={width} height={h} rx={width / 2} fill={PORT_TYPE_COLOR['pwr+']} />
+      <rect x={x + width + 2.5} y={y} width={width} height={h} rx={width / 2} fill={PORT_TYPE_COLOR['pwr-']} />
       <text x={x + width + 1.25} y={y + h + 14} fontSize={9} fontWeight={700} fill={INK} textAnchor="middle">{label}</text>
     </g>
   );
@@ -96,9 +97,9 @@ function TitleBlock({ a, legend }: { a: Annotation; legend: LegendContent }) {
     );
   } });
   const signals: Array<{ title: string; detail: string; colors: string[]; labels: string[]; width: number }> = [];
-  if (legend.power) signals.push({ title: '电源', detail: '12V DC 主电', colors: ['#e8262c', '#231f20'], labels: ['+', '−'], width: 3 });
-  if (legend.pwm) signals.push({ title: 'PWM', detail: '最小 26 AWG', colors: ['#231f20', '#e8262c', '#d9d9db'], labels: ['GND', '+5V', 'SIG'], width: 1.6 });
-  if (legend.can) signals.push({ title: 'CAN', detail: '最小 28 AWG', colors: ['#f2d22e', '#2fae4a'], labels: ['H', 'L'], width: 1.6 });
+  if (legend.power) signals.push({ title: '电源', detail: '12V DC 主电', colors: [PORT_TYPE_COLOR['pwr+'], PORT_TYPE_COLOR['pwr-']], labels: ['+', '−'], width: 3 });
+  if (legend.pwm) signals.push({ title: 'PWM', detail: '最小 26 AWG', colors: [PORT_TYPE_COLOR['pwr-'], PORT_TYPE_COLOR['pwr+'], '#d9d9db'], labels: ['GND', '+5V', 'SIG'], width: 1.6 });
+  if (legend.can) signals.push({ title: 'CAN', detail: '最小 28 AWG', colors: [PORT_TYPE_COLOR.canH, PORT_TYPE_COLOR.canL], labels: ['H', 'L'], width: 1.6 });
   if (signals.length || legend.gauges.length) boxes.push({ weight: 0.35 + signals.length * 0.34 + legend.gauges.length * 0.17, render: (x) => {
     let cursor = x + 18;
     const groups = signals.map((group) => {
@@ -177,8 +178,8 @@ export default function AnnotationLayer({ annotations, selectedId, legend, k, on
             )}
             {selected && (
               <g data-export-ignore="true">
-                <rect x={a.x - 4} y={a.y - 4} width={a.w + 8} height={a.h + 8} rx={12} fill="none" stroke="#0ea5e9" strokeWidth={1.5 / k * 1.2} strokeDasharray="5 4" pointerEvents="none" />
-                <rect x={a.x + a.w - handle / 2} y={a.y + a.h - handle / 2} width={handle} height={handle} rx={2} fill="#ffffff" stroke="#0ea5e9" strokeWidth={1.5}
+                <rect x={a.x - 4} y={a.y - 4} width={a.w + 8} height={a.h + 8} rx={12} fill="none" stroke="#0f766e" strokeWidth={1.5 / k * 1.2} strokeDasharray="5 4" pointerEvents="none" />
+                <rect x={a.x + a.w - handle / 2} y={a.y + a.h - handle / 2} width={handle} height={handle} rx={2} fill="#ffffff" stroke="#0f766e" strokeWidth={1.5}
                   style={{ cursor: 'nwse-resize' }} onPointerDown={(e) => onPointerDown(e, a.id, 'resize')} />
               </g>
             )}

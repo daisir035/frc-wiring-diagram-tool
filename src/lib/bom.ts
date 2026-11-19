@@ -128,7 +128,8 @@ export function buildBom(project: string, pages: BomPage[], defs: ReadonlyMap<st
           continue;
         }
         if (!allowedFuseRatings(def, Number(channel)).includes(rating)) report.warnings.push(`${pageName}：${def.name} CH ${channel} 的 ${rating} A 保护规格与槽位限制不符。`);
-        const format = part.partId === 'pdh' ? (Number(channel) >= 20 ? '小型插片保险丝' : '支路断路器') : 'ATO 断路器 / 保险丝';
+        const format = part.partId === 'miniPdp' ? 'ATM 小型插片保险丝'
+          : part.partId === 'pdh' ? (Number(channel) >= 20 ? '小型插片保险丝' : '支路断路器') : 'ATO 断路器 / 保险丝';
         add({ key: keyOf('fuse', format, rating), category: '保险丝 / 断路器', name: format, specification: `${rating} A`,
           quantity: 1, unit: '个', pages: [pageName], notes: ['仅统计已配置槽位；采购时核对封装'], source: '' });
       }

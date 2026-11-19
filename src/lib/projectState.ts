@@ -5,6 +5,7 @@ import {
   PORT_TYPE_COLOR,
   WIRE_GAUGES,
   WIRE_TERMINAL_OPTIONS,
+  allowedFuseRatings,
   anchorWireBundles,
   uid,
   wireGaugeRule,
@@ -244,7 +245,12 @@ function validatePlacedPart(value: unknown, path: string, defs: ReadonlyMap<stri
         fail(`${path}.${key}`, '保险丝通道不属于该器件');
       }
       // Structured clones retain undefined properties; JSON drops them. Both mean an unset fuse.
-      if (value !== undefined) rating(value, `${path}.${key}`);
+      if (value !== undefined) {
+        rating(value, `${path}.${key}`);
+        // MPM fuse support is new: reject overspecified channels at import as well as in the editor.
+        // Keep legacy PDP/PDH data readable; their existing engineering checks report slot violations.
+        if (def.id === 'miniPdp') member(value, allowedFuseRatings(def, Number(key)), `${path}.${key}`);
+      }
     });
   });
   return { ...source, ...(source.fuses === undefined ? {} : {

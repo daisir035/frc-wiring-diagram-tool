@@ -104,7 +104,7 @@ export function updateWorkspaceSaveStatus<T>(
 ): WorkspaceSaveStatus<T> {
   if (status === 'saving') return { ...previous, saving: true };
   if (status === 'saved') return { snapshot, saving: false };
-  return { saving: false, error: error instanceof Error ? error.message : '本地保存失败，可能空间不足，请导出源文件备份。' };
+  return { saving: false, error: error instanceof Error ? error.message : '本地保存失败，可能空间不足，请导出工程备份。' };
 }
 
 /** Serialize writes and keep only the newest queued snapshot during a slow write. */

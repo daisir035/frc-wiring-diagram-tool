@@ -8,7 +8,7 @@ export function useWorkspacePersistence(state: SavedState, backend: WorkspaceBac
   const [result, setResult] = useState<WorkspaceSaveStatus<SavedState>>(() => ({ snapshot: backend ? state : undefined, saving: false }));
   const queue = useMemo(() => {
     return createSaveQueue<SavedState>(async (snapshot) => {
-      if (!backend) throw new Error('临时工作区不自动保存，请下载工程源文件。');
+      if (!backend) throw new Error('临时工作区不自动保存，请导出工程。');
       await backend.write(snapshot);
     }, (status, error, snapshot) => {
       setResult(previous => updateWorkspaceSaveStatus(previous, status, error, snapshot));
@@ -38,6 +38,6 @@ export function useWorkspacePersistence(state: SavedState, backend: WorkspaceBac
       window.removeEventListener('beforeunload', beforeUnload);
     };
   }, [state, saved, backend, queue]);
-  return { status: !backend ? '临时工作区 · 请导出备份' : result.error ? '自动保存失败' : saved ? '已自动保存' : '待保存…',
-    error: !backend ? '当前为临时工作区，关闭前请保存源文件。' : result.error, retry: () => queue(state) };
+  return { status: !backend ? '临时工作区 · 请导出工程' : result.error ? '自动保存失败' : saved ? '已自动保存' : '待保存…',
+    error: !backend ? '当前为临时工作区，关闭前请导出工程。' : result.error, retry: () => queue(state) };
 }

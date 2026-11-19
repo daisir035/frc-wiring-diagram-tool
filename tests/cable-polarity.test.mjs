@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { BUILTIN_PARTS, cablePort, cablePortPolarity, partSize, portWorld, wireRoute } from '../src/lib/wiring.ts';
+import { BUILTIN_PARTS, buildWireGeometry, cablePort, cablePorts, cablePortPolarity, connectWireEnds,
+  pairedWireGroups, partSize, portWorld, updateWireWaypoints, wireRoute } from '../src/lib/wiring.ts';
 import { cableConductorPaths, cablePolarity } from '../src/lib/cableGeometry.ts';
 
 const defs = new Map(BUILTIN_PARTS.map((def) => [def.id, def]));
@@ -14,7 +15,7 @@ function endpoint(part, id) {
   return { center, axis: { x: axis.x * Math.cos(angle) - axis.y * Math.sin(angle), y: axis.x * Math.sin(angle) + axis.y * Math.cos(angle) } };
 }
 
-test('PDH port colors follow its opposite pin orders on left, right and battery inputs', () => {
+test('PDH channel colors follow its opposite pin orders on left and right', () => {
   const def = defs.get('pdh');
   for (let channel = 0; channel < 24; channel++) {
     const positive = def.ports.find((port) => port.id === `ch${channel}+`);
@@ -24,7 +25,55 @@ test('PDH port colors follow its opposite pin orders on left, right and battery 
     near(axis.y, channel < 10 ? -1 : 1);
     assert.deepEqual(cablePortPolarity(def, negative), axis);
   }
-  assert.deepEqual(cablePortPolarity(def, def.ports.find((port) => port.id === 'batt+')), { x: -1, y: 0 });
+});
+
+test('PDH main terminals keep separate physical anchors and parallel outward leads at every rotation', () => {
+  const def = defs.get('pdh');
+  const inputs = cablePorts(def).filter(port => port.id.startsWith('batt'));
+  assert.deepEqual(inputs.map(port => port.id), ['batt+', 'batt-']);
+  for (const rot of [0, 90, 180, 270]) {
+    const part = { uid: 'pdh', partId: 'pdh', x: 100, y: 100, rot, sizeMm: { w: 150, h: 250 } };
+    const starts = inputs.map(port => portWorld(part, def, port));
+    near(Math.hypot(starts[0].x - starts[1].x, starts[0].y - starts[1].y), (0.798 - 0.664) * 150);
+    for (const [index, port] of inputs.entries()) {
+      assert.equal(cablePortPolarity(def, port), undefined);
+      assert.deepEqual(port, def.ports.find(item => item.id === port.id));
+      const start = starts[index];
+      const target = { x: start.x + start.nx * 300 + start.ny * (index ? 80 : -80),
+        y: start.y + start.ny * 300 - start.nx * (index ? 80 : -80), nx: -start.nx, ny: -start.ny };
+      const route = wireRoute(start, target).points;
+      near(route[0].x, start.x);
+      near(route[0].y, start.y);
+      const dx = route[1].x - start.x;
+      const dy = route[1].y - start.y;
+      near(dx * start.ny - dy * start.nx, 0);
+      assert.ok(dx * start.nx + dy * start.ny > 0, 'lead must leave the physical terminal outward');
+    }
+    near(starts[0].nx, starts[1].nx);
+    near(starts[0].ny, starts[1].ny);
+  }
+});
+
+test('PDH positive and negative main leads connect and edit independently without changing branch pairing', () => {
+  const parts = ['left', 'right'].map((uid, index) => ({ uid, partId: 'pdh', x: index * 350, y: index * 300, rot: 0 }));
+  const end = (uid, portId) => ({ uid, portId });
+  let wires = connectWireEnds([], end('left', 'batt+'), end('right', 'batt+'), parts, defs, '#2563eb');
+  assert.equal(wires.length, 1);
+  wires = connectWireEnds(wires, end('left', 'batt-'), end('right', 'batt-'), parts, defs, '#2563eb');
+  assert.deepEqual(wires.map(wire => wire.color), ['#e8262c', '#231f20']);
+  assert.equal(connectWireEnds(wires, end('left', 'batt-'), end('right', 'batt+'), parts, defs, '#2563eb'), wires);
+  const groups = pairedWireGroups(wires, parts, defs);
+  assert.equal(groups.size, 0);
+  const edited = updateWireWaypoints(wires, wires[0].id, () => [{ id: 'guide', x: 200, y: 400, kind: 'guide' }], groups);
+  assert.equal(edited[1], wires[1], 'editing positive must leave the negative lead unchanged');
+  const getPort = end => {
+    const part = parts.find(part => part.uid === end.uid);
+    const def = defs.get(part.partId);
+    return portWorld(part, def, cablePort(def, def.ports.find(port => port.id === end.portId)));
+  };
+  const geometry = buildWireGeometry(edited, getPort, () => 0, groups);
+  assert.notEqual(geometry.routes.get(wires[0].id), geometry.routes.get(wires[1].id));
+  assert.equal(connectWireEnds([], end('left', 'ch0+'), end('right', 'ch0+'), parts, defs, '#2563eb').length, 2);
 });
 
 test('red and black conductors meet the correct colored halves on every PDH channel and rotation', () => {

@@ -125,7 +125,7 @@
             "y": 620,
             "rot": 0,
             "customName": "12V 电池",
-            "caption": "密封铅酸 · 每场比赛更换满电电池",
+            "caption": "",
             "labelPos": "bottom"
           },
           {
@@ -172,8 +172,8 @@
             },
             "color": "#e8262c",
             "awg": 6,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
@@ -190,7 +190,7 @@
               },
               {
                 "id": "g1-2",
-                "x": 704.3,
+                "x": 704.28,
                 "y": 505,
                 "kind": "guide"
               }
@@ -208,13 +208,13 @@
             },
             "color": "#e8262c",
             "awg": 6,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g2-0",
-                "x": 726.7,
+                "x": 726.72,
                 "y": 608,
                 "kind": "guide"
               },
@@ -232,7 +232,7 @@
               },
               {
                 "id": "g2-3",
-                "x": 633.8,
+                "x": 633.787,
                 "y": 480,
                 "kind": "guide"
               }
@@ -250,14 +250,14 @@
             },
             "color": "#231f20",
             "awg": 6,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g3-0",
                 "x": 758,
-                "y": 667.1,
+                "y": 667.12,
                 "kind": "guide"
               },
               {
@@ -268,7 +268,7 @@
               },
               {
                 "id": "g3-2",
-                "x": 648.7,
+                "x": 648.6777500000001,
                 "y": 470,
                 "kind": "guide"
               }
@@ -286,20 +286,20 @@
             },
             "color": "#e8262c",
             "awg": 12,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g4-0",
                 "x": 740,
-                "y": 84.1,
+                "y": 87.92,
                 "kind": "guide"
               },
               {
                 "id": "g4-1",
                 "x": 740,
-                "y": 338,
+                "y": 341.585375,
                 "kind": "guide"
               }
             ]
@@ -316,20 +316,20 @@
             },
             "color": "#231f20",
             "awg": 12,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g5-0",
                 "x": 740,
-                "y": 91.8,
+                "y": 87.92,
                 "kind": "guide"
               },
               {
                 "id": "g5-1",
                 "x": 740,
-                "y": 345.2,
+                "y": 341.585375,
                 "kind": "guide"
               }
             ]
@@ -346,20 +346,20 @@
             },
             "color": "#e8262c",
             "awg": 12,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g6-0",
                 "x": 760,
-                "y": 259.7,
+                "y": 262.32,
                 "kind": "guide"
               },
               {
                 "id": "g6-1",
                 "x": 760,
-                "y": 353,
+                "y": 356.6137083333333,
                 "kind": "guide"
               }
             ]
@@ -376,20 +376,20 @@
             },
             "color": "#231f20",
             "awg": 12,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g7-0",
                 "x": 760,
-                "y": 265,
+                "y": 262.32,
                 "kind": "guide"
               },
               {
                 "id": "g7-1",
                 "x": 760,
-                "y": 360.2,
+                "y": 356.6137083333333,
                 "kind": "guide"
               }
             ]
@@ -406,14 +406,14 @@
             },
             "color": "#e8262c",
             "awg": 22,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g8-0",
                 "x": 185,
-                "y": 88.8,
+                "y": 93.83500000000001,
                 "kind": "guide"
               },
               {
@@ -424,14 +424,14 @@
               },
               {
                 "id": "g8-2",
-                "x": 476,
+                "x": 480,
                 "y": 28,
                 "kind": "guide"
               },
               {
                 "id": "g8-3",
-                "x": 476,
-                "y": 405.6,
+                "x": 480,
+                "y": 403.6899625,
                 "kind": "guide"
               }
             ]
@@ -448,14 +448,14 @@
             },
             "color": "#231f20",
             "awg": 22,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g9-0",
                 "x": 185,
-                "y": 98.9,
+                "y": 93.83500000000001,
                 "kind": "guide"
               },
               {
@@ -466,14 +466,14 @@
               },
               {
                 "id": "g9-2",
-                "x": 476,
+                "x": 480,
                 "y": 28,
                 "kind": "guide"
               },
               {
                 "id": "g9-3",
-                "x": 476,
-                "y": 401.8,
+                "x": 480,
+                "y": 403.6899625,
                 "kind": "guide"
               }
             ]
@@ -490,26 +490,32 @@
             },
             "color": "#e8262c",
             "awg": 18,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
-                "id": "g10-0",
-                "x": 186.3,
-                "y": 285,
+                "id": "g10-exit",
+                "x": 200,
+                "y": 313.2239934744517,
+                "kind": "guide"
+              },
+              {
+                "id": "g10-rise",
+                "x": 200,
+                "y": 274,
                 "kind": "guide"
               },
               {
                 "id": "g10-1",
                 "x": 470,
-                "y": 285,
+                "y": 274,
                 "kind": "guide"
               },
               {
                 "id": "g10-2",
                 "x": 470,
-                "y": 413.5,
+                "y": 411.5798375,
                 "kind": "guide"
               }
             ]
@@ -526,26 +532,32 @@
             },
             "color": "#231f20",
             "awg": 18,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
-                "id": "g11-0",
-                "x": 193.6,
-                "y": 285,
+                "id": "g11-exit",
+                "x": 200,
+                "y": 313.2239934744517,
+                "kind": "guide"
+              },
+              {
+                "id": "g11-rise",
+                "x": 200,
+                "y": 274,
                 "kind": "guide"
               },
               {
                 "id": "g11-1",
                 "x": 470,
-                "y": 285,
+                "y": 274,
                 "kind": "guide"
               },
               {
                 "id": "g11-2",
                 "x": 470,
-                "y": 409.7,
+                "y": 411.5798375,
                 "kind": "guide"
               }
             ]
@@ -562,13 +574,13 @@
             },
             "color": "#e8262c",
             "awg": 18,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g12-0",
-                "x": 1050,
+                "x": 1053.5,
                 "y": 760,
                 "kind": "guide"
               },
@@ -581,7 +593,7 @@
               {
                 "id": "g12-2",
                 "x": 780,
-                "y": 383.1,
+                "y": 386.67037500000004,
                 "kind": "guide"
               }
             ]
@@ -598,13 +610,13 @@
             },
             "color": "#231f20",
             "awg": 18,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g13-0",
-                "x": 1057,
+                "x": 1053.5,
                 "y": 760,
                 "kind": "guide"
               },
@@ -617,7 +629,7 @@
               {
                 "id": "g13-2",
                 "x": 780,
-                "y": 390.3,
+                "y": 386.67037500000004,
                 "kind": "guide"
               }
             ]
@@ -634,13 +646,13 @@
             },
             "color": "#2b3a8f",
             "awg": 24,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "jumper",
             "waypoints": [
               {
                 "id": "g14-0",
-                "x": 254.9,
+                "x": 254.87103174603175,
                 "y": 215,
                 "kind": "guide"
               },
@@ -653,7 +665,7 @@
               {
                 "id": "g14-2",
                 "x": 370,
-                "y": 88.1,
+                "y": 88.14,
                 "kind": "guide"
               }
             ]
@@ -670,26 +682,32 @@
             },
             "color": "#e8262c",
             "awg": 22,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
+                "id": "g15-0-exit",
+                "x": 138,
+                "y": 434.6390606432902,
+                "kind": "guide"
+              },
+              {
                 "id": "g15-0",
-                "x": 192.1,
-                "y": 470,
+                "x": 138,
+                "y": 472,
                 "kind": "guide"
               },
               {
                 "id": "g15-1",
-                "x": 320,
-                "y": 470,
+                "x": 318,
+                "y": 472,
                 "kind": "guide"
               },
               {
                 "id": "g15-2",
-                "x": 320,
-                "y": 492.1,
+                "x": 318,
+                "y": 483.4246575342466,
                 "kind": "guide"
               }
             ]
@@ -706,26 +724,32 @@
             },
             "color": "#231f20",
             "awg": 22,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
+                "id": "g16-0-exit",
+                "x": 142,
+                "y": 436.8970614891946,
+                "kind": "guide"
+              },
+              {
                 "id": "g16-0",
-                "x": 199.4,
-                "y": 470,
+                "x": 142,
+                "y": 468,
                 "kind": "guide"
               },
               {
                 "id": "g16-1",
-                "x": 320,
-                "y": 470,
+                "x": 322,
+                "y": 468,
                 "kind": "guide"
               },
               {
                 "id": "g16-2",
-                "x": 320,
-                "y": 483,
+                "x": 322,
+                "y": 487.42009132420094,
                 "kind": "guide"
               }
             ]
@@ -742,14 +766,14 @@
             },
             "color": "#f2d22e",
             "awg": 28,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g17-0",
                 "x": 140,
-                "y": 317.2,
+                "y": 319.56310044107875,
                 "kind": "guide"
               },
               {
@@ -779,7 +803,7 @@
               {
                 "id": "g17-5",
                 "x": 960,
-                "y": 107.1,
+                "y": 110,
                 "kind": "guide"
               }
             ]
@@ -796,14 +820,14 @@
             },
             "color": "#2fae4a",
             "awg": 28,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g18-0",
                 "x": 140,
-                "y": 324.3,
+                "y": 319.56310044107875,
                 "kind": "guide"
               },
               {
@@ -833,7 +857,7 @@
               {
                 "id": "g18-5",
                 "x": 960,
-                "y": 112.9,
+                "y": 110,
                 "kind": "guide"
               }
             ]
@@ -850,20 +874,20 @@
             },
             "color": "#f2d22e",
             "awg": 28,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g19-0",
-                "x": 970,
-                "y": 120.6,
+                "x": 960,
+                "y": 123.44,
                 "kind": "guide"
               },
               {
                 "id": "g19-1",
-                "x": 970,
-                "y": 275.5,
+                "x": 960,
+                "y": 277.5,
                 "kind": "guide"
               }
             ]
@@ -880,20 +904,20 @@
             },
             "color": "#2fae4a",
             "awg": 28,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g20-0",
-                "x": 970,
-                "y": 126.3,
+                "x": 960,
+                "y": 123.44,
                 "kind": "guide"
               },
               {
                 "id": "g20-1",
-                "x": 970,
-                "y": 279.5,
+                "x": 960,
+                "y": 277.5,
                 "kind": "guide"
               }
             ]
@@ -910,14 +934,14 @@
             },
             "color": "#f2d22e",
             "awg": 28,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g21-0",
                 "x": 960,
-                "y": 284.8,
+                "y": 286.74,
                 "kind": "guide"
               },
               {
@@ -935,13 +959,13 @@
               {
                 "id": "g21-3",
                 "x": 1030,
-                "y": 755,
+                "y": 712,
                 "kind": "guide"
               },
               {
                 "id": "g21-4",
-                "x": 1015,
-                "y": 755,
+                "x": 1018,
+                "y": 712,
                 "kind": "guide"
               }
             ]
@@ -958,14 +982,14 @@
             },
             "color": "#2fae4a",
             "awg": 28,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g22-0",
                 "x": 960,
-                "y": 288.7,
+                "y": 286.74,
                 "kind": "guide"
               },
               {
@@ -983,13 +1007,13 @@
               {
                 "id": "g22-3",
                 "x": 1030,
-                "y": 755,
+                "y": 712,
                 "kind": "guide"
               },
               {
                 "id": "g22-4",
-                "x": 1021,
-                "y": 755,
+                "x": 1018,
+                "y": 712,
                 "kind": "guide"
               }
             ]
@@ -1006,32 +1030,32 @@
             },
             "color": "#f2d22e",
             "awg": 28,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g23-0",
-                "x": 1015,
-                "y": 770,
+                "x": 1018,
+                "y": 740,
                 "kind": "guide"
               },
               {
                 "id": "g23-1",
                 "x": 810,
-                "y": 770,
+                "y": 740,
                 "kind": "guide"
               },
               {
                 "id": "g23-2",
                 "x": 810,
-                "y": 500,
+                "y": 450,
                 "kind": "guide"
               },
               {
                 "id": "g23-3",
-                "x": 589.4,
-                "y": 500,
+                "x": 591.78175,
+                "y": 450,
                 "kind": "guide"
               }
             ]
@@ -1048,32 +1072,32 @@
             },
             "color": "#2fae4a",
             "awg": 28,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g24-0",
-                "x": 1021,
-                "y": 770,
+                "x": 1018,
+                "y": 740,
                 "kind": "guide"
               },
               {
                 "id": "g24-1",
                 "x": 810,
-                "y": 770,
+                "y": 740,
                 "kind": "guide"
               },
               {
                 "id": "g24-2",
                 "x": 810,
-                "y": 500,
+                "y": 450,
                 "kind": "guide"
               },
               {
                 "id": "g24-3",
-                "x": 594.1,
-                "y": 500,
+                "x": 591.78175,
+                "y": 450,
                 "kind": "guide"
               }
             ]
@@ -1090,8 +1114,8 @@
             },
             "color": "#8e8f92",
             "awg": 26,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
@@ -1109,7 +1133,7 @@
               {
                 "id": "g25-2",
                 "x": 26,
-                "y": 352.9,
+                "y": 354.75364041006225,
                 "kind": "guide"
               }
             ]
@@ -1126,8 +1150,8 @@
             },
             "color": "#8e8f92",
             "awg": 26,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
@@ -1145,7 +1169,7 @@
               {
                 "id": "g26-2",
                 "x": 31,
-                "y": 358.5,
+                "y": 361.45148022083026,
                 "kind": "guide"
               }
             ]
@@ -1162,8 +1186,8 @@
             },
             "color": "#8e8f92",
             "awg": 26,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
@@ -1174,7 +1198,7 @@
               },
               {
                 "id": "g27-1",
-                "x": 249.1,
+                "x": 245.60698412698412,
                 "y": 722,
                 "kind": "guide"
               }
@@ -1192,8 +1216,8 @@
             },
             "color": "#8e8f92",
             "awg": 26,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
@@ -1204,7 +1228,7 @@
               },
               {
                 "id": "g28-1",
-                "x": 243.2,
+                "x": 238.0752380952381,
                 "y": 730,
                 "kind": "guide"
               }

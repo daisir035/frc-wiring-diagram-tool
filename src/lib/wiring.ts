@@ -16,7 +16,7 @@ export type PortType =
   | 'airExhaust';
 
 export type PortSide = 'left' | 'right' | 'top' | 'bottom';
-export type FuseRating = 10 | 20 | 30 | 40;
+export type FuseRating = 5 | 10 | 15 | 20 | 30 | 40;
 export type WireGauge = 4 | 6 | 8 | 10 | 12 | 14 | 16 | 18 | 20 | 22 | 24 | 26 | 28;
 export type WireAssembly = 'field' | 'jumper';
 export type WireRoutingStyle = 'standard' | 'drag-chain' | 'conduit';
@@ -226,10 +226,10 @@ export interface WorldPort {
 }
 
 export const PORT_TYPE_COLOR: Record<PortType, string> = {
-  'pwr+': '#dc2626',
-  'pwr-': '#1f2937',
-  canH: '#eab308',
-  canL: '#16a34a',
+  'pwr+': '#e8262c',
+  'pwr-': '#231f20',
+  canH: '#f2d22e',
+  canL: '#2fae4a',
   signal: '#2563eb',
   data: '#7c3aed',
   phaseA: '#f59e0b',
@@ -254,17 +254,26 @@ export const PORT_TYPE_NAME: Record<PortType, string> = {
 };
 
 export const WIRE_COLORS = [
-  { c: '#dc2626', n: '红' },
-  { c: '#1f2937', n: '黑' },
-  { c: '#eab308', n: '黄' },
-  { c: '#16a34a', n: '绿' },
+  { c: PORT_TYPE_COLOR['pwr+'], n: '红' },
+  { c: PORT_TYPE_COLOR['pwr-'], n: '黑' },
+  { c: PORT_TYPE_COLOR.canH, n: '黄' },
+  { c: PORT_TYPE_COLOR.canL, n: '绿' },
   { c: '#2563eb', n: '蓝' },
   { c: '#f97316', n: '橙' },
   { c: '#8b5cf6', n: '紫' },
   { c: '#9ca3af', n: '白' },
 ];
 
-export const FUSE_RATINGS: FuseRating[] = [10, 20, 30, 40];
+export const FUSE_RATINGS: FuseRating[] = [5, 10, 15, 20, 30, 40];
+export const FUSE_COLOR: Record<FuseRating, string> = {
+  5: '#b78a66',
+  10: '#c94b64',
+  15: '#5b9bda',
+  20: '#d8b51f',
+  30: '#2f9e69',
+  40: '#df9a22',
+};
+const DEFAULT_FUSE_RATINGS: FuseRating[] = [10, 20, 30, 40];
 export const WIRE_GAUGES: WireGauge[] = [4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28];
 
 export const WIRE_TERMINAL_OPTIONS: Array<{ value: WireTerminalType; label: string }> = [
@@ -281,7 +290,7 @@ export const WIRE_TERMINAL_OPTIONS: Array<{ value: WireTerminalType; label: stri
 ];
 
 export function allowedFuseRatings(def: PartDef, channel: number): FuseRating[] {
-  let ratings = def.fuseRatings ?? FUSE_RATINGS;
+  let ratings = def.fuseRatings ?? DEFAULT_FUSE_RATINGS;
   def.fuseRatingRules?.forEach((rule) => {
     if (channel >= rule.fromChannel) ratings = rule.ratings;
   });
@@ -347,18 +356,20 @@ export function wireGaugeRule(
   }
 
   const distribution = contexts.find((context) =>
-    (context.part?.partId === 'pdh' || context.part?.partId === 'pdp') && /^ch\d+[+-]$/.test(context.port?.id ?? ''),
+    Boolean(context.def?.fuseChannels) && /^ch\d+[+-]$/.test(context.port?.id ?? ''),
   );
-  if (distribution?.part && distribution.port) {
+  if (distribution?.part && distribution.port && distribution.def) {
     const channel = Number(distribution.port.id.match(/^ch(\d+)/)?.[1]);
     const rating = distribution.part.fuses?.[channel];
     const rules: Record<FuseRating, Omit<WireGaugeRule, 'id' | 'label'>> = {
       40: { recommended: 10, allowed: [10, 12], note: 'Team 3255 对 Kraken/Falcon 推荐 10 AWG；2026 FRC 手册最低为 12 AWG。' },
       30: { recommended: 14, allowed: [10, 12, 14], note: '30A 支路推荐 14 AWG，这也是 2026 FRC 手册的最低线径。' },
       20: { recommended: 18, allowed: [10, 12, 14, 16, 18], note: '20A 断路器或 11–20A 保险丝支路最低为 18 AWG。' },
+      15: { recommended: 18, allowed: [10, 12, 14, 16, 18], note: '15A 保险丝支路推荐 18 AWG；同时核对器件接头支持的线径。' },
       10: { recommended: 18, allowed: [10, 12, 14, 16, 18], note: '10A 断路器支路推荐 18 AWG；若使用 PDH 小保险丝端口，可使用更细线径。' },
+      5: { recommended: 18, allowed: [10, 12, 14, 16, 18], note: '5A 保险丝支路推荐 18 AWG；同时核对器件接头支持的线径。' },
     };
-    if (rating !== undefined && !FUSE_RATINGS.includes(rating)) {
+    if (rating !== undefined && (!FUSE_RATINGS.includes(rating) || !allowedFuseRatings(distribution.def, channel).includes(rating))) {
       return {
         id: 'distribution-invalid-fuse',
         label: `${distribution.def?.name ?? '配电'} CH ${channel} · 保险丝规格无效`,
@@ -368,6 +379,15 @@ export function wireGaugeRule(
       };
     }
     if (rating !== undefined) {
+      if (distribution.part.partId === 'miniPdp') {
+        return {
+          id: `distribution-${rating}a`,
+          label: `${distribution.def.name} CH ${channel} · ${rating}A ATM 保险丝`,
+          recommended: 18,
+          allowed: [16, 18],
+          note: 'MPM 每路最大 15A，整机总电流最大 40A；推荐 18 AWG。16 AWG 仅用于裸线连接，使用管型端子时按 REV 规格选择 18 AWG。',
+        };
+      }
       const smallPdhFuse = distribution.part.partId === 'pdh' && channel >= 20;
       const leadDevice = ctre22AwgDevice(partIds);
       if (smallPdhFuse && rating === 10 && leadDevice) {
@@ -522,7 +542,7 @@ const imagePart = (img: string, def: Omit<PartDef, 'visual' | 'img'>): PartDef =
 
 /* ---------------- 内置 FRC 元件库 ---------------- */
 
-const roboRIO = imagePart('RoboRIO 2.0.png', {
+const roboRIO = imagePart('RoboRIO 2.0.svg', {
   id: 'roborio',
   name: 'roboRIO 2.0',
   category: '控制',
@@ -531,26 +551,28 @@ const roboRIO = imagePart('RoboRIO 2.0.png', {
   h: 994,
   displayWidth: 260,
   ports: [
-    p('canH', 'CAN-H', 0, 0.12, 'canH', 'left'),
-    p('canL', 'CAN-L', 0, 0.17, 'canL', 'left'),
-    p('vin+', '电源 V+', 0.18, 0, 'pwr+', 'top'),
-    p('vin-', '电源 C-', 0.23, 0, 'pwr-', 'top'),
-    p('usbB', 'USB-B Device', 0.37, 0, 'data', 'top'),
-    p('usbA1', 'USB-A Host 1', 0.47, 0, 'data', 'top'),
-    p('usbA2', 'USB-A Host 2', 0.52, 0, 'data', 'top'),
-    p('eth', 'Ethernet', 0.65, 0, 'data', 'top'),
-    p('spi', 'SPI', 0.81, 0, 'signal', 'top'),
-    p('rslA', 'RSL A', 0.22, 1, 'signal', 'bottom'),
-    p('rslB', 'RSL B', 0.27, 1, 'signal', 'bottom'),
-    ...spread(0.37, 0.77, 10).map((y, i) => p(`PWM${i}`, `PWM ${i}`, 1, y, 'signal', 'right')),
-    ...spread(0.37, 0.72, 10).map((y, i) => p(`DIO${i}`, `DIO ${i}`, 0, y, 'signal', 'left')),
-    ...spread(0.35, 0.47, 4).map((x, i) => p(`RELAY${i}`, `Relay ${i}`, x, 1, 'signal', 'bottom')),
-    ...spread(0.57, 0.69, 4).map((x, i) => p(`AI${i}`, `Analog In ${i}`, x, 1, 'signal', 'bottom')),
+    // Connector openings in the source SVG's 504 × 496.51 viewBox.
+    // Signal headers use the inner signal pin, rather than the housing edge.
+    p('canH', 'CAN-H', 25 / 504, 59.95 / 496.51, 'canH', 'left'),
+    p('canL', 'CAN-L', 25 / 504, 75.9 / 496.51, 'canL', 'left'),
+    p('vin+', '电源 V+', 111.735 / 504, 39.98 / 496.51, 'pwr+', 'right'),
+    p('vin-', '电源 C-', 111.735 / 504, 51.85 / 496.51, 'pwr-', 'right'),
+    p('usbB', 'USB-B Device', 169.795 / 504, 37.585 / 496.51, 'data', 'top'),
+    p('usbA1', 'USB-A Host 1', 258.035 / 504, 23.94 / 496.51, 'data', 'top'),
+    p('usbA2', 'USB-A Host 2', 258.015 / 504, 53.81 / 496.51, 'data', 'top'),
+    p('eth', 'Ethernet', 327.5 / 504, 49.395 / 496.51, 'data', 'top'),
+    p('spi', 'SPI', 403.57 / 504, 46.955 / 496.51, 'signal', 'top'),
+    p('rslA', 'RSL A', 117.57 / 504, 467.48 / 496.51, 'signal', 'left'),
+    p('rslB', 'RSL B', 117.57 / 504, 475.32 / 496.51, 'signal', 'left'),
+    ...spread(185.36, 394.67, 10).map((y, i) => p(`PWM${i}`, `PWM ${i}`, 467.74 / 504, y / 496.51, 'signal', 'right')),
+    ...spread(190.11, 399.41, 10).map((y, i) => p(`DIO${i}`, `DIO ${i}`, 35.85 / 504, y / 496.51, 'signal', 'left')),
+    ...[154.14, 180.13, 206.44, 232.73].map((x, i) => p(`RELAY${i}`, `Relay ${i}`, x / 504, 459.21 / 496.51, 'signal', 'bottom')),
+    ...[269.52, 295.52, 321.83, 348.11].map((x, i) => p(`AI${i}`, `Analog In ${i}`, x / 504, 459.21 / 496.51, 'signal', 'bottom')),
   ],
 });
 
 /**
- * Rows in the perspective-corrected CTRE photo (public/parts/CTRE PDP 2.0 Top.png), as fractions of
+ * Rows preserved from the CTRE PDP 2.0 top view, as fractions of
  * its height: left column CH 12-23 and right column CH 11-0, top to bottom. Each channel has a
  * red (+) and black (-) WAGO 745 lever at the outer edge.
  */
@@ -574,7 +596,7 @@ function pdpChannelPorts(): PortDef[] {
   return ports;
 }
 
-/** Breaker bays measured on the photo; the app draws every bay so the photo's fitted breakers never show. */
+/** Breaker bays retain the original top-view coordinates for saved projects. */
 function pdpFuseSlots(): NonNullable<PartDef['fuseSlots']> {
   const h = 72 / 1354;
   const slots: NonNullable<PartDef['fuseSlots']> = [];
@@ -585,19 +607,18 @@ function pdpFuseSlots(): NonNullable<PartDef['fuseSlots']> {
   return slots;
 }
 
-const pdp = imagePart('CTRE PDP 2.0 Top.png', {
+const pdp = imagePart('CTRE PDP 2.0 Diagram.svg', {
   id: 'pdp',
   name: 'CTRE PDP 2.0',
   category: '配电',
   productUrl: 'https://store.ctr-electronics.com/products/pdp-2',
   docsUrl: 'https://ctre.download/files/user-manual/PDP%202.0%20User%27s%20Guide.pdf',
-  // Photo is 600 x 1354 px; height set so it matches the 4.08 x 9.21 in footprint exactly.
+  // Artwork coordinates preserve the original 600 × 1354 image; footprint is 4.08 × 9.21 in.
   w: 600,
   h: 600 * 233.934 / 103.632,
   displayWidth: 220,
   fuseChannels: 24,
   fuseSlots: pdpFuseSlots(),
-  fuseSlotCover: true,
   ports: [
     p('batt-', '电池输入 -', 0.225, 1, 'pwr-', 'bottom'),
     p('batt+', '电池输入 +', 0.758, 1, 'pwr+', 'bottom'),
@@ -640,7 +661,7 @@ function pdhFuseSlots(): NonNullable<PartDef['fuseSlots']> {
   return slots;
 }
 
-const pdh = imagePart('REV PDH.png', {
+const pdh = imagePart('PDH (No Fuses).svg', {
   id: 'pdh',
   name: 'REV Power Distribution Hub',
   category: '配电',
@@ -652,9 +673,9 @@ const pdh = imagePart('REV PDH.png', {
   fuseChannels: 24,
   fuseSlots: pdhFuseSlots(),
   fuseImages: {
-    10: '10A PDH Fuse.png',
-    20: '20A PDH Fuse.png',
-    40: '40A PDH Fuse.png',
+    10: '10A PDH Fuse.svg',
+    20: '20A PDH Fuse.svg',
+    40: '40A PDH Fuse.svg',
   },
   fuseRatings: [10, 20, 40],
   fuseRatingRules: [{ fromChannel: 20, ratings: [10, 20] }],
@@ -672,15 +693,22 @@ const pdh = imagePart('REV PDH.png', {
   ],
 });
 
-const miniPdp = imagePart('REV Mini Power Module.png', {
+const miniPdp = imagePart('REV Mini Power Module Diagram.svg', {
   id: 'miniPdp',
   name: 'miniPDH（REV MPM）',
   category: '配电',
   productUrl: 'https://www.revrobotics.com/rev-11-1956/',
-  docsUrl: 'https://docs.revrobotics.com/ion-control-system/mpm/overview',
+  docsUrl: 'https://docs.revrobotics.com/ion-control/mpm/overview',
   w: 307,
   h: 552,
   displayWidth: 180,
+  // REV-11-1956: six ATM fuse-protected outputs, 15 A per channel / 40 A total.
+  // The supplied 5 / 10 / 15 A fuses match the six empty sockets in the artwork.
+  fuseChannels: 6,
+  fuseRatings: [5, 10, 15],
+  fuseSlots: spread(0.185, 0.585, 6).map((y, index) => ({
+    channel: 5 - index, x: 66 / 307, y: y - 14 / 552, w: 112 / 307, h: 28 / 552,
+  })),
   ports: [
     p('batt+', '12V 输入 +', 0.39, 1, 'pwr+', 'bottom'),
     p('batt-', '12V 输入 -', 0.57, 1, 'pwr-', 'bottom'),
@@ -705,7 +733,7 @@ function vrmOutputPorts(): PortDef[] {
   return ports;
 }
 
-const vrm = imagePart('VRM.png', {
+const vrm = imagePart('VRM.svg', {
   id: 'vrm',
   name: 'VRM 稳压模块',
   category: '配电',
@@ -720,7 +748,7 @@ const vrm = imagePart('VRM.png', {
   ],
 });
 
-const vh109 = imagePart('VH-109 Radio.png', {
+const vh109 = imagePart('VH-109 Radio.svg', {
   id: 'vh109',
   name: 'VH-109 Radio',
   category: '控制',
@@ -735,7 +763,7 @@ const vh109 = imagePart('VH-109 Radio.png', {
   ],
 });
 
-const rsl = imagePart('RSL.png', {
+const rsl = imagePart('RSL.svg', {
   id: 'rsl',
   name: 'RSL 机器人信号灯',
   category: '控制',
@@ -743,13 +771,13 @@ const rsl = imagePart('RSL.png', {
   h: 219,
   displayWidth: 105,
   ports: [
-    // Screw terminals top to bottom: La, N, Lb; La and N are bridged by the factory jumper.
+    // La–Lb are bridged; retain the legacy "lb" connection ID for the middle N return terminal.
     p('la', 'La', 0, 84 / 219, 'signal', 'left'),
-    p('lb', 'Lb', 0, 135 / 219, 'signal', 'left'),
+    p('lb', 'N', 0, 109 / 219, 'signal', 'left'),
   ],
 });
 
-const breaker120 = imagePart('120A Fuse.png', {
+const breaker120 = imagePart('120A Fuse.svg', {
   id: 'breaker120',
   name: '120A 主断路器',
   category: '配电',
@@ -762,7 +790,7 @@ const breaker120 = imagePart('120A Fuse.png', {
   ],
 });
 
-const fuseAuto10 = imagePart('10A Automotive Fuse.png', {
+const fuseAuto10 = imagePart('10A Automotive Fuse.svg', {
   id: 'fuseAuto10',
   name: '10A 汽车保险丝',
   category: '配电',
@@ -776,7 +804,7 @@ const fuseAuto10 = imagePart('10A Automotive Fuse.png', {
 });
 
 function canMotor(id: string, name: string): PartDef {
-  const fileName = id === 'falcon500' ? 'Falcon 500.png' : id === 'krakenX44' ? 'Kraken X44.png' : 'Kraken X60.png';
+  const fileName = id === 'falcon500' ? 'Falcon 500.svg' : id === 'krakenX44' ? 'Kraken X44.svg' : 'Kraken X60.svg';
   const size = id === 'falcon500'
     ? { w: 580, h: 358 }
     : id === 'krakenX44'
@@ -829,7 +857,7 @@ function canMotorTop(id: string, name: string): PartDef {
   });
 }
 
-const beamBreak = imagePart('2168 Type Beam Break.png', {
+const beamBreak = imagePart('2168 Type Beam Break.svg', {
   id: 'beamBreak',
   name: '对射传感器 (2168)',
   category: '传感器',
@@ -845,7 +873,7 @@ const beamBreak = imagePart('2168 Type Beam Break.png', {
   ],
 });
 
-const npnPhoto = imagePart('NPN Photoelectric Sensor.png', {
+const npnPhoto = imagePart('NPN Photoelectric Sensor.svg', {
   id: 'npnPhoto',
   name: 'NPN 光电传感器',
   category: '传感器',
@@ -859,7 +887,7 @@ const npnPhoto = imagePart('NPN Photoelectric Sensor.png', {
   ],
 });
 
-const lmSwitch = imagePart('LM Switch.png', {
+const lmSwitch = imagePart('LM Switch.svg', {
   id: 'lmSwitch',
   name: '限位开关',
   category: '传感器',
@@ -873,7 +901,7 @@ const lmSwitch = imagePart('LM Switch.png', {
   ],
 });
 
-const potentiometer = imagePart('Potentiometer.png', {
+const potentiometer = imagePart('Potentiometer.svg', {
   id: 'pot',
   name: '电位器',
   category: '传感器',
@@ -887,7 +915,7 @@ const potentiometer = imagePart('Potentiometer.png', {
   ],
 });
 
-const ttbEncoder = imagePart('TTB Analog Encoder.png', {
+const ttbEncoder = imagePart('TTB Analog Encoder.svg', {
   id: 'ttb',
   name: 'TTB 模拟编码器',
   category: '传感器',
@@ -922,13 +950,13 @@ const cancoder = vector({
   ],
 });
 
-const pigeon2 = imagePart('CTRE Pigeon 2.0.png', {
+const pigeon2 = imagePart('CTRE Pigeon 2.0 Diagram.svg', {
   id: 'pigeon2',
   name: 'CTRE Pigeon 2.0 陀螺仪',
   category: '传感器',
   productUrl: 'https://store.ctr-electronics.com/products/pigeon-2',
   docsUrl: 'https://v6.docs.ctr-electronics.com/en/stable/docs/hardware-reference/pigeon2/index.html',
-  // 1.77 in square housing (user guide) plus the connector edge the photo shows below it.
+  // Reference envelope includes the connector edge; retain measured-size overrides for exact hardware.
   footprintMm: { w: 49.2, h: 49.2 * 441 / 400 },
   w: 400,
   h: 441,
@@ -951,7 +979,7 @@ function ctre22AwgDevice(partIds: string[]): string | undefined {
   return id && CTRE_22AWG_LEADS[id];
 }
 
-const ws2812 = imagePart('WS2812B Strip.png', {
+const ws2812 = imagePart('WS2812B Strip.svg', {
   id: 'ws2812',
   name: 'WS2812B 灯带',
   category: '其他',
@@ -968,7 +996,7 @@ const ws2812 = imagePart('WS2812B Strip.png', {
   ],
 });
 
-const c270 = imagePart('C270 Camera.png', {
+const c270 = imagePart('C270 Camera.svg', {
   id: 'c270',
   name: 'C270 摄像头',
   category: '其他',
@@ -995,9 +1023,9 @@ const terminalPair = vector({
   id: 'terminalPair',
   name: '双极直通接线端子',
   category: '配电',
-  w: 120,
-  h: 64,
-  displayWidth: 125,
+  w: 40,
+  h: 22,
+  displayWidth: 40,
   ports: [
     p('in+', '正极输入 +', 0, 0.3, 'pwr+', 'left'),
     p('out+', '正极输出 +', 1, 0.3, 'pwr+', 'right'),
@@ -1010,9 +1038,9 @@ const terminal2To4 = vector({
   id: 'terminal2To4',
   name: '2 进 4 出接线端子',
   category: '配电',
-  w: 170,
-  h: 90,
-  displayWidth: 145,
+  w: 48,
+  h: 26,
+  displayWidth: 48,
   ports: [
     p('in+', '正极输入 +', 0, 0.3, 'pwr+', 'left'),
     p('in-', '负极输入 -', 0, 0.7, 'pwr-', 'left'),
@@ -1057,7 +1085,7 @@ const limelight4 = vector({
   ],
 });
 
-const canivore = imagePart('CANivore.png', {
+const canivore = imagePart('CANivore Diagram.svg', {
   id: 'canivore',
   name: 'CTRE CANivore',
   category: '控制',
@@ -1341,16 +1369,15 @@ function proposedWireRoute(
         ? Math.max(a.y, b.y) + 30 + lane
         : Math.min(a.y, b.y) - 30 - lane;
     control = { x: (a.x + b.x) / 2, y: midY };
-  } else if (p1Horizontal) {
-    control = {
-      x: a.x + p1.nx * (30 + lane),
-      y: b.y + p2.ny * (30 + lane),
-    };
   } else {
-    control = {
-      x: b.x + p2.nx * (30 + lane),
-      y: a.y + p1.ny * (30 + lane),
-    };
+    // Opposite local offsets keep adjacent lanes in order through both turns.
+    // The normal cross product preserves that order under rotation and endpoint reversal.
+    const turn = p1.nx * p2.ny - p1.ny * p2.nx;
+    const fromOffset = 30 + (automatic ? lane * turn : lane);
+    const toOffset = 30 + (automatic ? -lane * turn : lane);
+    control = p1Horizontal
+      ? { x: a.x + p1.nx * fromOffset, y: b.y + p2.ny * toOffset }
+      : { x: b.x + p2.nx * toOffset, y: a.y + p1.ny * fromOffset };
   }
 
   if (manualControl) control = { ...manualControl };
@@ -1483,8 +1510,13 @@ function explicitPairedPort(def: PartDef, source: PortDef): PortDef | undefined 
   return pair;
 }
 
+function isPdhMainPort(def: PartDef, portId: string) {
+  return def.id === 'pdh' && (portId === 'batt+' || portId === 'batt-');
+}
+
 export function pairedCablePort(def: PartDef, portId: string): PortDef | undefined {
-  if (def.id === 'battery12v') return undefined;
+  // The battery and PDH main terminals carry independently routed positive and return leads.
+  if (def.id === 'battery12v' || isPdhMainPort(def, portId)) return undefined;
   const source = def.ports.find((port) => port.id === portId);
   if (!source) return undefined;
   if (source.pairId !== undefined || def.ports.some((port) => port.pairId === portId)) return explicitPairedPort(def, source);
@@ -1542,17 +1574,36 @@ export function pairedWireGroups(wires: Wire[], parts: PlacedPart[], defs: Reado
     const typeA = defA.ports.find((port) => port.id === wire.a.portId)?.type;
     const typeB = defB.ports.find((port) => port.id === wire.b.portId)?.type;
     if (typeA !== typeB || (typeA !== 'pwr+' && typeA !== 'canH')) continue;
-    const pairA = pairedCablePort(defA, wire.a.portId);
-    const pairB = pairedCablePort(defB, wire.b.portId);
+    const legacyMain = isPdhMainPort(defA, wire.a.portId) || isPdhMainPort(defB, wire.b.portId);
+    const pairA = pairedCablePort(defA, wire.a.portId)
+      ?? (isPdhMainPort(defA, wire.a.portId) ? pairedPowerPort(defA, wire.a.portId) : undefined);
+    const pairB = pairedCablePort(defB, wire.b.portId)
+      ?? (isPdhMainPort(defB, wire.b.portId) ? pairedPowerPort(defB, wire.b.portId) : undefined);
     if (!pairA || !pairB) continue;
     const companion = wireByEnds.get(key({ ...wire.a, portId: pairA.id }, { ...wire.b, portId: pairB.id }));
     if (!companion || companion.bundleId !== wire.bundleId
       || (companion.routingStyle ?? 'standard') !== (wire.routingStyle ?? 'standard')) continue;
+    // Older drawings stored one 2x2 attachment on both PDH main conductors.
+    // Its shared identity keeps that existing cable editable; bare new leads stay independent.
+    if (legacyMain && !wire.inlineConnectors?.some(connector => isInlineConnector(connector)
+      && connector.kind !== 'solder' && companion.inlineConnectors?.some(other => isInlineConnector(other)
+        && other.kind !== 'solder' && other.id === connector.id))) continue;
     const group = [wire, companion];
     groups.set(wire.id, group);
     groups.set(companion.id, group);
   }
   return groups;
+}
+
+/** Shared cable centreline; individual physical ports remain available through getPort. */
+export function cableRouteEnd(wire: Wire, side: 'a' | 'b', cables: ReadonlyMap<string, Wire[]>,
+  getPort: (end: WireEnd) => WorldPort | null): WorldPort | null {
+  const end = wire[side];
+  const port = getPort(end);
+  const companion = cables.get(wire.id)?.find(member => member.id !== wire.id);
+  if (!port || !companion) return port;
+  const other = getPort(companion.a.uid === end.uid ? companion.a : companion.b);
+  return other ? { ...port, x: (port.x + other.x) / 2, y: (port.y + other.y) / 2 } : port;
 }
 
 export function wireRoutingLane(wire: Wire, cables: ReadonlyMap<string, Wire[]>, getPort: (end: WireEnd) => PortDef | undefined) {
@@ -1664,7 +1715,7 @@ export function wireEngineeringIssues(wire: Wire, parts: PlacedPart[], defs: Rea
   }
   for (const end of [wire.a, wire.b]) {
     const { part, def, port } = wireEndContext(end, parts, defs);
-    if (!part || !def || !port || !['pdh', 'pdp'].includes(part.partId)) continue;
+    if (!part || !def?.fuseChannels || !port) continue;
     const match = port.id.match(/^ch(\d+)[+-]$/);
     if (!match) continue;
     const channel = Number(match[1]);
@@ -2130,8 +2181,8 @@ export function buildWireGeometry(
   const routes = new Map<string, WireGeometry>();
   const groups = new Map<string, Array<{ wire: Wire; a: WorldPort; b: WorldPort }>>();
   for (const wire of wires) {
-    const a = getPort(wire.a);
-    const b = getPort(wire.b);
+    const a = cableRouteEnd(wire, 'a', cables, getPort);
+    const b = cableRouteEnd(wire, 'b', cables, getPort);
     if (!a || !b) continue;
     if (wire.routingStyle && wire.routingStyle !== 'standard') {
       const key = `${wire.routingStyle}:${wire.bundleId ?? `wire:${wire.id}`}`;
@@ -2251,7 +2302,8 @@ export function anchorWireBundles(wires: Wire[], parts: PlacedPart[], defs: Read
     const port = def?.ports.find((port) => port.id === end.portId);
     return part && def && port ? portWorld(part, def, cablePort(def, port)) : null;
   };
-  const layout = buildWireGeometry(wires, getPort, () => 0, pairedWireGroups(wires, parts, defs));
+  const cables = pairedWireGroups(wires, parts, defs);
+  const layout = buildWireGeometry(wires, getPort, () => 0, cables);
   const updates = new Map<string, Partial<Wire>>();
   for (const bundle of layout.bundles) {
     if (bundle.wireIds.every((id) => {
@@ -2259,8 +2311,8 @@ export function anchorWireBundles(wires: Wire[], parts: PlacedPart[], defs: Read
       return wire.bundleEndpoints && wire.bundleReversed !== undefined;
     })) continue;
     const editor = layout.routes.get(bundle.wireIds[0])!.editorWire;
-    const a = getPort(editor.bundleReversed ? editor.b : editor.a)!;
-    const b = getPort(editor.bundleReversed ? editor.a : editor.b)!;
+    const a = cableRouteEnd(editor, editor.bundleReversed ? 'b' : 'a', cables, getPort)!;
+    const b = cableRouteEnd(editor, editor.bundleReversed ? 'a' : 'b', cables, getPort)!;
     const route = bundleRoute(editor, a, b);
     for (const id of bundle.wireIds) {
       const wire = wires.find((wire) => wire.id === id)!;
@@ -2301,8 +2353,8 @@ export function followMovedParts(wires: Wire[], parts: PlacedPart[], defs: Reado
     if (aMoved === movedUids.has(wire.b.uid)) return wire;
     if (isFreeRoute(wire) || wire.bundleId || (wire.routingStyle && wire.routingStyle !== 'standard')
       || wire.waypoints?.some((point) => point.kind !== 'guide')) return wire;
-    const a = resolve(wire.a);
-    const b = resolve(wire.b);
+    const a = cableRouteEnd(wire, 'a', cables, resolve);
+    const b = cableRouteEnd(wire, 'b', cables, resolve);
     if (!a || !b) return wire;
     let corners: WireWaypoint[] = wire.waypoints?.length ? wire.waypoints : [];
     if (!corners.length) {

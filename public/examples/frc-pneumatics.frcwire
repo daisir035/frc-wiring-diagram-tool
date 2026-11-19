@@ -227,8 +227,8 @@
             },
             "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pathMode": "free",
-            "cornerRadius": 16,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
@@ -263,8 +263,8 @@
             },
             "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pathMode": "free",
-            "cornerRadius": 16,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
@@ -293,8 +293,8 @@
             },
             "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pathMode": "free",
-            "cornerRadius": 16,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
@@ -323,8 +323,8 @@
             },
             "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pathMode": "free",
-            "cornerRadius": 16,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
@@ -359,8 +359,8 @@
             },
             "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pathMode": "free",
-            "cornerRadius": 16,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
@@ -383,8 +383,8 @@
             },
             "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pathMode": "free",
-            "cornerRadius": 16,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
@@ -407,8 +407,8 @@
             },
             "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pathMode": "free",
-            "cornerRadius": 16,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
@@ -431,8 +431,8 @@
             },
             "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pathMode": "free",
-            "cornerRadius": 16,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
@@ -455,8 +455,8 @@
             },
             "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pathMode": "free",
-            "cornerRadius": 16,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
@@ -485,8 +485,8 @@
             },
             "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pathMode": "free",
-            "cornerRadius": 16,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
@@ -521,8 +521,8 @@
             },
             "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pathMode": "free",
-            "cornerRadius": 16,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
@@ -557,8 +557,8 @@
             },
             "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pathMode": "free",
-            "cornerRadius": 16,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
@@ -581,8 +581,8 @@
             },
             "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pathMode": "free",
-            "cornerRadius": 16,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
@@ -600,7 +600,7 @@
               {
                 "id": "g13-2",
                 "x": 1134,
-                "y": 410,
+                "y": 409.995112,
                 "kind": "guide"
               }
             ]
@@ -617,8 +617,8 @@
             },
             "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pathMode": "free",
-            "cornerRadius": 16,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
@@ -641,8 +641,8 @@
             },
             "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pathMode": "free",
-            "cornerRadius": 16,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
@@ -665,13 +665,13 @@
             },
             "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pathMode": "free",
-            "cornerRadius": 16,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g16-0",
-                "x": 752,
+                "x": 752.3,
                 "y": 505,
                 "kind": "guide"
               },
@@ -684,7 +684,7 @@
               {
                 "id": "g16-2",
                 "x": 850,
-                "y": 520,
+                "y": 519.995112,
                 "kind": "guide"
               }
             ]
@@ -701,13 +701,13 @@
             },
             "color": "#6298d1",
             "tubeOdMm": 6.35,
-            "pathMode": "free",
-            "cornerRadius": 16,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g17-0",
-                "x": 768,
+                "x": 767.7,
                 "y": 495,
                 "kind": "guide"
               },
@@ -720,7 +720,7 @@
               {
                 "id": "g17-2",
                 "x": 1078,
-                "y": 520,
+                "y": 519.995112,
                 "kind": "guide"
               }
             ]
@@ -737,20 +737,20 @@
             },
             "color": "#e8262c",
             "awg": 18,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g18-0",
                 "x": 330,
-                "y": 153,
+                "y": 155.5,
                 "kind": "guide"
               },
               {
                 "id": "g18-1",
                 "x": 330,
-                "y": 388,
+                "y": 390,
                 "kind": "guide"
               }
             ]
@@ -767,20 +767,20 @@
             },
             "color": "#231f20",
             "awg": 18,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g19-0",
                 "x": 330,
-                "y": 158,
+                "y": 155.5,
                 "kind": "guide"
               },
               {
                 "id": "g19-1",
                 "x": 330,
-                "y": 392,
+                "y": 390,
                 "kind": "guide"
               }
             ]
@@ -797,13 +797,13 @@
             },
             "color": "#e8262c",
             "awg": 22,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g20-0",
-                "x": 464,
+                "x": 463.6,
                 "y": 300,
                 "kind": "guide"
               },
@@ -816,7 +816,7 @@
               {
                 "id": "g20-2",
                 "x": 570,
-                "y": 388,
+                "y": 387.7,
                 "kind": "guide"
               }
             ]
@@ -833,13 +833,13 @@
             },
             "color": "#231f20",
             "awg": 22,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g21-0",
-                "x": 470,
+                "x": 470.4,
                 "y": 294,
                 "kind": "guide"
               },
@@ -852,7 +852,7 @@
               {
                 "id": "g21-2",
                 "x": 564,
-                "y": 384,
+                "y": 384.3,
                 "kind": "guide"
               }
             ]
@@ -869,13 +869,13 @@
             },
             "color": "#e8262c",
             "awg": 22,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g22-0",
-                "x": 1030,
+                "x": 1031.6,
                 "y": 60,
                 "kind": "guide"
               },
@@ -900,7 +900,7 @@
               {
                 "id": "g22-4",
                 "x": 608,
-                "y": 451,
+                "y": 452.2,
                 "kind": "guide"
               }
             ]
@@ -917,13 +917,13 @@
             },
             "color": "#231f20",
             "awg": 22,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g23-0",
-                "x": 1033,
+                "x": 1031.6,
                 "y": 60,
                 "kind": "guide"
               },
@@ -948,7 +948,7 @@
               {
                 "id": "g23-4",
                 "x": 608,
-                "y": 454,
+                "y": 452.2,
                 "kind": "guide"
               }
             ]
@@ -965,13 +965,13 @@
             },
             "color": "#e8262c",
             "awg": 22,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g24-0",
-                "x": 1037,
+                "x": 1038.4,
                 "y": 46,
                 "kind": "guide"
               },
@@ -996,7 +996,7 @@
               {
                 "id": "g24-4",
                 "x": 594,
-                "y": 443,
+                "y": 444.6,
                 "kind": "guide"
               }
             ]
@@ -1013,13 +1013,13 @@
             },
             "color": "#231f20",
             "awg": 22,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g25-0",
-                "x": 1040,
+                "x": 1038.4,
                 "y": 46,
                 "kind": "guide"
               },
@@ -1044,7 +1044,7 @@
               {
                 "id": "g25-4",
                 "x": 594,
-                "y": 446,
+                "y": 444.6,
                 "kind": "guide"
               }
             ]
@@ -1061,14 +1061,14 @@
             },
             "color": "#e8262c",
             "awg": 22,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g26-0",
                 "x": 1060,
-                "y": 323,
+                "y": 325.3,
                 "kind": "guide"
               },
               {
@@ -1086,7 +1086,7 @@
               {
                 "id": "g26-3",
                 "x": 622,
-                "y": 458,
+                "y": 459.8,
                 "kind": "guide"
               }
             ]
@@ -1103,14 +1103,14 @@
             },
             "color": "#231f20",
             "awg": 22,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g27-0",
                 "x": 1060,
-                "y": 328,
+                "y": 325.3,
                 "kind": "guide"
               },
               {
@@ -1128,7 +1128,7 @@
               {
                 "id": "g27-3",
                 "x": 622,
-                "y": 462,
+                "y": 459.8,
                 "kind": "guide"
               }
             ]
@@ -1145,14 +1145,14 @@
             },
             "color": "#e8262c",
             "awg": 22,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g28-0",
                 "x": 840,
-                "y": 457,
+                "y": 459.3,
                 "kind": "guide"
               },
               {
@@ -1170,7 +1170,7 @@
               {
                 "id": "g28-3",
                 "x": 655,
-                "y": 466,
+                "y": 467.4,
                 "kind": "guide"
               }
             ]
@@ -1187,14 +1187,14 @@
             },
             "color": "#231f20",
             "awg": 22,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g29-0",
                 "x": 840,
-                "y": 462,
+                "y": 459.3,
                 "kind": "guide"
               },
               {
@@ -1212,7 +1212,7 @@
               {
                 "id": "g29-3",
                 "x": 655,
-                "y": 469,
+                "y": 467.4,
                 "kind": "guide"
               }
             ]
@@ -1229,20 +1229,20 @@
             },
             "color": "#e8262c",
             "awg": 22,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g30-0",
                 "x": 690,
-                "y": 457,
+                "y": 459.3,
                 "kind": "guide"
               },
               {
                 "id": "g30-1",
                 "x": 690,
-                "y": 473,
+                "y": 475,
                 "kind": "guide"
               }
             ]
@@ -1259,20 +1259,20 @@
             },
             "color": "#231f20",
             "awg": 22,
-            "pathMode": "free",
-            "cornerRadius": 8,
+            "pathMode": "orthogonal",
+            "cornerRadius": 4,
             "assembly": "field",
             "waypoints": [
               {
                 "id": "g31-0",
                 "x": 690,
-                "y": 462,
+                "y": 459.3,
                 "kind": "guide"
               },
               {
                 "id": "g31-1",
                 "x": 690,
-                "y": 477,
+                "y": 475,
                 "kind": "guide"
               }
             ]

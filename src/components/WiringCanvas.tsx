@@ -6,7 +6,6 @@ import type {
   PlacedPart,
   Wire,
   WireEnd,
-  WireTerminalType,
   InlineConnectorKind,
   ViewTransform,
   WorldPort,
@@ -17,6 +16,7 @@ import {
   buildWireGeometry,
   cablePort,
   cablePortPolarity,
+  cableRouteEnd,
   INLINE_CONNECTOR_STYLES,
   cablePorts,
   compactRoute,
@@ -45,12 +45,19 @@ import type { LegendContent } from './AnnotationLayer';
 import { ANNOTATION_MIN } from '../lib/annotations';
 import type { Annotation } from '../lib/annotations';
 import InlineConnectorMarker from './InlineConnectorMarker';
+import WireTerminalMarker from './WireTerminalMarker';
+import { resizeBackgroundFromCorner } from '../lib/backgroundGeometry';
+import type { BackgroundCorner } from '../lib/backgroundGeometry';
 import CableConductors from './CableConductors';
 import { cablePolarity } from '../lib/cableGeometry';
 import { nearestCablePortAtPoint } from '../lib/canvasHitTesting';
 
 interface Props {
   backgroundImage?: CanvasBackground;
+  backgroundEditing: boolean;
+  onBackgroundChange: (background: CanvasBackground) => void;
+  tool: 'select' | 'pan';
+  showGrid: boolean;
   parts: PlacedPart[];
   wires: Wire[];
   partDefs: ReadonlyMap<string, PartDef>;
@@ -88,8 +95,9 @@ interface Props {
   selectedAnnotationId: string | null;
   onAnnotationSelect: (id: string | null) => void;
   onAnnotationChange: (id: string, patch: Partial<Annotation>) => void;
-  /** Print look: no grid, no port dots, flat wires. */
+  /** Print look: no grid, idle ports hidden, flat wires. */
   posterMode?: boolean;
+  showPartLabels?: boolean;
 }
 
 type DragMode =
@@ -110,7 +118,9 @@ type DragMode =
   /** Sliding one segment of an orthogonal wire sideways; `route` is the route when the drag began. */
   | { kind: 'orth-segment'; wireId: string; startX: number; startY: number; start: { x: number; y: number }; route: RoutePoint[]; index: number; horizontal: boolean; moved: boolean }
   | { kind: 'label'; uid: string; start: { x: number; y: number }; origin: { x: number; y: number } }
-  | { kind: 'annotation'; id: string; mode: 'move' | 'resize'; start: { x: number; y: number }; origin: Annotation };
+  | { kind: 'annotation'; id: string; mode: 'move' | 'resize'; start: { x: number; y: number }; origin: Annotation }
+  | { kind: 'background'; start: { x: number; y: number }; origin: CanvasBackground }
+  | { kind: 'background-resize'; corner: BackgroundCorner; origin: CanvasBackground };
 
 interface SelectionRect {
   x: number;
@@ -186,105 +196,23 @@ function pathIntersectsRect(path: string, rect: SelectionRect, padding: number) 
   return segmentIntersectsRect(previous, pathElement.getPointAtLength(length), hitRect);
 }
 
-const TERMINAL_NAMES: Record<WireTerminalType, string> = {
-  none: '无端子',
-  ferrule: '管型冷压端子',
-  ring: '环形端子',
-  fork: '叉形端子',
-  anderson: 'Anderson 连接器',
-  wago: 'WAGO 接线端子',
-  pwm: 'PWM 3-pin 端子',
-  jst: 'JST / Molex 端子',
-  rj45: 'RJ45 水晶头',
-  usb: 'USB 接头',
-};
-
-function WireTerminalMarker({ port, type, color, centered = false }: { port: WorldPort; type: WireTerminalType; color: string; centered?: boolean }) {
-  if (type === 'none') return null;
-  const angle = (Math.atan2(port.ny, port.nx) * 180) / Math.PI;
-  const x = centered ? port.x : port.x + port.nx * 7;
-  const y = centered ? port.y : port.y + port.ny * 7;
-  return (
-    <g transform={`translate(${x} ${y}) rotate(${angle})`} style={{ pointerEvents: 'none' }}>
-      <g transform={centered ? 'translate(-8 0)' : undefined}>
-        {type === 'ferrule' && (
-        <>
-          <rect x={-1} y={-3.5} width={13} height={7} rx={2} fill="#d7dde5" stroke="#64748b" strokeWidth={1} />
-          <rect x={7} y={-4.5} width={6} height={9} rx={2} fill={color} stroke="#ffffff" strokeWidth={0.8} />
-        </>
-      )}
-      {type === 'ring' && (
-        <>
-          <path d="M -1 0 H 6" stroke="#94a3b8" strokeWidth={5} strokeLinecap="round" />
-          <circle cx={11} cy={0} r={6} fill="#d7dde5" stroke="#64748b" strokeWidth={1.2} />
-          <circle cx={11} cy={0} r={2.5} fill="#f1f5f9" stroke="#64748b" strokeWidth={0.8} />
-        </>
-      )}
-      {type === 'fork' && (
-        <path d="M -1 -3 H 7 L 13 -7 L 16 -4 L 11 0 L 16 4 L 13 7 L 7 3 H -1 Z" fill="#d7dde5" stroke="#64748b" strokeWidth={1} />
-      )}
-      {type === 'anderson' && (
-        <>
-          <rect x={-1} y={-8} width={17} height={7} rx={2} fill="#dc2626" stroke="#7f1d1d" strokeWidth={1} />
-          <rect x={-1} y={1} width={17} height={7} rx={2} fill="#1f2937" stroke="#020617" strokeWidth={1} />
-          <rect x={11} y={-5.5} width={6} height={11} rx={1} fill="#cbd5e1" opacity={0.8} />
-        </>
-      )}
-      {type === 'wago' && (
-        <>
-          <rect x={-1} y={-7} width={18} height={14} rx={3} fill="#f97316" stroke="#9a3412" strokeWidth={1.2} />
-          <rect x={3} y={-4} width={10} height={8} rx={2} fill="#f8fafc" opacity={0.78} />
-          <circle cx={7} cy={0} r={2} fill="#94a3b8" />
-        </>
-      )}
-      {type === 'pwm' && (
-        <>
-          <rect x={-1} y={-7} width={17} height={14} rx={2} fill="#1f2937" stroke="#020617" strokeWidth={1} />
-          {[-4, 0, 4].map((offset) => <circle key={offset} cx={11} cy={offset} r={1.5} fill="#d6a630" />)}
-        </>
-      )}
-      {type === 'jst' && (
-        <>
-          <path d="M -1 -7 H 13 L 17 -4 V 4 L 13 7 H -1 Z" fill="#f8fafc" stroke="#64748b" strokeWidth={1.2} />
-          <rect x={9} y={-4} width={5} height={8} rx={1} fill="#cbd5e1" />
-          <circle cx={11.5} cy={-2} r={1} fill="#d6a630" />
-          <circle cx={11.5} cy={2} r={1} fill="#d6a630" />
-        </>
-      )}
-      {type === 'rj45' && (
-        <>
-          <rect x={-1} y={-8} width={18} height={16} rx={2} fill="#dbeafe" stroke="#475569" strokeWidth={1.1} />
-          <path d="M 4 -8 V -11 H 12 V -8" fill="#bfdbfe" stroke="#475569" strokeWidth={1} />
-          {[-5, -3, -1, 1, 3, 5].map((offset) => <line key={offset} x1={12} y1={offset} x2={16} y2={offset} stroke="#d6a630" strokeWidth={0.8} />)}
-        </>
-      )}
-      {type === 'usb' && (
-        <>
-          <rect x={-1} y={-6} width={18} height={12} rx={2} fill="#cbd5e1" stroke="#475569" strokeWidth={1.1} />
-          <rect x={10} y={-3.5} width={6} height={7} rx={1} fill="#334155" />
-          <rect x={11.5} y={-2} width={3} height={4} fill="#94a3b8" />
-        </>
-        )}
-        <title>{TERMINAL_NAMES[type]}</title>
-      </g>
-    </g>
-  );
-}
-
-type PortMarkerState = 'open' | 'open-near' | 'connected' | 'hover' | 'source';
+type PortMarkerState = 'open' | 'open-near' | 'connected' | 'selected' | 'hover' | 'source';
 
 /**
  * Quiet port marks: open ports are small rings in the port-type colour, connected ports leave the
- * wire end as the only mark, and hover / wire start add a soft static halo.
+ * wire end as the only mark unless selected, and hover / wire start add a soft static halo.
  */
 function PortMarker({ x, y, fill, color, state }: { x: number; y: number; fill: string; color: string; state: PortMarkerState }) {
   if (state === 'connected') return null;
+  if (state === 'selected') {
+    return <circle data-export-ignore="true" cx={x} cy={y} r={3.4} fill={fill} stroke="#ffffff" strokeWidth={1.5} pointerEvents="none" />;
+  }
   if (state === 'open' || state === 'open-near') {
-    return <circle cx={x} cy={y} r={state === 'open' ? 2.3 : 3} fill="#ffffff" stroke={color} strokeWidth={1.3} pointerEvents="none" />;
+    return <circle data-export-ignore="true" cx={x} cy={y} r={state === 'open' ? 2.3 : 3} fill="#ffffff" stroke={color} strokeWidth={1.3} pointerEvents="none" />;
   }
   const halo = state === 'source' ? '#0ea5e9' : color;
   return (
-    <g pointerEvents="none">
+    <g data-export-ignore="true" pointerEvents="none">
       <circle cx={x} cy={y} r={6.5} fill={halo} fillOpacity={0.18} stroke={halo} strokeOpacity={state === 'source' ? 0.7 : 0.35} strokeWidth={1} />
       <circle cx={x} cy={y} r={3.4} fill={fill} stroke="#ffffff" strokeWidth={1.1} />
     </g>
@@ -347,6 +275,10 @@ function PartLabel({ w, h, rot, position, title, caption, locked, offset, onPoin
 export default function WiringCanvas(props: Props) {
   const {
     backgroundImage,
+    backgroundEditing,
+    onBackgroundChange,
+    tool,
+    showGrid,
     parts,
     wires,
     partDefs,
@@ -377,6 +309,7 @@ export default function WiringCanvas(props: Props) {
     onAnnotationSelect,
     onAnnotationChange,
     posterMode = false,
+    showPartLabels = false,
     onPortClick,
     onFuseClick,
     onBackgroundClick,
@@ -424,6 +357,7 @@ export default function WiringCanvas(props: Props) {
   useEffect(() => () => endInteraction(), [endInteraction]);
   const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
+  const [panActive, setPanActive] = useState(false);
 
   const pressureSides = useMemo(() => pneumaticPressureSides(parts, wires, partDefs), [parts, wires, partDefs]);
   // While a wire is pending, every port it could legally end on.
@@ -551,6 +485,7 @@ export default function WiringCanvas(props: Props) {
     const blur = () => {
       spaceRef.current = false;
       dragRef.current = { kind: 'none' };
+      setPanActive(false);
       setMarquee(null);
       endInteraction();
     };
@@ -628,17 +563,30 @@ export default function WiringCanvas(props: Props) {
     };
     return new Map(wires.map((wire) => {
       const route = geometry.routes.get(wire.id);
-      const a = getPort(wire.a);
-      const b = getPort(wire.b);
-      const axisA = axisAt(wire.a);
-      const axisB = axisAt(wire.b);
-      const axisFor = (point?: { x: number; y: number }) => !point ? undefined
-        : a && Math.hypot(point.x - a.x, point.y - a.y) < 0.001 ? axisA
-          : b && Math.hypot(point.x - b.x, point.y - b.y) < 0.001 ? axisB : undefined;
-      const polarity = route ? cablePolarity(route.points, axisFor(route.points[0]), axisFor(route.points.at(-1))) : 1;
-      return [wire.id, { polarity, segments: route?.visiblePoints.map((points) => ({ startAxis: axisFor(points[0]), endAxis: axisFor(points.at(-1)) })) ?? [] }];
+      const endAt = (side: 'a' | 'b') => {
+        const center = cableRouteEnd(wire, side, cables, getPort);
+        const part = partByUid.get(wire[side].uid);
+        const def = part && partDefs.get(part.partId);
+        const port = def?.ports.find(port => port.id === wire[side].portId);
+        // Exposed connectors retain their real pin spacing at either rendering width.
+        const pin = part && def && port && (def.id === 'roborio'
+          || (def.id === 'pdh' && (port.type === 'pwr+' || port.type === 'pwr-')))
+          ? portWorld(part, def, port) : getPort(wire[side]);
+        const offset = center && pin && Math.hypot(pin.x - center.x, pin.y - center.y) > 0.001
+          ? { x: pin.x - center.x, y: pin.y - center.y } : undefined;
+        return { center, offset, axis: offset ?? axisAt(wire[side]) };
+      };
+      const a = endAt('a');
+      const b = endAt('b');
+      const endFor = (point?: RoutePoint) => !point ? undefined
+        : [a, b].find(end => end.center && Math.hypot(point.x - end.center.x, point.y - end.center.y) < 0.001);
+      const polarity = route ? cablePolarity(route.points, endFor(route.points[0])?.axis, endFor(route.points.at(-1))?.axis) : 1;
+      return [wire.id, { polarity, segments: route?.visiblePoints.map((points) => ({
+        startAxis: endFor(points[0])?.axis, endAxis: endFor(points.at(-1))?.axis,
+        startOffset: endFor(points[0])?.offset, endOffset: endFor(points.at(-1))?.offset,
+      })) ?? [] }];
     }));
-  }, [wires, geometry, partByUid, partDefs, getPort]);
+  }, [wires, geometry, partByUid, partDefs, getPort, cables]);
   const inlineClearance = INLINE_CONNECTOR_STYLES[inlineKind].clearance;
   const insertInline = (wireId: string, point: { x: number; y: number }) => {
     const wire = wires.find((wire) => wire.id === wireId);
@@ -717,9 +665,10 @@ export default function WiringCanvas(props: Props) {
 
   const onSvgPointerDown = (e: React.PointerEvent) => {
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
-    if (e.button === 1 || e.button === 2 || spaceRef.current) {
+    if (e.button === 1 || e.button === 2 || spaceRef.current || tool === 'pan') {
       e.preventDefault();
       dragRef.current = { kind: 'pan', startX: e.clientX, startY: e.clientY, view };
+      setPanActive(true);
       return;
     }
     if (e.button !== 0) return;
@@ -803,6 +752,18 @@ export default function WiringCanvas(props: Props) {
         w: Math.abs(w.x - d.startWx),
         h: Math.abs(w.y - d.startWy),
       });
+    } else if (d.kind === 'background') {
+      const point = toWorld(e.clientX, e.clientY);
+      const dx = point.x - d.start.x;
+      const dy = point.y - d.start.y;
+      if (!dx && !dy) return;
+      beginInteraction();
+      onBackgroundChange({ ...d.origin, x: d.origin.x + dx, y: d.origin.y + dy });
+    } else if (d.kind === 'background-resize') {
+      const next = resizeBackgroundFromCorner(d.origin, d.corner, toWorld(e.clientX, e.clientY));
+      if (next.width === backgroundImage?.width && next.x === backgroundImage.x && next.y === backgroundImage.y) return;
+      beginInteraction();
+      onBackgroundChange(next);
     } else if (d.kind === 'label') {
       const point = toWorld(e.clientX, e.clientY);
       const x = Math.round(d.origin.x + point.x - d.start.x);
@@ -898,6 +859,7 @@ export default function WiringCanvas(props: Props) {
     clearLongPress();
     const d = dragRef.current;
     dragRef.current = { kind: 'none' };
+    setPanActive(false);
     if (d.kind === 'parts' && d.moved) onPartsDropped(d.uids);
     endInteraction();
     if (e.pointerType === 'touch') setHoveredPort(null);
@@ -978,17 +940,42 @@ export default function WiringCanvas(props: Props) {
     (['entry', 'exit'] as const).map((endpoint) => ({ bundle, endpoint })),
   );
 
+  const startBackgroundDrag = (event: React.PointerEvent<SVGElement>, corner?: BackgroundCorner) => {
+    if (!backgroundImage || !backgroundEditing || event.button !== 0 || spaceRef.current || tool === 'pan') return;
+    event.stopPropagation();
+    svgRef.current?.setPointerCapture(event.pointerId);
+    dragRef.current = corner
+      ? { kind: 'background-resize', corner, origin: backgroundImage }
+      : { kind: 'background', start: toWorld(event.clientX, event.clientY), origin: backgroundImage };
+  };
+
+  const tracedWireIds = new Set([...selectedWires].flatMap((id) => cables.get(id)?.map((wire) => wire.id) ?? [id]));
+  const tracedEndpoints = new Map<string, { point: WorldPort; label: string }>();
+  for (const wire of wires) {
+    if (!tracedWireIds.has(wire.id)) continue;
+    for (const end of [wire.a, wire.b]) {
+      const point = getPort(end);
+      const part = partByUid.get(end.uid);
+      const def = part && partDefs.get(part.partId);
+      const port = def && getPortDef(end);
+      if (point && part && def && port) tracedEndpoints.set(`${end.uid}:${point.x}:${point.y}`, {
+        point, label: `${part.customName?.trim() || def.name} · ${cablePort(def, port).label}`,
+      });
+    }
+  }
+
   /* ---------- 渲染 ---------- */
 
   return (
     <div
       ref={containerRef}
-      className="absolute inset-0 overflow-hidden select-none"
+      className={`absolute inset-0 overflow-hidden select-none ${panActive ? '[&_svg_*]:!cursor-grabbing' : tool === 'pan' ? '[&_svg_*]:!cursor-grab' : ''}`}
       style={{
-        background: posterMode ? '#ffffff' : '#f1f5f9',
-        backgroundImage: posterMode ? 'none' : 'radial-gradient(circle, #cbd5e1 1.2px, transparent 1.2px)',
-        backgroundSize: '26px 26px',
-        cursor: pendingFrom || pendingInlineWireId ? 'crosshair' : 'default',
+        backgroundColor: posterMode ? '#ffffff' : '#f8fafb',
+        backgroundImage: posterMode || !showGrid ? 'none' : 'radial-gradient(circle, #c3ced3 0.8px, transparent 0.8px)',
+        backgroundSize: `${24 * view.k}px ${24 * view.k}px`,
+        backgroundPosition: `${view.x}px ${view.y}px`,
+        cursor: panActive ? 'grabbing' : tool === 'pan' ? 'grab' : pendingFrom || pendingInlineWireId ? 'crosshair' : 'default',
       }}
       onContextMenu={(e) => e.preventDefault()}
       onPointerEnter={() => { pointerInsideRef.current = true; }}
@@ -999,6 +986,9 @@ export default function WiringCanvas(props: Props) {
         className="w-full h-full block"
         tabIndex={0}
         aria-label="接线图画布"
+        onDoubleClickCapture={(event) => {
+          if (tool === 'pan') { event.preventDefault(); event.stopPropagation(); }
+        }}
         onPointerDownCapture={(event) => {
           if ((event.pointerType === 'touch') !== coarse) setCoarse(event.pointerType === 'touch');
           if (event.pointerType === 'touch') {
@@ -1014,6 +1004,11 @@ export default function WiringCanvas(props: Props) {
               return;
             }
           }
+          if (tool === 'pan' && event.button === 0) {
+            event.stopPropagation();
+            onSvgPointerDown(event);
+            return;
+          }
           // A press on the drawing ends any typing in the side panels, so Delete / Backspace act on the selection.
           const active = document.activeElement;
           if (active instanceof HTMLElement && !event.currentTarget.contains(active) && active.matches('input, select, textarea, [contenteditable]:not([contenteditable="false"])')) active.blur();
@@ -1022,18 +1017,20 @@ export default function WiringCanvas(props: Props) {
         onPointerDown={onSvgPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        onPointerCancel={(event) => { pointersRef.current.delete(event.pointerId); clearLongPress(); dragRef.current = { kind: 'none' }; setMarquee(null); endInteraction(); }}
+        onPointerCancel={(event) => { pointersRef.current.delete(event.pointerId); clearLongPress(); dragRef.current = { kind: 'none' }; setPanActive(false); setMarquee(null); endInteraction(); }}
         onLostPointerCapture={(event) => {
           // Lifting one finger of a pinch must not end the other finger's gesture bookkeeping.
           if (dragRef.current.kind === 'pinch' && pointersRef.current.size > 1) return;
           pointersRef.current.delete(event.pointerId);
-          dragRef.current = { kind: 'none' }; setMarquee(null); endInteraction();
+          dragRef.current = { kind: 'none' }; setPanActive(false); setMarquee(null); endInteraction();
         }}
         style={{ touchAction: 'none' }}
       >
+        <style data-export-ignore="true">{'[data-trace-dim="true"] { opacity: 0.2; }'}</style>
         <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
           {backgroundImage && (
             <image
+              data-background="true"
               href={backgroundImage.imageData}
               x={backgroundImage.x}
               y={backgroundImage.y}
@@ -1057,9 +1054,10 @@ export default function WiringCanvas(props: Props) {
             const labelText = count > 1 ? `${label} · ${count} 根` : label;
             const labelWidth = Math.max(54, labelText.length * 11 + 18);
             return (
-              <g key={'routing:' + visual.key} data-bundle-id={visual.key} style={{ pointerEvents: 'none' }}>
+              <g key={'routing:' + visual.key} data-bundle-id={visual.key} style={{ pointerEvents: 'none' }}
+                data-trace-dim={!posterMode && tracedWireIds.size > 0 && !visual.wireIds.some((id) => tracedWireIds.has(id)) ? 'true' : undefined}>
                 {visual.wireIds.some((id) => selectedWires.has(id)) && (
-                  <path d={visual.path} fill="none" stroke="#38bdf8" strokeWidth={jacketWidth + 8} opacity={0.42} strokeLinejoin="round" />
+                  <path data-export-ignore="true" d={visual.path} fill="none" stroke="#0f766e" strokeWidth={jacketWidth + 8} opacity={0.22} strokeLinejoin="round" />
                 )}
                 <g>
                   {visual.style === 'drag-chain' ? (
@@ -1087,7 +1085,7 @@ export default function WiringCanvas(props: Props) {
           })}
 
           {/* 导线 */}
-          {wires.map((wire) => {
+          {wires.map((wire, wireIndex) => {
             const cable = cables.get(wire.id);
             if (cable && cable[0].id !== wire.id) return null;
             const p1 = getPort(wire.a);
@@ -1111,7 +1109,8 @@ export default function WiringCanvas(props: Props) {
               : null;
             const commonType = portA?.type === portB?.type ? portA?.type : undefined;
             const tube = commonType === 'air';
-            const tubeWidth = wire.tubeOdMm ?? 6.35;
+            const wireWidth = tube ? wire.tubeOdMm ?? 6.35 : awgStrokeWidth(wire.awg);
+            const selectionWidth = wireWidth * (cable ? 3 : 1) + 6;
             const labelOffset = commonType === 'pwr+'
               ? -15
               : commonType === 'pwr-'
@@ -1130,45 +1129,64 @@ export default function WiringCanvas(props: Props) {
             const terminalB = wire.terminalB ?? defaultTerminalForPort(portB);
             const visiblePaths = route.visiblePaths;
             return (
-              <g key={wire.id} data-wire-id={wire.id} data-cable-members={cable?.map((wire) => wire.id).join(',')}>
+              <g key={wire.id} data-wire-id={wire.id} data-cable-members={cable?.map((wire) => wire.id).join(',')}
+                data-trace-dim={!posterMode && tracedWireIds.size > 0 && !tracedWireIds.has(wire.id) ? 'true' : undefined}>
                 {sel && visiblePaths.map((segment, index) => (
-                  <path key={'selection-' + index} d={segment} fill="none" stroke="#38bdf8" strokeWidth={tube ? tubeWidth + 6 : 10} opacity={0.42} strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />
+                  <path data-export-ignore="true" key={'selection-' + index} d={segment} fill="none" stroke="#0f766e" strokeWidth={selectionWidth} opacity={0.22} strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />
                 ))}
-                {visiblePaths.map((segment, index) => (
-                  <g key={'wire-segment-' + index} style={{ pointerEvents: 'none' }}>
-                    {tube ? (
-                      <path d={segment} fill="none" stroke={PRESSURE_SIDES[pressureSides.get(wire.id) ?? 'working'].color} strokeWidth={tubeWidth} strokeLinejoin="round" />
-                    ) : cable ? <CableConductors radius={editorWire.cornerRadius} points={route.visiblePoints[index]} colors={[wire.color, cable[1].color]} twisted={!posterMode && commonType === 'canH'}
-                      width={posterMode ? awgStrokeWidth(wire.awg) : 2.8} flat={posterMode}
-                      polarity={cableVisuals.get(wire.id)?.polarity} {...cableVisuals.get(wire.id)?.segments[index]} /> : <>
-                    {!posterMode && <path
-                      d={segment}
-                      fill="none"
-                      stroke="#ffffff"
-                      strokeWidth={7}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      opacity={0.92}
-                    />}
-                    <path
-                      d={segment}
-                      fill="none"
-                      stroke={wire.color}
-                      strokeWidth={posterMode ? awgStrokeWidth(wire.awg) : 3.5}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    </>}
-                  </g>
-                ))}
+                <g id={`${portFillId}-wire-paint-${wireIndex}`}>
+                  {visiblePaths.map((segment, index) => (
+                    <g key={'wire-segment-' + index} style={{ pointerEvents: 'none' }}>
+                      {tube ? (
+                        <path d={segment} fill="none" stroke={PRESSURE_SIDES[pressureSides.get(wire.id) ?? 'working'].color} strokeWidth={wireWidth} strokeLinejoin="round" />
+                      ) : cable ? <CableConductors radius={editorWire.cornerRadius} points={route.visiblePoints[index]} colors={[wire.color, cable[1].color]} twisted={false}
+                        width={wireWidth} flat={posterMode} power={commonType === 'pwr+' || commonType === 'pwr-'}
+                        polarity={cableVisuals.get(wire.id)?.polarity} {...cableVisuals.get(wire.id)?.segments[index]} /> : <>
+                      {!posterMode && <path
+                        d={segment}
+                        fill="none"
+                        stroke="#ffffff"
+                        strokeWidth={wireWidth + 1}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        opacity={0.92}
+                      />}
+                      <path
+                        d={segment}
+                        fill="none"
+                        stroke={wire.color}
+                        strokeWidth={wireWidth}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      </>}
+                    </g>
+                  ))}
+                  {wire.assembly === 'jumper' && (
+                    <>
+                      <WireTerminalMarker port={p1} type={terminalA} color={wire.color} />
+                      <WireTerminalMarker port={p2} type={terminalB} color={wire.color} />
+                    </>
+                  )}
+                </g>
                 <path
                   d={d}
+                  data-export-ignore="true"
                   fill="none"
                   stroke="transparent"
-                  strokeWidth={Math.max(14, 14 * hit / view.k)}
+                  strokeWidth={Math.max(selectionWidth, 14, 14 * hit / view.k)}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   style={{ pointerEvents: 'stroke', cursor: pendingInlineWireId === wire.id ? 'crosshair' : 'pointer' }}
+                  role="button"
+                  tabIndex={tool === 'select' ? 0 : -1}
+                  aria-label={`选择导线：${portA?.label ?? wire.a.portId} 连接 ${portB?.label ?? wire.b.portId}`}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault(); event.stopPropagation();
+                      if (!event.repeat) onWireClick(wire.id, additiveKey(event));
+                    }
+                  }}
                   onDoubleClick={e => { e.stopPropagation(); onAddWireGuide(wire.id, toWorld(e.clientX, e.clientY)); }}
                   onPointerDown={(e) => {
                     if (e.button !== 0 || spaceRef.current) return;
@@ -1199,12 +1217,6 @@ export default function WiringCanvas(props: Props) {
                     }
                   }}
                 />
-                {wire.assembly === 'jumper' && (
-                  <>
-                    <WireTerminalMarker port={p1} type={terminalA} color={wire.color} />
-                    <WireTerminalMarker port={p2} type={terminalB} color={wire.color} />
-                  </>
-                )}
                 {editableWaypoints.map((waypoint, index) => {
                   if (waypoint.kind === 'guide' || (wire.id !== editorWire.id && waypoint.editorId === editorWire.id)) return null;
                   const previous = index === 0 ? p1 : editableWaypoints[index - 1];
@@ -1224,6 +1236,7 @@ export default function WiringCanvas(props: Props) {
                 })}
                 {gaugeText && (
                   <g
+                    data-export-ignore="true"
                     transform={`translate(${route.control.x} ${route.control.y + labelOffset})`}
                     style={{ pointerEvents: 'none' }}
                   >
@@ -1337,7 +1350,7 @@ export default function WiringCanvas(props: Props) {
             const { w, h } = partSize(def, part);
             const sel = selectedParts.has(part.uid);
             const displayLabel = [part.customName?.trim() || def.name, part.deviceId?.trim()].filter(Boolean).join(' · ');
-            const showLabel = part.labelPos !== 'none' && (!def.hideLabel || Boolean(part.customName?.trim() || part.deviceId?.trim()));
+            const showLabel = showPartLabels && part.labelPos !== 'none' && (!def.hideLabel || Boolean(part.customName?.trim() || part.deviceId?.trim()));
             const pdhChannels = motorPdhChannels.get(part.uid) ?? [];
             const pdhLabel = pdhChannels.length > 0 ? `PDH CH ${pdhChannels.join(' / ')}` : '';
             const pdhLabelWidth = Math.max(64, pdhLabel.length * 6 + 16);
@@ -1355,7 +1368,7 @@ export default function WiringCanvas(props: Props) {
                       height={h + 10}
                       rx={8}
                       fill="none"
-                      stroke={part.locked ? '#f59e0b' : '#38bdf8'}
+                      stroke={part.locked ? '#f59e0b' : '#0f766e'}
                       strokeWidth={2.5}
                       strokeDasharray="7 5"
                     />
@@ -1377,6 +1390,25 @@ export default function WiringCanvas(props: Props) {
                       style={{ overflow: 'visible' }}
                     />
                   </g>
+                  {def.id === 'roborio' && <g pointerEvents="none" data-part-wire-overlay={part.uid}
+                    clipPath={`url(#${portFillId}-surface-${partIndex})`}>
+                    <defs>
+                      <clipPath id={`${portFillId}-surface-${partIndex}`}>
+                        <rect width={w} height={h} rx={Math.min(w, h) * 0.06} />
+                      </clipPath>
+                    </defs>
+                    {/* Repaint the same conductors over their own enclosure only. */}
+                    <g transform={`rotate(${-part.rot} ${w / 2} ${h / 2}) translate(${-part.x} ${-part.y})`}>
+                      {wires.map((wire, wireIndex) => {
+                        const cable = cables.get(wire.id);
+                        if ((cable && cable[0].id !== wire.id) || !geometry.routes.has(wire.id)
+                          || (wire.a.uid !== part.uid && wire.b.uid !== part.uid)) return null;
+                        return <use key={wire.id} href={`#${portFillId}-wire-paint-${wireIndex}`}
+                          data-overlay-wire-id={wire.id}
+                          data-trace-dim={!posterMode && tracedWireIds.size > 0 && !tracedWireIds.has(wire.id) ? 'true' : undefined} />;
+                      })}
+                    </g>
+                  </g>}
                   {cablePorts(def).map((port, portIndex) => {
                     const paired = pairedCablePort(def, port.id);
                     const axis = cablePortPolarity(def, port, { w, h });
@@ -1389,13 +1421,17 @@ export default function WiringCanvas(props: Props) {
                       <g key={port.id}
                         data-cable-port-id={port.id}
                         role="button"
-                        tabIndex={0}
+                        tabIndex={tool === 'select' ? 0 : -1}
                         opacity={pendingFrom && part.uid !== pendingFrom.uid && !compatiblePorts.has(`${part.uid}:${port.id}`) ? 0.25 : 1}
                         onFocus={() => setHoveredPort({ uid: part.uid, portId: port.id })}
                         onBlur={() => setHoveredPort((current) => current?.uid === part.uid && current.portId === port.id ? null : current)}
-                        onPointerEnter={() => setHoveredPort({ uid: part.uid, portId: port.id })}
-                        onPointerLeave={() => setHoveredPort((current) => current?.uid === part.uid && current.portId === port.id ? null : current)}
-                        aria-label={`${displayLabel} · ${port.label}，连接端口`}
+                        onPointerMove={(event) => {
+                          if (tool === 'pan' || spaceRef.current || dragRef.current.kind !== 'none') return;
+                          const nearest = nearestCablePortAtPoint(part, def, toWorld(event.clientX, event.clientY), port.id);
+                          if (nearest) setHoveredPort({ uid: part.uid, portId: nearest.id });
+                        }}
+                        onPointerLeave={() => setHoveredPort(null)}
+                        aria-label={`${displayLabel} · ${port.label}，${connectedPorts.has(`${part.uid}:${port.id}`) ? '已连接' : '未连接'}端口`}
                         onPointerDown={(event) => onPortPointerDown(event, part, def, port.id)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
@@ -1411,14 +1447,15 @@ export default function WiringCanvas(props: Props) {
                             <stop offset="50%" stopColor={PORT_TYPE_COLOR[paired!.type]} />
                           </linearGradient>
                         </defs>}
-                        {!(posterMode && !isPending) && (isPending || sel || isHoveredPort
+                        {(!posterMode || isPending || sel) && (isPending || sel || isHoveredPort
                           || (pendingFrom && compatiblePorts.has(`${part.uid}:${port.id}`))) && (
                           <PortMarker x={port.x * w} y={port.y * h}
                             fill={axis ? `url(#${gradientId})` : PORT_TYPE_COLOR[port.type]} color={PORT_TYPE_COLOR[port.type]}
                             state={isPending ? 'source'
                               : isHoveredPort ? 'hover'
-                                : connectedPorts.has(`${part.uid}:${port.id}`) ? 'connected'
-                                  : hoveredPart === part.uid || (pendingFrom && compatiblePorts.has(`${part.uid}:${port.id}`)) ? 'open-near' : 'open'} />
+                                : sel ? 'selected'
+                                  : connectedPorts.has(`${part.uid}:${port.id}`) ? 'connected'
+                                    : hoveredPart === part.uid || (pendingFrom && compatiblePorts.has(`${part.uid}:${port.id}`)) ? 'open-near' : 'open'} />
                         )}
                         <circle
                           data-port-uid={part.uid}
@@ -1450,7 +1487,7 @@ export default function WiringCanvas(props: Props) {
                     (event.currentTarget.ownerSVGElement as Element | null)?.setPointerCapture?.(event.pointerId);
                     dragRef.current = { kind: 'label', uid: part.uid, start: toWorld(event.clientX, event.clientY), origin: part.labelOffset ?? { x: 0, y: 0 } };
                   }} />}
-                {pdhLabel && (!posterMode || pdhChannels.length > 1) && (
+                {showPartLabels && pdhLabel && (!posterMode || pdhChannels.length > 1) && (
                   <g
                     transform={`translate(${w / 2} ${h + 24})`}
                     style={{ pointerEvents: 'none', userSelect: 'none' }}
@@ -1483,6 +1520,22 @@ export default function WiringCanvas(props: Props) {
             );
           })}
 
+          {!posterMode && tracedEndpoints.size > 0 && (
+            <g data-export-ignore="true" pointerEvents="none">
+              {[...tracedEndpoints].map(([key, { point, label }]) => {
+                const fontSize = 10 / view.k;
+                const width = [...label].reduce((sum, char) => sum + (/[\u2e80-\uffff]/.test(char) ? 1 : 0.58), 0) * fontSize + 14 / view.k;
+                return <g key={key} transform={`translate(${point.x} ${point.y})`}>
+                  <circle r={7 / view.k} fill="#ccfbf1" fillOpacity={0.65} stroke="#0f766e" strokeWidth={1.4 / view.k} />
+                  {tracedEndpoints.size <= 2 && <g transform={`translate(${10 / view.k} ${8 / view.k})`}>
+                    <rect width={width} height={21 / view.k} rx={4 / view.k} fill="#ffffff" stroke="#99d5c9" strokeWidth={1 / view.k} />
+                    <text x={7 / view.k} y={14 / view.k} fontSize={fontSize} fontWeight={600} fill="#0f766e">{label}</text>
+                  </g>}
+                </g>;
+              })}
+            </g>
+          )}
+
           {/* 连线提示：可接端口加绿圈，悬停端口显示名称 */}
           <g data-export-ignore="true" pointerEvents="none">
             {pendingFrom && [...compatiblePorts].map((key) => {
@@ -1497,7 +1550,8 @@ export default function WiringCanvas(props: Props) {
               const port = def?.ports.find((item) => item.id === hoveredPort.portId);
               if (!point || !port || !part || !def) return null;
               const blocked = pendingFrom && part.uid !== pendingFrom.uid ? connectionIssue(pendingFrom, hoveredPort, parts, partDefs) : null;
-              const text = blocked ?? `${part.customName?.trim() || def.name} · ${port.label}`;
+              const connected = connectedPorts.has(`${part.uid}:${port.id}`);
+              const text = blocked ?? `${part.customName?.trim() || def.name} · ${port.label} · ${connected ? '已连接' : '未连接'}`;
               const size = 11 / view.k;
               const width = [...text].reduce((sum, char) => sum + (/[\u2e80-\uffff]/.test(char) ? 1 : 0.58), 0) * size + size * 1.4;
               return (
@@ -1565,6 +1619,7 @@ export default function WiringCanvas(props: Props) {
               const point = inlineConnectorLocation(wire, connector, route, getPort, clearance);
               return <g key={`${wire.id}:${connector.id}`} data-inline-connector-id={connector.id} data-inline-wire-id={wire.id}
                 data-covered={point.covered} data-export-ignore={point.covered ? 'true' : undefined}
+                data-trace-dim={!posterMode && tracedWireIds.size > 0 && !tracedWireIds.has(wire.id) ? 'true' : undefined}
                 visibility={point.covered && !selected ? 'hidden' : undefined}
                 role="button" tabIndex={0} aria-label={point.covered ? `${label}（管内）` : label}
                 transform={`translate(${point.x} ${point.y}) rotate(${point.angle})`} style={{ cursor: 'grab' }}
@@ -1606,6 +1661,7 @@ export default function WiringCanvas(props: Props) {
           })()}
           {marquee && (
             <rect
+              data-export-ignore="true"
               x={marquee.x}
               y={marquee.y}
               width={marquee.w}
@@ -1615,6 +1671,50 @@ export default function WiringCanvas(props: Props) {
               strokeWidth={1.2}
               strokeDasharray="5 4"
             />
+          )}
+          {backgroundImage && backgroundEditing && (
+            <g data-export-ignore="true" data-background-controls="true">
+              <rect
+                x={backgroundImage.x} y={backgroundImage.y}
+                width={backgroundImage.width} height={backgroundImage.height}
+                fill="#0f766e" fillOpacity={0.025}
+                stroke="#0f766e" strokeWidth={1.5 / view.k} strokeDasharray={`${6 / view.k} ${4 / view.k}`}
+                style={{ cursor: 'move' }} role="button" tabIndex={0}
+                aria-label="移动背景图；拖动或使用方向键，Shift 加速"
+                onPointerDown={(event) => startBackgroundDrag(event)}
+                onKeyDown={(event) => {
+                  if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+                  event.preventDefault(); event.stopPropagation();
+                  const step = (event.shiftKey ? 20 : 4) / view.k;
+                  onBackgroundChange({ ...backgroundImage,
+                    x: backgroundImage.x + (event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0),
+                    y: backgroundImage.y + (event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0),
+                  });
+                }}
+              />
+              {(['nw', 'ne', 'sw', 'se'] as const).map((corner) => {
+                const x = backgroundImage.x + (corner.endsWith('e') ? backgroundImage.width : 0);
+                const y = backgroundImage.y + (corner.startsWith('s') ? backgroundImage.height : 0);
+                const name = { nw: '左上', ne: '右上', sw: '左下', se: '右下' }[corner];
+                return <g key={corner} data-background-handle={corner}
+                  transform={`translate(${x} ${y})`} role="button" tabIndex={0}
+                  aria-label={`等比缩放背景${name}角；方向键微调，Shift 加速`}
+                  style={{ cursor: corner === 'nw' || corner === 'se' ? 'nwse-resize' : 'nesw-resize' }}
+                  onPointerDown={(event) => startBackgroundDrag(event, corner)}
+                  onKeyDown={(event) => {
+                    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+                    event.preventDefault(); event.stopPropagation();
+                    const step = (event.shiftKey ? 20 : 4) / view.k;
+                    onBackgroundChange(resizeBackgroundFromCorner(backgroundImage, corner, {
+                      x: x + (event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0),
+                      y: y + (event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0),
+                    }));
+                  }}>
+                  <rect x={-12 * hit / view.k} y={-12 * hit / view.k} width={24 * hit / view.k} height={24 * hit / view.k} fill="transparent" />
+                  <rect x={-5 / view.k} y={-5 / view.k} width={10 / view.k} height={10 / view.k} rx={2 / view.k} fill="#ffffff" stroke="#0f766e" strokeWidth={1.5 / view.k} pointerEvents="none" />
+                </g>;
+              })}
+            </g>
           )}
         </g>
       </svg>

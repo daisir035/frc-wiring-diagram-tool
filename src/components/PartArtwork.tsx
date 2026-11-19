@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import type { FuseRating, PartDef } from '../lib/wiring';
-import { PORT_TYPE_COLOR, partAssetSrc, partImageSrc } from '../lib/wiring';
+import { FUSE_COLOR, PORT_TYPE_COLOR, partAssetSrc, partImageSrc } from '../lib/wiring';
 import PneumaticArtwork from './PneumaticArtwork';
 
 interface Props {
@@ -120,23 +120,14 @@ function RoboRIO({ def }: { def: PartDef }) {
   );
 }
 
-const FUSE_COLOR: Record<FuseRating, string> = {
-  10: '#c94b64',
-  20: '#d8b51f',
-  30: '#2f9e69',
-  40: '#df9a22',
-};
-
-/** The RSL's jumper between the La and N screw terminals (RSL.png pixel coordinates). */
+/** The external La–Lb bridge leaves the middle N terminal for the return lead. */
 function RslJumper() {
-  const path = 'M 28 84 C 46 84 47 109 28 109';
+  const path = 'M 0 84 C -32 84 -32 135 0 135';
   return (
-    <g data-rsl-jumper="La-N" pointerEvents="none">
-      <path d={path} fill="none" stroke="#1f2937" strokeWidth={5.5} strokeLinecap="round" />
-      <path d={path} fill="none" stroke="#f8fafc" strokeWidth={3.2} strokeLinecap="round" />
-      <circle cx={28} cy={84} r={3.6} fill="#c9a43a" stroke="#6b5313" strokeWidth={1} />
-      <circle cx={28} cy={109} r={3.6} fill="#c9a43a" stroke="#6b5313" strokeWidth={1} />
-      <title>La–N 跳线</title>
+    <g data-rsl-jumper="La-Lb" pointerEvents="none">
+      <path d={path} fill="none" stroke="#ffffff" strokeWidth={12} strokeLinecap="round" />
+      <path d={path} fill="none" stroke={PORT_TYPE_COLOR['pwr+']} strokeWidth={8} strokeLinecap="round" />
+      <title>La–Lb 短跳线</title>
     </g>
   );
 }
@@ -153,6 +144,7 @@ function ImageFuseSlots({
   canActivateFuse?: () => boolean;
 }) {
   if (!def.fuseSlots) return null;
+  const hasSlotArtwork = def.visual === 'vector' || def.img?.endsWith('.svg') || Boolean(def.fuseImages);
   return (
     <g>
       {def.fuseSlots.map((slot) => {
@@ -212,10 +204,10 @@ function ImageFuseSlots({
                 width={width}
                 height={height}
                 rx={Math.min(width, height) * 0.28}
-                fill={rating ? FUSE_COLOR[rating] : 'rgba(255,255,255,0.04)'}
-                stroke={rating ? 'rgba(0,0,0,0.25)' : def.fuseImages || def.visual === 'vector' ? 'transparent' : 'rgba(255,255,255,0.3)'}
+                fill={rating ? FUSE_COLOR[rating] : hasSlotArtwork ? 'transparent' : 'rgba(255,255,255,0.04)'}
+                stroke={rating ? 'rgba(0,0,0,0.25)' : hasSlotArtwork ? 'transparent' : 'rgba(255,255,255,0.3)'}
                 strokeWidth={rating ? Math.min(width, height) * 0.05 : 1.2}
-                strokeDasharray={rating ? undefined : '5 4'}
+                strokeDasharray={rating || hasSlotArtwork ? undefined : '5 4'}
               />
             )}
             {rating && !fuseImage && (
@@ -224,7 +216,7 @@ function ImageFuseSlots({
                 y={y + height * 0.66}
                 textAnchor="middle"
                 fill="#000000"
-                fillOpacity={0.38}
+                fillOpacity={0.82}
                 fontFamily="Arial, sans-serif"
                 fontSize={Math.min(height * 0.46, width / (def.fuseSlotCover ? 5 : 4.2))}
                 fontWeight={700}
@@ -232,7 +224,7 @@ function ImageFuseSlots({
                 pointerEvents="none"
               >
                 {/* Covered bays keep their channel number visible once a breaker is fitted. */}
-                {def.fuseSlotCover ? `${slot.channel} · ${rating}A` : `12V${rating}A`}
+                {def.fuseSlotCover ? `${slot.channel} · ${rating}A` : `${rating}A`}
               </text>
             )}
             <title>{`CH ${slot.channel} · ${rating ? `${rating}A 保险丝` : '空槽'}${onFuseClick ? ' · 点击更改' : ''}`}</title>
@@ -557,41 +549,51 @@ function Camera({ def }: { def: PartDef }) {
 }
 
 function Battery({ def }: { def: PartDef }) {
+  const { w, h } = def;
+  const labelHeight = Math.min(h, w * 0.6);
   return (
     <>
-      <rect x={4} y={10} width={140} height={80} rx={8} fill="#383d45" stroke="#111318" strokeWidth={2} />
-      <rect x={18} y={3} width={30} height={15} rx={3} fill="#ef4444" />
-      <rect x={101} y={3} width={30} height={15} rx={3} fill="#17191d" />
-      <rect x={17} y={24} width={114} height={47} rx={4} fill="#e7eaef" />
-      <text x={74} y={43} textAnchor="middle" fill="#1f2937" fontFamily="Arial, sans-serif" fontSize={13} fontWeight={700} letterSpacing={0}>12V</text>
-      <text x={74} y={57} textAnchor="middle" fill="#64748b" fontFamily="Arial, sans-serif" fontSize={7} fontWeight={700} letterSpacing={0}>FRC BATTERY</text>
-      <path d="M 131 11 C 150 13 146 34 158 38" fill="none" stroke="#dc2626" strokeWidth={7} />
-      <path d="M 116 11 C 145 24 143 50 158 60" fill="none" stroke="#17191d" strokeWidth={7} />
+      <rect x={1} y={h * 0.15} width={w - 2} height={h * 0.85 - 1} rx={2.5} fill="#eceee9" stroke="#71766f" strokeWidth={0.9} />
+      <path d={`M 2 ${h * 0.25} V 4 Q 2 2 4 2 H ${w - 4} Q ${w - 2} 2 ${w - 2} 4 V ${h * 0.25} Z`}
+        fill="#c4c8c0" stroke="#71766f" strokeWidth={0.9} />
+      <path d={`M ${w * 0.24} 4 V ${h * 0.16} H ${w * 0.76} V 4 M ${w * 0.42} 4 V ${h * 0.16} M ${w * 0.58} 4 V ${h * 0.16}`}
+        fill="none" stroke="#959c92" strokeWidth={1} />
+      <path d={`M 3 ${h * 0.29} H ${w - 3}`} stroke="#d1d5cc" strokeWidth={0.8} />
+      <g fill="#242824" textAnchor="middle" fontFamily="Arial, sans-serif">
+        <ellipse cx={w * 0.45} cy={h * 0.59} rx={w * 0.15} ry={h * 0.035} fill="none" stroke="#242824" strokeWidth={1.2} />
+        <text x={w * 0.45} y={h * 0.59} fontSize={labelHeight * 0.23} fontWeight={900} fontStyle="italic" letterSpacing={-1}>MK</text>
+        <text x={w * 0.45} y={h * 0.78} fontSize={labelHeight * 0.095} fontWeight={600} letterSpacing={0.2}>12V 18Ah</text>
+      </g>
+      {def.ports.map((port) => (
+        <text key={port.id} x={w - 9} y={port.y * h} textAnchor="end" dominantBaseline="middle"
+          fill={padColor(port.type)} fontFamily="Arial, sans-serif" fontSize={labelHeight * 0.104} fontWeight={600} letterSpacing={0}>
+          {port.type === 'pwr+' ? '+' : '−'}
+        </text>
+      ))}
       <VectorPortPads def={def} />
     </>
   );
 }
 
 function LeverTerminal({ def }: { def: PartDef }) {
+  const { w, h } = def;
+  const length = w * 0.35;
+  const outputs = def.ports.filter((port) => port.side === 'right').length;
   return (
-    <>
-      <rect x={1} y={1} width={def.w - 2} height={def.h - 2} rx={6} fill="#cdd3d8" stroke="#67717a" strokeWidth={2} />
-      <rect x={def.w * 0.43} y={5} width={def.w * 0.14} height={def.h - 10} rx={2} fill="#a4aeb5" />
+    <g data-terminal-artwork={`2-in-${outputs}-out`}>
+      <rect width={w} height={h} rx={2} fill="#e5e7eb" />
       {def.ports.map((port) => {
         const left = port.side === 'left';
-        const x = left ? 0 : def.w;
+        const height = h * (left || outputs === 2 ? 0.26 : 0.175);
         const y = port.y * def.h;
-        const height = Math.min(22, def.h * 0.17);
-        return <g key={port.id} transform={`translate(${x} ${y}) scale(${left ? 1 : -1} 1)`}>
-          <rect x={1} y={-height / 2} width={def.w * 0.38} height={height} rx={2} fill="#e5e8eb" stroke="#87939c" />
-          <rect x={2} y={-height * 0.32} width={11} height={height * 0.64} rx={2} fill="#303b43" />
-          <rect x={18} y={-height * 0.42} width={def.w * 0.22} height={height * 0.84} rx={2} fill="#f58522" stroke="#b75d11" />
-          <path d={`M 24 ${-height * 0.16} H ${def.w * 0.22 + 10} M 24 ${height * 0.16} H ${def.w * 0.22 + 10}`} stroke="#ffc36d" strokeWidth={2} />
-          <rect x={2} y={height / 2 - 3} width={10} height={3} fill={PORT_TYPE_COLOR[port.type]} />
-        </g>;
+        return (
+          <g key={port.id} transform={`translate(${port.x * w} ${y}) scale(${left ? 1 : -1} 1)`}>
+            <rect x={0} y={-height / 2} width={length} height={height} rx={0.8} fill="#f68b32" />
+          </g>
+        );
       })}
-      <VectorPortPads def={def} />
-    </>
+      <rect x={0.35} y={0.35} width={w - 0.7} height={h - 0.7} rx={1.65} fill="none" stroke="#8b929c" strokeWidth={0.7} />
+    </g>
   );
 }
 
@@ -633,19 +635,23 @@ function renderVector(def: PartDef) {
 }
 
 export default function PartArtwork({ def, width, height, fuses, onFuseClick, canActivateFuse, stretchToFit = false, className, style }: Props) {
+  // Lay out the battery directly in its measured rectangle so its lettering is never stretched.
+  const drawingDef = def.id === 'battery12v' && stretchToFit && typeof width === 'number' && typeof height === 'number'
+    && width > 0 && height > 0 ? { ...def, w: width, h: height } : def;
   return (
     <svg
       width={width}
       height={height}
-      viewBox={`0 0 ${def.w} ${def.h}`}
+      viewBox={`0 0 ${drawingDef.w} ${drawingDef.h}`}
       preserveAspectRatio={stretchToFit ? 'none' : 'xMidYMid meet'}
+      overflow={def.id === 'rsl' ? 'visible' : undefined}
       className={className}
       style={style}
       aria-label={def.name}
     >
       {def.visual === 'vector' ? (
         <>
-          {renderVector(def)}
+          {renderVector(drawingDef)}
           <ImageFuseSlots def={def} fuses={fuses} onFuseClick={onFuseClick} canActivateFuse={canActivateFuse} />
         </>
       ) : (

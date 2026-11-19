@@ -74,16 +74,21 @@
   }
 }
 
-.toolbar-scroll {
+.toolbar-scroll, .chip-scroll {
   scrollbar-width: none;
 }
 
-.toolbar-scroll::-webkit-scrollbar {
+.toolbar-scroll::-webkit-scrollbar, .chip-scroll::-webkit-scrollbar {
   display: none;
 }
 
 /* Port focus is shown by the port marker itself, not the browser outline. */
 [data-cable-port-id]:focus {
+  outline: none;
+}
+
+/* Clicked wires need no bounding box; keyboard focus remains visible. */
+[data-wire-id] > path[role="button"]:focus:not(:focus-visible) {
   outline: none;
 }
 
@@ -95,8 +100,8 @@
   .toolbar-scroll button {
     min-height: 36px;
   }
-  .toolbar-scroll[role="toolbar"] button,
-  [aria-label="缩放"] button {
+  .editor-toolbar button,
+  .zoom-controls button {
     min-height: 40px;
     min-width: 40px;
     justify-content: center;
@@ -111,4 +116,49 @@ svg[aria-label="接线图画布"] {
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
+}
+
+/* Quiet application chrome keeps the electrical colors on the drawing meaningful. */
+.wiresheet {
+  font-family: Inter, "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  color: #334155;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wiresheet button, .wiresheet a, .wiresheet input, .wiresheet select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wiresheet :is(button, a, input, select):focus-visible {
+  outline: 2px solid #0f766e;
+  outline-offset: 3px;
+}
+
+.wiresheet :is(aside, [role="dialog"]) {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.editor-toolbar svg, .zoom-controls svg { width: 18px; height: 18px; stroke-width: 1.75; }
+.editor-toolbar button:focus-visible, .zoom-controls button:focus-visible { outline-offset: 1px; }
+
+@layer components {
+  .panel-icon {
+    @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800;
+  }
+  .field-label { @apply block text-[11px] font-medium text-slate-500; }
+  .field-input {
+    @apply mt-1 h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-xs font-normal text-slate-700 outline-none focus:border-teal-600 disabled:bg-slate-50 disabled:text-slate-400;
+  }
+}
+
+@media (max-width: 640px) {
+  .background-panel { right: 8px; top: 8px; width: min(256px, calc(100% - 16px)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wiresheet *, .wiresheet *::before, .wiresheet *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

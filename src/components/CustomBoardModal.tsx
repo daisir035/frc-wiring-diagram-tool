@@ -104,9 +104,9 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
         <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
           <DialogDescription className="text-xs text-slate-500">导入图片后可标记端口，再保存到自定义元件库。图片自动缩小至 2048 像素以内并压缩。</DialogDescription>
           {imageError && <div role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-700">{imageError}</div>}
-          {loadingImage && <div role="status" className="text-sm text-sky-700">正在处理图片…</div>}
+          {loadingImage && <div role="status" className="text-sm text-teal-700">正在处理图片…</div>}
           {!imgData ? (
-            <label className="relative block border-2 border-dashed border-slate-300 rounded-xl py-14 text-center cursor-pointer hover:border-sky-400 focus-within:border-sky-500 transition-colors">
+            <label className="relative block border-2 border-dashed border-slate-300 rounded-xl py-14 text-center cursor-pointer hover:border-teal-400 focus-within:border-teal-500 transition-colors">
               <div className="text-slate-500 text-sm">点击导入器件图片（PNG / JPG / WEBP）</div>
               <div className="mt-1 text-xs text-slate-400">文件不超过 10 MB，压缩后不超过 750 KB</div>
               <input
@@ -141,7 +141,7 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
                       onClick={() => setNextType(t)}
                       aria-pressed={nextType === t}
                       className={`px-2 py-0.5 rounded-full border text-[11px] ${
-                        nextType === t ? 'border-sky-500 bg-sky-50 text-sky-700' : 'border-slate-200 text-slate-500'
+                        nextType === t ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-slate-200 text-slate-500'
                       }`}
                     >
                       <span
@@ -261,7 +261,7 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
           <button
             onClick={save}
             disabled={!imgData || loadingImage}
-            className="px-4 py-1.5 text-sm rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-4 py-1.5 text-sm rounded-lg bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             保存到元件库
           </button>

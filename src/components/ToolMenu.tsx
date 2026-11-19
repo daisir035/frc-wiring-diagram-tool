@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ChevronDown } from 'lucide-react';
 
 export interface ToolMenuItem {
   label: string;
-  icon?: ReactNode;
   /** Shortcut or short hint shown on the right. */
   hint?: string;
+  /** Colour dot shown before the label. */
+  swatch?: string;
   onSelect: () => void;
   disabled?: boolean;
   danger?: boolean;
@@ -16,25 +16,32 @@ export interface ToolMenuItem {
 
 /**
  * Toolbar dropdown. The list is fixed-positioned from the button, so the horizontally scrolling
- * toolbar cannot clip it; it closes on selection, outside press, Escape, scroll or resize.
+ * toolbar cannot clip it; it opens upward from the bottom bar, and closes on selection, outside
+ * press, Escape, scroll or resize.
  */
-export default function ToolMenu({ label, icon, items, title }: { label: string; icon?: ReactNode; items: ToolMenuItem[]; title?: string }) {
-  const [open, setOpen] = useState<{ left: number; top: number } | null>(null);
+export default function ToolMenu({ label, items, title, icon }: {
+  label: string; items: ToolMenuItem[]; title?: string; icon?: ReactNode;
+}) {
+  const [open, setOpen] = useState<{ left: number; top?: number; bottom?: number } | null>(null);
   const button = useRef<HTMLButtonElement>(null);
   const list = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
+    list.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
     const close = (event: Event) => {
       if (event.type === 'pointerdown' && (list.current?.contains(event.target as Node) || button.current?.contains(event.target as Node))) return;
+      if (event.type === 'scroll' && event.target instanceof Node && list.current?.contains(event.target)) return;
       setOpen(null);
     };
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') { setOpen(null); button.current?.focus(); } };
     window.addEventListener('pointerdown', close, true);
     window.addEventListener('resize', close);
+    window.addEventListener('scroll', close, true);
     window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('pointerdown', close, true);
       window.removeEventListener('resize', close);
+      window.removeEventListener('scroll', close, true);
       window.removeEventListener('keydown', onKey);
     };
   }, [open]);
@@ -42,26 +49,34 @@ export default function ToolMenu({ label, icon, items, title }: { label: string;
     if (open) { setOpen(null); return; }
     const rect = button.current!.getBoundingClientRect();
     const width = 232;
-    setOpen({ left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)), top: rect.bottom + 4 });
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+    setOpen(rect.top > window.innerHeight / 2 ? { left, bottom: window.innerHeight - rect.top + 4 } : { left, top: rect.bottom + 4 });
   };
   return (
     <>
-      <button ref={button} type="button" onClick={toggle} title={title} aria-haspopup="menu" aria-expanded={Boolean(open)}
-        className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs ${open ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:bg-slate-100'}`}>
-        {icon}
-        {label}
-        <ChevronDown className="h-3 w-3 opacity-60" aria-hidden="true" />
+      <button ref={button} type="button" onClick={toggle} title={title ?? label} aria-label={label} aria-haspopup="menu" aria-expanded={Boolean(open)}
+        className={`flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-xs font-medium transition-colors ${icon ? 'w-8' : 'px-2.5'} ${open ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
+        {icon ?? label}
       </button>
       {open && (
-        <div ref={list} role="menu" style={{ left: open.left, top: open.top }}
-          className="fixed z-50 w-[232px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
-          {items.map((item) => (
-            <div key={item.label}>
+        <div ref={list} role="menu" aria-label={label} style={{ left: open.left, top: open.top, bottom: open.bottom, maxHeight: `calc(100dvh - ${(open.top ?? open.bottom ?? 0) + 8}px)` }}
+          onKeyDown={(event) => {
+            if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+            event.preventDefault();
+            const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'));
+            const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
+            const index = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1
+              : (current + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
+            buttons[index]?.focus();
+          }}
+          className="fixed z-50 w-[232px] overflow-y-auto overscroll-contain rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+          {items.map((item, index) => (
+            <div key={`${index}:${item.label}`}>
               {item.divider && <div className="my-1 h-px bg-slate-100" />}
               <button type="button" role="menuitem" disabled={item.disabled}
-                onClick={() => { setOpen(null); item.onSelect(); }}
+                onClick={() => { setOpen(null); button.current?.focus(); item.onSelect(); }}
                 className={`flex h-8 w-full items-center gap-2 px-3 text-left text-xs disabled:cursor-not-allowed disabled:opacity-35 ${item.danger ? 'text-red-600 hover:bg-red-50' : 'text-slate-700 hover:bg-slate-50'}`}>
-                <span className="flex w-4 justify-center text-slate-500">{item.icon}</span>
+                {item.swatch && <span className="h-3 w-3 shrink-0 rounded-full ring-1 ring-black/15" style={{ background: item.swatch }} />}
                 <span className="flex-1">{item.label}</span>
                 {item.hint && <span className="text-[10px] text-slate-400">{item.hint}</span>}
               </button>

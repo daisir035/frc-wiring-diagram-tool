@@ -1,7 +1,8 @@
 import { followMountedMufflers, screwOnDropped } from '../lib/pneumaticMounts';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SetStateAction } from 'react';
-import { CircuitBoard, ClipboardPaste, Copy, Download, Eraser, FileSpreadsheet, FolderOpen, GitMerge, ImageOff, ImagePlus, Keyboard, Lock, Maximize, Minus, PanelBottom, Pencil, Plus, PanelLeft, Presentation, SquareDashed, StickyNote, RotateCw, Redo2, Route, Save, Settings2, Trash2, Undo2, Unlock, Wind, Zap } from 'lucide-react';
+import { CircuitBoard, Keyboard, Maximize, Minus, Plus, MousePointer2, Hand,
+  Undo2, Redo2, Ellipsis, Type, ImagePlus, Settings2, Download, PanelLeft, Menu, Folders } from 'lucide-react';
 import WiringCanvas, { ZOOM_MAX, ZOOM_MIN } from '../components/WiringCanvas';
 import LibraryPanel from '../components/LibraryPanel';
 import CustomBoardModal from '../components/CustomBoardModal';
@@ -9,6 +10,7 @@ import PropertiesPanel from '../components/PropertiesPanel';
 import WirePropertiesPanel from '../components/WirePropertiesPanel';
 import WireBundlePanel from '../components/WireBundlePanel';
 import ToolMenu from '../components/ToolMenu';
+import BackgroundPanel from '../components/BackgroundPanel';
 import AnnotationPanel from '../components/AnnotationPanel';
 import { ANNOTATION_DEFAULTS } from '../lib/annotations';
 import type { Annotation, AnnotationKind } from '../lib/annotations';
@@ -114,9 +116,9 @@ export default function Home() {
       <h1 className="text-lg font-semibold">FRC 接线图工具</h1>
       <p role={failure ? 'alert' : 'status'}>{failure?.message ?? '正在读取本地工程…'}</p>
       {failure && <>
-        <p className="text-sm text-slate-600">原存档不会被覆盖。可以导出备份后重试，或在临时工作区打开工程源文件。</p>
+        <p className="text-sm text-slate-600">原存档不会被覆盖。可以导出备份后重试，或在临时工作区导入工程。</p>
         <div className="flex flex-wrap gap-3">
-          {failure.raw !== undefined && <button className="rounded bg-sky-600 px-3 py-2 text-white" onClick={() => downloadRecovery(failure.raw)}>导出原始存档</button>}
+          {failure.raw !== undefined && <button className="rounded bg-teal-600 px-3 py-2 text-white" onClick={() => downloadRecovery(failure.raw)}>导出原始存档</button>}
           <button className="rounded border px-3 py-2" onClick={() => { setFailure(undefined); setAttempt(n => n + 1); }}>重试读取</button>
           <button className="rounded border px-3 py-2" onClick={() => setSession({ initial: createEmptySavedState(), backend: null, message: '' })}>以临时工作区继续</button>
         </div>
@@ -258,6 +260,11 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
   const [pendingFrom, setPendingFrom] = useState<WireEnd | null>(null);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [tool, setTool] = useState<'select' | 'pan'>('select');
+  const [showGrid, setShowGrid] = useState(true);
+  const [showPartLabels, setShowPartLabels] = useState(false);
+  const [backgroundPanelOpen, setBackgroundPanelOpen] = useState(false);
+  const [backgroundEditing, setBackgroundEditing] = useState(false);
   const [posterMode, setPosterMode] = useState(() => {
     try { return localStorage.getItem('wiresheet.posterMode') === '1'; } catch { return false; }
   });
@@ -269,7 +276,6 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
   const [inlineKind, setInlineKind] = useState<InlineConnectorKind>('terminal2x2');
   const [clipboard, setClipboard] = useState<WorkspaceClipboard | null>(null);
   const [wireColor, setWireColor] = useState('#2563eb');
-  const [bundleSelectionMode, setBundleSelectionMode] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
   const [showBomSettings, setShowBomSettings] = useState(false);
   const [bomOptions, setBomOptions] = useState<BomOptions>(() => {
@@ -335,11 +341,12 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
   /* ---------- 工程与页面 ---------- */
 
   const resetInteraction = () => {
+    setBackgroundEditing(false);
+    setBackgroundPanelOpen(false);
     setSelectedParts(new Set());
     setSelectedWires(new Set());
     setPendingFrom(null);
     setPendingInlineWireId(null);
-    setBundleSelectionMode(false);
     setRenamingProjectId(null);
     setRenamingEngineeringProjectId(null);
   };
@@ -516,7 +523,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
 
   const openSourceFile = async (file: File) => {
     if (file.size > SOURCE_FILE_MAX_BYTES) {
-      window.alert('工程源文件请小于 50 MB');
+      window.alert('工程文件请小于 50 MB');
       return;
     }
     try {
@@ -555,7 +562,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
       pasteCountRef.current = 0;
       setNotice('工程已导入。');
     } catch (error) {
-      window.alert(`无法导入：${error instanceof Error ? error.message : '源文件损坏'}。当前工程未被修改。`);
+      window.alert(`无法导入：${error instanceof Error ? error.message : '工程文件损坏'}。当前工程未被修改。`);
     }
   };
 
@@ -634,7 +641,9 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
 
   /* ---------- 元件操作 ---------- */
 
-  const addPart = (partId: string) => {
+  const addPart = (partId: string, position?: { x: number; y: number }) => {
+    setBackgroundEditing(false);
+    setTool('select');
     setPendingInlineWireId(null);
     const def = partDefs.get(partId);
     if (!def || !svgRef.current) return;
@@ -647,8 +656,8 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
     const p: PlacedPart = {
       uid: uid(),
       partId,
-      x: cx - w / 2 + offset - 84,
-      y: cy - h / 2 + offset - 84,
+      x: position ? position.x - w / 2 : cx - w / 2 + offset - 36,
+      y: position ? position.y - h / 2 : cy - h / 2 + offset - 36,
       rot: 0,
     };
     setParts((ps) => [...ps, p]);
@@ -708,7 +717,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
   };
 
   const importBackgroundImage = (file: File) => {
-    if (!file.type.startsWith('image/')) {
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
       window.alert('请选择 PNG、JPG 或 WEBP 图片');
       return;
     }
@@ -746,6 +755,9 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
           opacity: 0.38,
         };
         setBackgroundImage(nextBackground);
+        setBackgroundPanelOpen(true);
+        setBackgroundEditing(true);
+        setTool('select');
         setSelectedParts(new Set());
         setSelectedWires(new Set());
         setPendingFrom(null);
@@ -765,6 +777,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
       image.onerror = () => window.alert('无法读取这张图片，请换一张重试');
       image.src = source;
     };
+    reader.onerror = () => setNotice('图片读取失败，请重新选择文件。');
     reader.readAsDataURL(file);
   };
 
@@ -807,7 +820,6 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
           waypoints: reversed ? wireWaypoints(wire).reverse() : wireWaypoints(wire),
         };
       }));
-      setBundleSelectionMode(false);
       return;
     }
 
@@ -846,7 +858,6 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
           waypoints: sharedWaypoints?.map((point) => ({ ...point })),
         }
       : wire));
-    setBundleSelectionMode(false);
   };
 
   const restoreSelectedWiring = () => {
@@ -972,7 +983,8 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
   const setPartFuse = (uid2: string, channel: number, rating?: FuseRating) => {
     setParts((current) => current.map((part) => {
       const def = partDefs.get(part.partId);
-      if (part.uid !== uid2 || !def?.fuseChannels || channel >= def.fuseChannels) return part;
+      if (part.uid !== uid2 || !def?.fuseChannels || !Number.isInteger(channel) || channel < 0 || channel >= def.fuseChannels
+        || (rating !== undefined && !allowedFuseRatings(def, channel).includes(rating))) return part;
       const fuses = { ...(part.fuses ?? {}) };
       if (rating) fuses[channel] = rating;
       else delete fuses[channel];
@@ -983,7 +995,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
   const cyclePartFuse = (uid2: string, channel: number) => {
     const part = parts.find((item) => item.uid === uid2);
     const def = part && partDefs.get(part.partId);
-    if (!part || !def?.fuseChannels || channel >= def.fuseChannels) return;
+    if (!part || !def?.fuseChannels || !Number.isInteger(channel) || channel < 0 || channel >= def.fuseChannels) return;
     const current = part.fuses?.[channel];
     const ratings = allowedFuseRatings(def, channel);
     const index = current ? ratings.indexOf(current) : -1;
@@ -1047,7 +1059,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
   const zoomBy = (factor: number) => zoomTo(view.k * factor);
 
   const fitView = (targetParts: PlacedPart[] = parts) => {
-    if (!svgRef.current || (targetParts.length === 0 && !backgroundImage)) return;
+    if (!svgRef.current || (targetParts.length === 0 && !backgroundImage && annotations.length === 0)) return;
     let minX = Infinity,
       minY = Infinity,
       maxX = -Infinity,
@@ -1099,7 +1111,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
 
   const exportPNG = async () => {
     const svg = svgRef.current;
-    if (!svg || (parts.length === 0 && !backgroundImage)) {
+    if (!svg || (parts.length === 0 && !backgroundImage && annotations.length === 0)) {
       window.alert('画布上还没有底盘图或元件');
       return;
     }
@@ -1148,24 +1160,31 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
     // 内联图片为 dataURL，避免污染 canvas
     const images = Array.from(clone.querySelectorAll('image'));
+    let imageFailed = false;
     await Promise.all(
       images.map(async (im) => {
         const href = im.getAttribute('href');
         if (!href || href.startsWith('data:')) return;
         try {
           const resp = await fetch(href);
+          if (!resp.ok) throw new Error('图片加载失败');
           const blob = await resp.blob();
-          const dataUrl = await new Promise<string>((resolve) => {
+          const dataUrl = await new Promise<string>((resolve, reject) => {
             const fr = new FileReader();
             fr.onload = () => resolve(fr.result as string);
+            fr.onerror = () => reject(fr.error);
             fr.readAsDataURL(blob);
           });
           im.setAttribute('href', dataUrl);
         } catch {
-          /* ignore */
+          imageFailed = true;
         }
       }),
     );
+    if (imageFailed) {
+      setNotice('导出未完成：部分器件图片加载失败，请待图片加载完成后重试。');
+      return;
+    }
     // viewBox 取屏幕坐标系中对应的世界包围盒
     const vbX = minX * view.k + view.x;
     const vbY = minY * view.k + view.y;
@@ -1206,7 +1225,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || history.interacting) return;
       const target = e.target as HTMLElement;
-      if (showCustom || showBomSettings || !(target instanceof Element) || target.closest('input, select, textarea, [contenteditable]:not([contenteditable="false"]), [role="dialog"]')) return;
+      if (showCustom || showBomSettings || !(target instanceof Element) || target.closest('input, select, textarea, [contenteditable]:not([contenteditable="false"]), [role="dialog"], [role="menu"]')) return;
       const modifier = e.ctrlKey || e.metaKey;
       if (modifier && e.key.toLowerCase() === 'z') {
         e.preventDefault();
@@ -1236,7 +1255,6 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
       } else if (e.key === 'Escape') {
         if (pendingInlineWireId) setPendingInlineWireId(null);
         else if (pendingFrom) setPendingFrom(null);
-        else if (bundleSelectionMode) setBundleSelectionMode(false);
         else {
           setSelectedParts(new Set());
           setSelectedWires(new Set());
@@ -1282,77 +1300,17 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
 
   /* ---------- 渲染 ---------- */
 
+  const selectConnection = (id: string) => {
+    setSelectedParts(new Set());
+    setSelectedAnnotationId(null);
+    setPendingInlineWireId(null);
+    setBackgroundEditing(false);
+    setSelectedWires(new Set(cables.get(id)?.map((wire) => wire.id) ?? [id]));
+  };
   const selCount = selectedParts.size + new Set([...selectedWires].map((id) => cables.get(id)?.[0].id ?? id)).size;
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-slate-100 overflow-hidden">
-      {(notice || persistence.error) && <div className="flex flex-wrap items-center gap-3 bg-amber-50 border-b border-amber-200 px-4 py-2 text-sm text-amber-950" role={persistence.error ? 'alert' : 'status'}>
-        <span className="flex-1">{persistence.error || notice}</span>
-        {persistence.error && <><button className="underline" onClick={saveSourceFile}>导出工程备份</button>{backend && <button className="underline" onClick={persistence.retry}>重试保存</button>}</>}
-        {recovery !== undefined && <button className="underline" onClick={() => downloadRecovery(recovery)}>导出原始存档</button>}
-        {notice && !persistence.error && <button aria-label="关闭提示" onClick={() => setNotice('')}>×</button>}
-      </div>}
-      {/* 顶部工具栏 */}
-      <div className="toolbar-scroll h-12 shrink-0 bg-white border-b border-slate-200 flex items-center gap-1.5 px-3 sm:px-4 overflow-x-auto" role="toolbar" aria-label="主工具栏">
-        <button
-          onClick={() => setLibraryOpen((open) => !open)}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 md:hidden"
-          title={libraryOpen ? '关闭元件库' : '打开元件库'}
-        >
-          <PanelLeft className="h-4 w-4" aria-hidden="true" />
-        </button>
-        <div className="font-bold text-slate-800 text-sm whitespace-nowrap">
-          FRC 接线图工具
-          <span className="ml-2 hidden text-[10px] font-normal text-slate-400 sm:inline">WireSheet</span>
-        </div>
-        <ToolSep />
-        <ToolBtn onClick={undo} disabled={!history.canUndo} title="撤销 (Ctrl/Cmd+Z)"><Undo2 className="h-4 w-4" aria-label="撤销" /></ToolBtn>
-        <ToolBtn onClick={redo} disabled={!history.canRedo} title="重做 (Ctrl/Cmd+Shift+Z 或 Ctrl+Y)"><Redo2 className="h-4 w-4" aria-label="重做" /></ToolBtn>
-        <ToolSep />
-        <ToolBtn onClick={rotateSelected} disabled={!canRotateSelected} title="将选中器件顺时针旋转 90° (R)">
-          <RotateCw className="h-4 w-4" aria-label="旋转" />
-        </ToolBtn>
-        <ToolBtn onClick={toggleLockSelected} disabled={selectedParts.size === 0} title={shouldLockSelected ? '锁定选中器件 (L)' : '解除选中器件锁定 (L)'}>
-          {shouldLockSelected ? <Lock className="h-4 w-4" aria-label="锁定" /> : <Unlock className="h-4 w-4" aria-label="解锁" />}
-        </ToolBtn>
-        <ToolBtn onClick={deleteSelection} disabled={deletableSelectionCount === 0} title="删除选中内容 (Delete)">
-          <Trash2 className="h-4 w-4" aria-label="删除" />
-        </ToolBtn>
-        <ToolSep />
-        <ToolBtn onClick={() => setBundleSelectionMode((active) => !active)} active={bundleSelectionMode}
-          title="线束多选：拉框批量选择导线，再逐根点击增减成员">
-          <GitMerge className="h-3.5 w-3.5" aria-hidden="true" />
-          线束
-        </ToolBtn>
-        <ToolBtn onClick={restoreSelectedWiring} disabled={!canRestoreSelectedWiring} title="恢复选中导线或整组线束的自动布线">
-          <Route className="h-3.5 w-3.5" aria-hidden="true" />
-          重新布线
-        </ToolBtn>
-        <ToolMenu label="标注" icon={<SquareDashed className="h-3.5 w-3.5" aria-hidden="true" />} title="添加分区框、说明或标题栏" items={[
-          { label: '分区框', icon: <SquareDashed className="h-3.5 w-3.5" />, onSelect: () => addAnnotation('section') },
-          { label: '说明文字', icon: <StickyNote className="h-3.5 w-3.5" />, onSelect: () => addAnnotation('note') },
-          { label: '标题栏与图例', icon: <PanelBottom className="h-3.5 w-3.5" />, onSelect: () => addAnnotation('title'),
-            disabled: annotations.some((item) => item.kind === 'title'), hint: '每页一个' },
-        ]} />
-        <ToolBtn onClick={togglePosterMode} active={posterMode} title="出图模式：隐藏网格和端口圆点，导线按线规显示粗细；导出 PNG 即为海报效果 (P)">
-          <Presentation className="h-3.5 w-3.5" aria-hidden="true" />
-          出图模式
-        </ToolBtn>
-        <ToolSep />
-        <div className="flex shrink-0 items-center gap-1" role="group" aria-label="导线颜色">
-          {WIRE_COLORS.map(({ c, n }) => (
-            <button
-              key={c}
-              title={`${n}色：新导线颜色；选中导线时直接改色`}
-              aria-label={`${n}色`}
-              aria-pressed={wireColor === c}
-              onClick={() => onPickColor(c)}
-              className={`h-4 w-4 rounded-full transition-transform ${wireColor === c ? 'scale-125 ring-2 ring-sky-500 ring-offset-1' : 'ring-1 ring-black/10 hover:scale-110'}`}
-              style={{ background: c }}
-            />
-          ))}
-        </div>
-        <div className="flex-1" />
+    <div className="wiresheet h-dvh w-screen flex flex-col bg-slate-100 overflow-hidden">
         <input
           ref={sourceInputRef}
           type="file"
@@ -1375,208 +1333,96 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
             event.currentTarget.value = '';
           }}
         />
-        <ToolMenu label="文件" icon={<FolderOpen className="h-3.5 w-3.5" aria-hidden="true" />} items={[
-          { label: '打开源文件', icon: <FolderOpen className="h-3.5 w-3.5" />, hint: 'Ctrl+O', onSelect: () => sourceInputRef.current?.click() },
-          { label: '保存源文件', icon: <Save className="h-3.5 w-3.5" />, hint: 'Ctrl+S', onSelect: saveSourceFile },
-          { label: bomExportBusy ? 'BOM 导出中…' : '导出 BOM (Excel)', icon: <FileSpreadsheet className="h-3.5 w-3.5" />, divider: true,
-            disabled: bomExportBusy || !bomHasContent, onSelect: () => { void exportBOM(); } },
-          { label: 'BOM 导出设置', icon: <Settings2 className="h-3.5 w-3.5" />, onSelect: () => setShowBomSettings(true) },
-          { label: backgroundImage ? '更换底盘图' : '导入底盘图', icon: <ImagePlus className="h-3.5 w-3.5" />, divider: true,
-            onSelect: () => backgroundInputRef.current?.click() },
-          { label: '移除底盘图', icon: <ImageOff className="h-3.5 w-3.5" />, disabled: !backgroundImage, onSelect: () => setBackgroundImage(undefined) },
-          { label: '导入自定义器件', icon: <CircuitBoard className="h-3.5 w-3.5" />, onSelect: () => setShowCustom(true) },
-          { label: '清空当前页面', icon: <Eraser className="h-3.5 w-3.5" />, divider: true, danger: true,
-            disabled: parts.length === 0 && wires.length === 0 && !backgroundImage && annotations.length === 0, onSelect: clearAll },
-        ]} />
-        <ToolMenu label="示例" icon={<Zap className="h-3.5 w-3.5" aria-hidden="true" />} title="示例会作为新工程打开，不影响当前工程" items={[
-          { label: '电路控制系统示例', icon: <Zap className="h-3.5 w-3.5" />, onSelect: loadDemo },
-          { label: '气动系统示例', icon: <Wind className="h-3.5 w-3.5" />, onSelect: () => { void loadExample('frc-pneumatics.frcwire', 'FRC 气动示例'); } },
-        ]} />
-        <button
-          onClick={exportPNG}
-          title="导出当前页面为 PNG"
-          className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-700"
-        >
-          <Download className="h-3.5 w-3.5" aria-hidden="true" />
-          导出 PNG
+      {/* 顶部只有一条图标工具栏；工程与页面名称在底部页签栏。 */}
+      <div className="toolbar-scroll editor-toolbar flex h-12 min-w-0 shrink-0 items-center gap-0.5 overflow-x-auto border-b border-slate-200 bg-white px-2" role="toolbar" aria-label="编辑工具栏">
+        <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label="工程与文件">
+          <ToolBtn icon onClick={() => setLibraryOpen((open) => !open)} active={libraryOpen} title={libraryOpen ? '收起元件库' : '打开元件库'}><PanelLeft aria-hidden="true" /></ToolBtn>
+          <ToolMenu label="文件" title="文件、导出与示例" icon={<Menu aria-hidden="true" />} items={[
+            { label: '导入工程', hint: 'Ctrl+O', onSelect: () => sourceInputRef.current?.click() },
+            { label: '导出工程', hint: 'Ctrl+S', onSelect: saveSourceFile },
+            { label: bomExportBusy ? 'BOM 导出中…' : '导出 BOM (Excel)', divider: true,
+              disabled: bomExportBusy || !bomHasContent, onSelect: () => { void exportBOM(); } },
+            { label: 'BOM 导出设置', onSelect: () => setShowBomSettings(true) },
+            { label: backgroundImage ? '更换底盘图' : '导入底盘图', divider: true,
+              onSelect: () => backgroundInputRef.current?.click() },
+            { label: '移除底盘图', disabled: !backgroundImage, onSelect: () => setBackgroundImage(undefined) },
+            { label: '导入自定义器件', onSelect: () => setShowCustom(true) },
+            { label: '电路控制系统示例', divider: true, hint: '新工程', onSelect: loadDemo },
+            { label: '气动系统示例', hint: '新工程', onSelect: () => { void loadExample('frc-pneumatics.frcwire', 'FRC 气动示例'); } },
+            { label: '清空当前页面', divider: true, danger: true,
+              disabled: parts.length === 0 && wires.length === 0 && !backgroundImage && annotations.length === 0, onSelect: clearAll },
+          ]} />
+          <ToolMenu label="工程" title={`工程：${activeEngineeringProject.name}`} icon={<Folders aria-hidden="true" />} items={[
+            ...engineeringProjects.map((project) => ({ label: project.name, hint: project.id === activeEngineeringProjectId ? '当前' : `${project.pages.length} 页`, onSelect: () => switchEngineeringProject(project.id) })),
+            { label: '新建工程', divider: true, onSelect: addEngineeringProject },
+            { label: '重命名工程', onSelect: renameActiveEngineeringProject },
+            { label: '关闭工程', disabled: engineeringProjects.length <= 1, onSelect: closeActiveEngineeringProject },
+          ]} />
+        </div>
+        <ToolSep />
+        <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label="历史">
+          <ToolBtn icon onClick={undo} disabled={!history.canUndo} title="撤销 (Ctrl/Cmd+Z)"><Undo2 aria-hidden="true" /></ToolBtn>
+          <ToolBtn icon onClick={redo} disabled={!history.canRedo} title="重做 (Ctrl/Cmd+Shift+Z 或 Ctrl+Y)"><Redo2 aria-hidden="true" /></ToolBtn>
+        </div>
+        <ToolSep />
+        <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label="绘制">
+          <ToolBtn icon onClick={() => setTool('select')} active={tool === 'select'} title="选择工具"><MousePointer2 aria-hidden="true" /></ToolBtn>
+          <ToolBtn icon onClick={() => setTool('pan')} active={tool === 'pan'} title="平移工具（也可按住空格拖动）"><Hand aria-hidden="true" /></ToolBtn>
+          <ToolMenu label="标注" title="添加分区框、说明或标题栏" icon={<Type aria-hidden="true" />} items={[
+            { label: '分区框', onSelect: () => addAnnotation('section') },
+            { label: '说明文字', onSelect: () => addAnnotation('note') },
+            { label: '标题栏与图例', onSelect: () => addAnnotation('title'),
+              disabled: annotations.some((item) => item.kind === 'title'), hint: '每页一个' },
+          ]} />
+        </div>
+        <ToolSep />
+        <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label="编辑选中内容">
+          <ToolMenu label="编辑" title="更多编辑操作" icon={<Ellipsis aria-hidden="true" />} items={[
+            { label: '旋转', hint: 'R', disabled: !canRotateSelected, onSelect: rotateSelected },
+            { label: shouldLockSelected ? '锁定' : '解锁', hint: 'L', disabled: selectedParts.size === 0, onSelect: toggleLockSelected },
+            { label: '删除', hint: 'Delete', disabled: deletableSelectionCount === 0, onSelect: deleteSelection },
+            { label: '重新布线', divider: true, disabled: !canRestoreSelectedWiring, onSelect: restoreSelectedWiring },
+          ]} />
+        </div>
+        <ToolSep />
+        <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label="导线颜色">
+          <ToolMenu label="导线颜色" title="导线颜色：新导线颜色；选中导线时直接改色"
+            icon={<span className="h-4 w-4 rounded-full ring-1 ring-black/15" style={{ background: wireColor }} />}
+            items={WIRE_COLORS.map(({ c, n }) => ({ label: `${n}色`, swatch: c, hint: wireColor === c ? '当前' : undefined, onSelect: () => onPickColor(c) }))} />
+        </div>
+        <div className="min-w-2 flex-1" />
+        <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label="视图工具">
+          <ToolBtn icon onClick={() => {
+            if (!backgroundImage) { backgroundInputRef.current?.click(); return; }
+            setBackgroundPanelOpen(!backgroundPanelOpen);
+            setBackgroundEditing(!backgroundPanelOpen);
+            setTool('select');
+          }} active={backgroundPanelOpen && Boolean(backgroundImage)} title="导入、缩放和移动背景图"><ImagePlus aria-hidden="true" /></ToolBtn>
+          <ToolMenu label="视图" title="网格、器件标签与出图模式" icon={<Settings2 aria-hidden="true" />} items={[
+            { label: posterMode ? '退出出图模式' : '出图模式', hint: 'P', onSelect: togglePosterMode },
+            { label: showPartLabels ? '隐藏器件标签' : '显示器件标签', onSelect: () => setShowPartLabels(!showPartLabels) },
+            { label: showGrid ? '隐藏网格' : '显示网格', onSelect: () => setShowGrid(!showGrid) },
+          ]} />
+        </div>
+        <ToolSep />
+        <button type="button" onClick={exportPNG} title="导出当前页面为 PNG" aria-label="导出当前页面为 PNG"
+          className="flex h-8 w-9 shrink-0 items-center justify-center rounded-md bg-teal-700 text-white hover:bg-teal-800">
+          <Download aria-hidden="true" />
         </button>
-      </div>
-
-      {/* 工程标签栏：同时打开多个工程 */}
-      <div className="toolbar-scroll flex h-10 shrink-0 items-center gap-1.5 overflow-x-auto border-b border-sky-200 bg-sky-50 px-3 sm:px-4">
-        <span className="mr-1 shrink-0 text-[11px] font-bold text-sky-700">工程</span>
-        {engineeringProjects.map((project) => renamingEngineeringProjectId === project.id ? (
-          <div
-            key={project.id}
-            className="flex h-7 shrink-0 items-center gap-1.5 rounded-t-md border border-sky-400 bg-white px-1.5 text-xs shadow-sm ring-2 ring-sky-100"
-          >
-            <input
-              autoFocus
-              value={engineeringProjectNameDraft}
-              onChange={(event) => setEngineeringProjectNameDraft(event.target.value)}
-              onFocus={(event) => event.currentTarget.select()}
-              onBlur={() => commitEngineeringProjectRename(project.id)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  event.currentTarget.blur();
-                } else if (event.key === 'Escape') {
-                  event.preventDefault();
-                  cancelEngineeringProjectRenameRef.current = true;
-                  setRenamingEngineeringProjectId(null);
-                }
-              }}
-              aria-label="工程名称"
-              className="h-5 w-36 rounded border-0 bg-transparent px-1 font-semibold text-sky-800 outline-none"
-            />
-            <span className="rounded bg-sky-100 px-1 text-[9px] font-normal text-sky-500">{project.pages.length} 页</span>
-          </div>
-        ) : (
-          <button
-            key={project.id}
-            onClick={() => switchEngineeringProject(project.id)}
-            onDoubleClick={() => {
-              if (project.id === activeEngineeringProjectId) renameActiveEngineeringProject();
-            }}
-            aria-pressed={project.id === activeEngineeringProjectId}
-            title={`${project.name}：${project.pages.length} 个页面；双击当前标签可重命名`}
-            className={`flex h-7 shrink-0 items-center gap-1.5 rounded-t-md border px-3 text-xs transition-colors ${
-              project.id === activeEngineeringProjectId
-                ? 'border-sky-300 border-b-white bg-white font-bold text-sky-800 shadow-sm'
-                : 'border-transparent text-sky-600 hover:border-sky-200 hover:bg-white/70 hover:text-sky-800'
-            }`}
-          >
-            <span className="max-w-44 truncate">{project.name}</span>
-            <span className="rounded bg-sky-100 px-1 text-[9px] font-normal text-sky-500">{project.pages.length}</span>
-          </button>
-        ))}
-        <button
-          onClick={addEngineeringProject}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-dashed border-sky-300 text-sky-600 hover:border-sky-500 hover:bg-white"
-          title="新建工程"
-          aria-label="新建工程"
-        >
-          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
-        <div className="mx-1 h-5 w-px shrink-0 bg-sky-200" />
-        <ToolBtn onClick={renameActiveEngineeringProject} title="重命名当前工程">
-          <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-          重命名工程
-        </ToolBtn>
-        <ToolBtn
-          onClick={closeActiveEngineeringProject}
-          disabled={engineeringProjects.length <= 1}
-          title="关闭当前工程；不会删除已经保存的 .frcwire 文件"
-        >
-          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-          关闭工程
-        </ToolBtn>
-      </div>
-
-      {/* 当前工程内的页面标签栏 */}
-      <div className="toolbar-scroll flex h-11 shrink-0 items-center gap-1.5 overflow-x-auto border-b border-slate-200 bg-slate-50 px-3 sm:px-4">
-        <span className="mr-1 shrink-0 text-[11px] font-semibold text-slate-500">页面</span>
-        {projects.map((project) => renamingProjectId === project.id ? (
-          <div
-            key={project.id}
-            className="flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-sky-400 bg-white px-1.5 text-xs shadow-sm ring-2 ring-sky-100"
-          >
-            <input
-              autoFocus
-              value={projectNameDraft}
-              onChange={(event) => setProjectNameDraft(event.target.value)}
-              onFocus={(event) => event.currentTarget.select()}
-              onBlur={() => commitProjectRename(project.id)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  event.currentTarget.blur();
-                } else if (event.key === 'Escape') {
-                  event.preventDefault();
-                  cancelProjectRenameRef.current = true;
-                  setRenamingProjectId(null);
-                }
-              }}
-              aria-label="页面名称"
-              className="h-5 w-32 rounded border-0 bg-transparent px-1 font-semibold text-sky-700 outline-none"
-            />
-            <span className="rounded bg-slate-100 px-1 text-[9px] font-normal text-slate-400">{project.parts.length}</span>
-          </div>
-        ) : (
-          <button
-            key={project.id}
-            onClick={() => switchProject(project.id)}
-            onDoubleClick={() => {
-              if (project.id === activeProjectId) renameActiveProject();
-            }}
-            aria-pressed={project.id === activeProjectId}
-            title={`${project.name}：${project.parts.length} 个元件、${project.wires.length} 根导线；双击当前页面标签可重命名`}
-            className={`flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs transition-colors ${
-              project.id === activeProjectId
-                ? 'border-sky-300 bg-white font-semibold text-sky-700 shadow-sm'
-                : 'border-transparent text-slate-500 hover:border-slate-200 hover:bg-white hover:text-slate-700'
-            }`}
-          >
-            <span className="max-w-36 truncate">{project.name}</span>
-            <span className="rounded bg-slate-100 px-1 text-[9px] font-normal text-slate-400">{project.parts.length}</span>
-          </button>
-        ))}
-        <button
-          onClick={addProject}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-dashed border-slate-300 text-slate-500 hover:border-sky-400 hover:bg-white hover:text-sky-600"
-          title="在当前工程中新建空白页面"
-          aria-label="新建页面"
-        >
-          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
-        <div className="mx-1 h-5 w-px shrink-0 bg-slate-200" />
-        <ToolBtn onClick={renameActiveProject} title="重命名当前页面">
-          <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-          重命名页面
-        </ToolBtn>
-        <ToolBtn onClick={duplicateActiveProject} title="复制当前页面及其全部接线内容">
-          <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-          复制页面
-        </ToolBtn>
-        <ToolBtn onClick={deleteActiveProject} disabled={projects.length <= 1} title="删除当前页面">
-          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-          删除页面
-        </ToolBtn>
-        <div className="mx-1 h-5 w-px shrink-0 bg-slate-200" />
-        <ToolBtn
-          onClick={copySelection}
-          disabled={selCount === 0}
-          title="复制选中内容；选择元件时会包含这些元件之间的导线 (Ctrl+C)"
-        >
-          <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-          复制选中
-        </ToolBtn>
-        <ToolBtn
-          onClick={pasteSelection}
-          disabled={!clipboard}
-          title={clipboard ? `粘贴 ${clipboard.parts.length} 个元件和 ${clipboard.wires.length} 根导线到当前页面 (Ctrl+V)` : '剪贴板为空'}
-        >
-          <ClipboardPaste className="h-3.5 w-3.5" aria-hidden="true" />
-          粘贴
-        </ToolBtn>
-        {clipboard && (
-          <span className="shrink-0 text-[9px] text-slate-400">
-            剪贴板：{clipboard.parts.length} 件 / {clipboard.wires.length} 线
-          </span>
-        )}
       </div>
 
       <div className="relative flex flex-1 min-h-0">
         {libraryOpen && (
           <button
-            className="absolute inset-0 z-10 bg-slate-950/15 md:hidden"
+            className="absolute inset-0 z-40 bg-slate-950/15 md:hidden"
             onClick={() => setLibraryOpen(false)}
             aria-label="关闭元件库"
           />
         )}
-        <div className={`${libraryOpen ? 'flex' : 'hidden'} absolute inset-y-0 left-0 z-20 md:static md:flex md:z-auto`}>
+        <div className={`${libraryOpen ? 'flex' : 'hidden'} absolute inset-y-0 left-0 z-[45] md:static md:z-auto`}>
           <LibraryPanel
             defs={[...BUILTIN_PARTS, ...customParts]}
+            usedPartIds={new Set([...engineeringProjects.flatMap((project) => project.pages.flatMap((page) => page.parts.map((part) => part.partId))), ...(clipboard?.parts.map((part) => part.partId) ?? [])])}
             onAdd={(partId) => {
               addPart(partId);
               if (window.innerWidth < 768) setLibraryOpen(false);
@@ -1585,12 +1431,25 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
             onOpenCustomModal={() => setShowCustom(true)}
           />
         </div>
-        <div className="flex-1 relative min-w-0">
+        <div className="flex-1 relative min-w-0" onDragOver={(event) => {
+          if (event.dataTransfer.types.includes('application/x-wiresheet-part')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; }
+        }} onDrop={(event) => {
+          const partId = event.dataTransfer.getData('application/x-wiresheet-part');
+          const rect = svgRef.current?.getBoundingClientRect();
+          if (!rect || !partDefs.has(partId)) return;
+          event.preventDefault();
+          addPart(partId, { x: (event.clientX - rect.left - view.x) / view.k, y: (event.clientY - rect.top - view.y) / view.k });
+          if (window.innerWidth < 768) setLibraryOpen(false);
+        }}>
           <WiringCanvas
             onInteractionStart={history.begin}
             onInteractionEnd={history.end}
             keyboardShortcutsDisabled={showCustom || showBomSettings}
             backgroundImage={backgroundImage}
+            backgroundEditing={backgroundEditing && backgroundPanelOpen}
+            onBackgroundChange={setBackgroundImage}
+            tool={tool}
+            showGrid={showGrid}
             parts={parts}
             wires={wires}
             partDefs={partDefs}
@@ -1630,7 +1489,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
               if (!additive) setSelectedParts(new Set());
               setSelectedWires((prev) => {
                 const ids = cables.get(id)?.map((wire) => wire.id) ?? [id];
-                if (!additive && !bundleSelectionMode) return new Set(ids);
+                if (!additive) return new Set(ids);
                 const next = new Set(prev);
                 if (ids.every((id) => next.has(id))) ids.forEach((id) => next.delete(id));
                 else ids.forEach((id) => next.add(id));
@@ -1690,9 +1549,25 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
             }}
             onAnnotationChange={(id, patch) => setAnnotations((current) => current.map((item) => item.id === id ? { ...item, ...patch } : item))}
             posterMode={posterMode}
+            showPartLabels={showPartLabels}
           />
+          {backgroundPanelOpen && backgroundImage && <BackgroundPanel background={backgroundImage} editing={backgroundEditing}
+            onEditingChange={(editing) => { setBackgroundEditing(editing); setTool('select'); }} onChange={setBackgroundImage}
+            onInteractionStart={history.begin} onInteractionEnd={history.end}
+            onReplace={() => backgroundInputRef.current?.click()} onRemove={() => { setBackgroundImage(undefined); setBackgroundPanelOpen(false); setBackgroundEditing(false); }}
+            onClose={() => { setBackgroundPanelOpen(false); setBackgroundEditing(false); }} />}
+          {parts.length === 0 && !backgroundImage && annotations.length === 0 && <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="max-w-sm px-6 text-center">
+              <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-teal-100 bg-white text-teal-700 shadow-sm"><CircuitBoard className="h-8 w-8" strokeWidth={1.25} /></div>
+              <h1 className="text-xl font-semibold tracking-tight text-slate-800">从第一个元件开始</h1>
+              <p className="mt-3 text-sm leading-6 text-slate-500">从左侧拖入器件，点击两个端口即可接线。<br />也可以导入底盘图，按实际布局开始设计。</p>
+              <div className="pointer-events-auto mt-6 flex justify-center gap-3"><button onClick={loadDemo} className="rounded-lg bg-teal-700 px-4 py-2.5 text-xs font-medium text-white hover:bg-teal-800">打开控制系统示例</button><button onClick={() => backgroundInputRef.current?.click()} className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-xs text-slate-600 hover:bg-slate-50">导入背景图</button></div>
+              <p className="mt-5 text-[11px] text-slate-400">空格 + 拖动平移 · 滚轮缩放 · Ctrl + Z 撤销</p>
+            </div>
+          </div>}
+          {pendingFrom && <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 whitespace-nowrap rounded-lg border border-teal-200 bg-white/95 px-4 py-2 text-xs text-teal-800 shadow-sm" role="status">选择目标端口完成连接 <kbd className="ml-3 rounded border border-slate-200 bg-slate-50 px-1 text-[10px] text-slate-500">Esc 取消</kbd></div>}
           {showShortcuts && (
-            <div className="absolute bottom-14 right-3 w-80 rounded-lg border border-slate-200 bg-white p-3 text-[11px] text-slate-600 shadow-lg" role="dialog" aria-label="快捷键">
+            <div className="absolute bottom-3 right-3 z-10 max-h-[calc(100%-24px)] w-80 max-w-[calc(100%-24px)] overflow-y-auto rounded-lg border border-slate-200 bg-white p-3 text-[11px] text-slate-600 shadow-lg" role="dialog" aria-label="快捷键">
               <div className="mb-2 text-xs font-semibold text-slate-800">快捷键与操作</div>
               <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
                 {SHORTCUTS.map(([keys, action]) => (
@@ -1704,26 +1579,6 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
               </dl>
             </div>
           )}
-          <div className="absolute bottom-3 right-3 flex items-center gap-0.5 rounded-lg border border-slate-200 bg-white/95 p-0.5 shadow-sm" role="group" aria-label="缩放">
-            <button type="button" onClick={() => zoomBy(1 / 1.25)} title="缩小 (Ctrl+-)" className="flex h-7 w-7 items-center justify-center rounded text-slate-600 hover:bg-slate-100">
-              <Minus className="h-3.5 w-3.5" aria-label="缩小" />
-            </button>
-            <button type="button" onClick={() => zoomTo(1)} title="缩放到 100% (Ctrl+1)" className="h-7 min-w-[3.25rem] rounded px-1 text-[11px] tabular-nums text-slate-700 hover:bg-slate-100">
-              {Math.round(view.k * 100)}%
-            </button>
-            <button type="button" onClick={() => zoomBy(1.25)} title="放大 (Ctrl+=)" className="flex h-7 w-7 items-center justify-center rounded text-slate-600 hover:bg-slate-100">
-              <Plus className="h-3.5 w-3.5" aria-label="放大" />
-            </button>
-            <div className="mx-0.5 h-4 w-px bg-slate-200" />
-            <button type="button" onClick={() => setShowShortcuts((open) => !open)} title="快捷键" aria-expanded={showShortcuts}
-              className={`flex h-7 w-7 items-center justify-center rounded hover:bg-slate-100 ${showShortcuts ? 'bg-slate-100 text-sky-700' : 'text-slate-600'}`}>
-              <Keyboard className="h-3.5 w-3.5" aria-label="快捷键" />
-            </button>
-            <button type="button" onClick={() => fitView()} disabled={parts.length === 0 && annotations.length === 0} title="适应视图，显示全部内容 (Ctrl+0)"
-              className="flex h-7 w-7 items-center justify-center rounded text-slate-600 hover:bg-slate-100 disabled:opacity-35">
-              <Maximize className="h-3.5 w-3.5" aria-label="适应视图" />
-            </button>
-          </div>
         </div>
         {selectedWires.size > 1 && !selectedWire && (
           <WireBundlePanel
@@ -1789,6 +1644,12 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
           <PropertiesPanel
             part={selectedPart}
             def={selectedPartDef}
+            parts={parts}
+            wires={wires}
+            partDefs={partDefs}
+            pendingFrom={pendingFrom}
+            onPortClick={onPortClick}
+            onSelectWire={selectConnection}
             onPartChange={(changes) => {
               const nextDef = changes.partId ? partDefs.get(changes.partId) : undefined;
               if (nextDef) {
@@ -1805,20 +1666,99 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
         )}
       </div>
 
-      {/* 底部状态栏 */}
-      <div className="h-8 shrink-0 bg-white border-t border-slate-200 flex items-center px-4 gap-4 text-[11px] text-slate-500">
-        <span>
-          <b className="text-sky-700">{activeEngineeringProject.name}</b>
-          <span className="mx-1 text-slate-300">/</span>
-          <b className="text-slate-700">{activeProject.name}</b> · <b className="text-slate-700">{parts.length}</b> 个元件 · <b className="text-slate-700">{wires.length - cables.size / 2}</b> 条线路
-          {selCount > 0 && <span className="text-sky-600"> · 已选 {selCount} 项</span>}
-          {pendingFrom && <span className="text-orange-600"> · 接线中：点击或拖到绿圈标出的端口完成连接（Esc 取消）</span>}
-          {pendingInlineWireId && selectedWire?.id === pendingInlineWireId && <span className="text-sky-700"> · 放置{INLINE_CONNECTOR_STYLES[inlineKind].label}</span>}
+      {(notice || persistence.error) && <div className={`flex shrink-0 flex-wrap items-center gap-3 border-t border-slate-200 bg-white px-3 py-1.5 text-xs ${persistence.error ? 'text-red-600' : 'text-slate-500'}`} role={persistence.error ? 'alert' : 'status'}>
+        <span className="flex-1">{persistence.error || notice}</span>
+        {persistence.error && <><button className="underline" onClick={saveSourceFile}>导出工程备份</button>{backend && <button className="underline" onClick={persistence.retry}>重试保存</button>}</>}
+        {recovery !== undefined && <button className="underline" onClick={() => downloadRecovery(recovery)}>导出原始存档</button>}
+        {notice && !persistence.error && <button aria-label="关闭提示" onClick={() => setNotice('')}>×</button>}
+      </div>}
+
+      {/* 底部页签栏：工程名、页面标签和状态 */}
+      <div className="workspace-nav flex h-10 shrink-0 items-center gap-2 border-t border-slate-200 bg-white px-2 text-[11px] text-slate-500">
+        {renamingEngineeringProjectId ? (
+          <input autoFocus value={engineeringProjectNameDraft} onChange={(event) => setEngineeringProjectNameDraft(event.target.value)}
+            onFocus={(event) => event.currentTarget.select()} onBlur={() => commitEngineeringProjectRename(activeEngineeringProjectId)}
+            onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); else if (event.key === 'Escape') { cancelEngineeringProjectRenameRef.current = true; setRenamingEngineeringProjectId(null); } }}
+            aria-label="工程名称" className="field-input mt-0 h-7 w-40 shrink-0" />
+        ) : (
+          <button type="button" onClick={renameActiveEngineeringProject} title="重命名工程"
+            className="h-7 max-w-40 shrink-0 truncate rounded-md px-2 text-xs font-semibold text-slate-800 hover:bg-slate-100">{activeEngineeringProject.name}</button>
+        )}
+        <span className="h-4 w-px shrink-0 bg-slate-200" aria-hidden="true" />
+        <div className="toolbar-scroll flex h-full min-w-0 flex-1 items-center gap-1 overflow-x-auto" role="group" aria-label="页面">
+        {projects.map((project) => renamingProjectId === project.id ? (
+          <div
+            key={project.id}
+            className="flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-teal-500 bg-white px-1.5 text-xs ring-2 ring-teal-600/10"
+          >
+            <input
+              autoFocus
+              value={projectNameDraft}
+              onChange={(event) => setProjectNameDraft(event.target.value)}
+              onFocus={(event) => event.currentTarget.select()}
+              onBlur={() => commitProjectRename(project.id)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  event.currentTarget.blur();
+                } else if (event.key === 'Escape') {
+                  event.preventDefault();
+                  cancelProjectRenameRef.current = true;
+                  setRenamingProjectId(null);
+                }
+              }}
+              aria-label="页面名称"
+              className="h-5 w-32 rounded border-0 bg-transparent px-1 font-semibold text-teal-800 outline-none"
+            />
+            <span className="rounded bg-slate-100 px-1 text-[9px] font-normal text-slate-400">{project.parts.length}</span>
+          </div>
+        ) : (
+          <button
+            key={project.id}
+            onClick={() => switchProject(project.id)}
+            onDoubleClick={() => {
+              if (project.id === activeProjectId) renameActiveProject();
+            }}
+            aria-pressed={project.id === activeProjectId}
+            title={`${project.name}：${project.parts.length} 个元件、${project.wires.length} 根导线；双击当前页面标签可重命名`}
+            className={`flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs transition-colors ${
+              project.id === activeProjectId
+                ? 'border-teal-200 bg-teal-50 font-semibold text-teal-800'
+                : 'border-transparent text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+            }`}
+          >
+            <span className="max-w-36 truncate">{project.name}</span>
+            <span className="rounded bg-slate-100 px-1 text-[9px] font-normal text-slate-400">{project.parts.length}</span>
+          </button>
+        ))}
+          <button type="button" onClick={addProject} title="在当前工程中新建空白页面" aria-label="新建页面"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800">
+            <Plus className="h-4 w-4" aria-hidden="true" />
+          </button>
+          <ToolMenu label="页面" title="页面操作" icon={<Ellipsis className="h-4 w-4" aria-hidden="true" />} items={[
+            { label: '重命名页面', onSelect: renameActiveProject },
+            { label: '复制页面', onSelect: duplicateActiveProject },
+            { label: '删除页面', disabled: projects.length <= 1, danger: true, onSelect: deleteActiveProject },
+            { label: '复制选中', divider: true, hint: 'Ctrl+C', disabled: selCount === 0, onSelect: copySelection },
+            { label: '粘贴', hint: 'Ctrl+V', disabled: !clipboard, onSelect: pasteSelection },
+          ]} />
+        </div>
+        <span className="hidden shrink-0 whitespace-nowrap tabular-nums md:inline">
+          <b className="font-medium text-slate-700">{parts.length}</b> 个元件 · <b className="font-medium text-slate-700">{wires.length - cables.size / 2}</b> 条线路
+          {selCount > 0 && <span className="text-teal-700"> · 已选 {selCount} 项</span>}
+          {pendingInlineWireId && selectedWire?.id === pendingInlineWireId && <span className="text-teal-700"> · 放置{INLINE_CONNECTOR_STYLES[inlineKind].label}</span>}
         </span>
-        <div className="flex-1" />
-        <span className="hidden sm:inline">缩放 {Math.round(view.k * 100)}%</span>
-        <span className="text-slate-300">|</span>
-        <span className={`whitespace-nowrap ${persistence.error ? 'text-red-600' : ''}`} role="status">{persistence.status}</span>
+        <span className={`hidden shrink-0 whitespace-nowrap sm:inline ${persistence.error ? 'text-red-600' : 'text-slate-400'}`} role="status">{persistence.status}</span>
+        <span className="h-4 w-px shrink-0 bg-slate-200" aria-hidden="true" />
+        <div className="zoom-controls flex shrink-0 items-center gap-0.5" role="group" aria-label="缩放">
+          <div className="hidden items-center gap-0.5 sm:flex">
+            <ToolBtn icon onClick={() => zoomBy(1 / 1.25)} disabled={view.k <= ZOOM_MIN} title="缩小 (Ctrl+-)"><Minus aria-hidden="true" /></ToolBtn>
+            <ToolBtn onClick={() => zoomTo(1)} title="缩放到 100% (Ctrl+1)"><span className="min-w-9 tabular-nums">{Math.round(view.k * 100)}%</span></ToolBtn>
+            <ToolBtn icon onClick={() => zoomBy(1.25)} disabled={view.k >= ZOOM_MAX} title="放大 (Ctrl+=)"><Plus aria-hidden="true" /></ToolBtn>
+          </div>
+          <ToolBtn icon onClick={() => fitView()} disabled={parts.length === 0 && annotations.length === 0 && !backgroundImage} title="适应视图，显示全部内容 (Ctrl+0)"><Maximize aria-hidden="true" /></ToolBtn>
+          <ToolBtn icon onClick={() => setShowShortcuts((open) => !open)} active={showShortcuts} title="快捷键"><Keyboard aria-hidden="true" /></ToolBtn>
+        </div>
       </div>
 
       {showBomSettings && (
@@ -1844,6 +1784,7 @@ const SHORTCUTS: Array<[string, string]> = [
   ['Ctrl + A', '全选当前页面'],
   ['Ctrl + Z / Ctrl + Y', '撤销 / 重做'],
   ['Ctrl + C / Ctrl + V', '复制 / 粘贴'],
+  ['Ctrl + O / Ctrl + S', '导入工程 / 导出工程'],
   ['Delete', '删除选中'],
   ['方向键', '微移 1 mm（Shift 10 mm）'],
   ['R / L', '旋转 90° / 锁定'],
@@ -1853,7 +1794,7 @@ const SHORTCUTS: Array<[string, string]> = [
   ['Ctrl + 0 · F', '适应视图'],
   ['Ctrl + 1', '缩放到 100%'],
   ['P', '切换出图模式'],
-  ['Esc', '取消连线 / 退出线束 / 取消选择'],
+  ['Esc', '取消连线 / 取消选择'],
   ['触屏 · 单指拖空白处', '平移画布'],
   ['触屏 · 长按后拖动', '框选'],
   ['触屏 · 双指捏合', '缩放与平移'],
@@ -1861,7 +1802,7 @@ const SHORTCUTS: Array<[string, string]> = [
 ];
 
 function ToolSep() {
-  return <div className="h-6 w-px shrink-0 bg-slate-200" aria-hidden="true" />;
+  return <div className="mx-1.5 h-5 w-px shrink-0 bg-slate-200" aria-hidden="true" />;
 }
 
 function ToolBtn({
@@ -1870,20 +1811,25 @@ function ToolBtn({
   disabled,
   title,
   active,
+  icon,
 }: {
   children: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
   title?: string;
   active?: boolean;
+  icon?: boolean;
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`flex shrink-0 items-center gap-1.5 px-2 py-1.5 text-xs rounded-md disabled:opacity-35 disabled:cursor-not-allowed whitespace-nowrap ${
-        active ? 'bg-sky-100 text-sky-700 ring-1 ring-inset ring-sky-300' : 'text-slate-600 hover:bg-slate-100'
+      aria-label={title}
+      aria-pressed={active}
+      className={`flex h-8 shrink-0 items-center justify-center gap-1.5 text-xs font-medium rounded-md transition-colors disabled:opacity-35 disabled:cursor-not-allowed whitespace-nowrap ${icon ? 'w-8' : 'px-2'} ${
+        active ? 'bg-teal-50 text-teal-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
       }`}
     >
       {children}

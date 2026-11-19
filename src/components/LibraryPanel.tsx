@@ -9,10 +9,12 @@ interface Props {
   onAdd: (partId: string) => void;
   onDeleteCustom: (partId: string) => void;
   onOpenCustomModal: () => void;
+  usedPartIds?: ReadonlySet<string>;
 }
 
-export default function LibraryPanel({ defs, onAdd, onDeleteCustom, onOpenCustomModal }: Props) {
+export default function LibraryPanel({ defs, onAdd, onDeleteCustom, onOpenCustomModal, usedPartIds }: Props) {
   const [query, setQuery] = useState('');
+  const [category, setCategory] = useState('all');
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set(['气动']));
   const toggleCategory = (cat: string) => setCollapsed((current) => {
     const next = new Set(current);
@@ -21,66 +23,73 @@ export default function LibraryPanel({ defs, onAdd, onDeleteCustom, onOpenCustom
   });
   const filtered = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
-    const listed = defs.filter((def) => !def.hideInLibrary);
+    const listed = defs.filter((def) => !def.hideInLibrary && (category === 'all' || def.category === category));
     if (!normalized) return listed;
-    return listed.filter((def) => `${def.name} ${def.category}`.toLocaleLowerCase().includes(normalized));
-  }, [defs, query]);
+    return listed.filter((def) => `${def.name} ${def.category} ${def.caption ?? ''}`.toLocaleLowerCase().includes(normalized));
+  }, [defs, query, category]);
 
   return (
-    <aside className="w-60 shrink-0 h-full flex flex-col bg-white border-r border-slate-200">
-      <div className="px-3 py-2.5 border-b border-slate-200">
-        <div className="flex items-center justify-between">
-          <div className="text-sm font-semibold text-slate-800">元件库</div>
-          <span className="text-[10px] tabular-nums text-slate-400">{filtered.length}</span>
-        </div>
-        <label className="mt-2 flex h-8 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2 focus-within:border-sky-400 focus-within:bg-white">
+    <aside aria-label="元件库" className="flex h-full w-[264px] shrink-0 flex-col border-r border-slate-200 bg-white">
+      <div className="shrink-0 space-y-2 border-b border-slate-200 p-3">
+        <div className="flex h-9 items-center gap-2 rounded-lg bg-slate-100 px-2.5 focus-within:bg-white focus-within:ring-2 focus-within:ring-teal-600/40">
           <Search className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
           <input
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="搜索元件"
+            onChange={(event) => { setQuery(event.target.value); setCollapsed(new Set()); }}
+            placeholder="搜索名称或型号"
             aria-label="搜索元件"
             className="min-w-0 flex-1 bg-transparent text-xs text-slate-700 outline-none placeholder:text-slate-400"
           />
-        </label>
+          {query
+            ? <button type="button" onClick={() => setQuery('')} aria-label="清除搜索" className="rounded p-1 text-slate-400 hover:text-slate-700"><X className="h-3 w-3" aria-hidden="true" /></button>
+            : <span className="text-[10px] tabular-nums text-slate-400">{filtered.length}</span>}
+        </div>
+        <div className="chip-scroll -mx-3 flex gap-1 overflow-x-auto px-3" role="group" aria-label="筛选元件类别">
+          {['all', ...PART_CATEGORIES].map((cat) => (
+            <button key={cat} type="button" aria-pressed={category === cat}
+              onClick={() => { setCategory(cat); setCollapsed(new Set()); }}
+              className={`h-6 shrink-0 rounded-full px-2.5 text-[11px] ${category === cat ? 'bg-slate-800 font-medium text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}>
+              {cat === 'all' ? '全部' : cat}
+            </button>
+          ))}
+        </div>
       </div>
-      <div className="flex-1 overflow-y-auto px-2 py-2 space-y-3">
+      <div className="flex-1 space-y-2 overflow-y-auto p-2">
         {PART_CATEGORIES.map((cat) => {
           const list = filtered.filter((d) => d.category === cat);
           const isCustom = cat === '自定义';
-          if (!isCustom && list.length === 0) return null;
-          // Searching shows every match, whatever is folded.
-          const open = Boolean(query.trim()) || !collapsed.has(cat);
+          if (list.length === 0) return null;
+          const open = !collapsed.has(cat);
           return (
             <div key={cat}>
               <button
                 type="button"
                 aria-expanded={open}
                 onClick={() => toggleCategory(cat)}
-                className="mb-1 flex w-full items-center gap-1 rounded px-1 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                className="flex h-7 w-full items-center gap-1 rounded px-1 text-[11px] font-semibold text-slate-500 hover:text-slate-800"
               >
                 <ChevronRight className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-90' : ''}`} aria-hidden="true" />
                 <span className="flex-1 text-left">{cat}</span>
                 <span className="font-normal tabular-nums text-slate-400">{list.length}</span>
               </button>
-              {open && list.map((d) => (
-                <PartCard key={d.id} def={d} onAdd={onAdd} onDelete={isCustom ? onDeleteCustom : undefined} />
-              ))}
-              {open && isCustom && (
-                <button
-                  onClick={onOpenCustomModal}
-                  className="flex w-full items-center justify-center gap-1.5 mt-1 border border-dashed border-slate-300 rounded-md py-2 text-xs text-slate-500 hover:border-sky-400 hover:text-sky-600 transition-colors"
-                >
-                  <ImagePlus className="h-3.5 w-3.5" aria-hidden="true" />
-                  导入自定义器件
-                </button>
+              {open && (
+                <div className="grid grid-cols-2 gap-1.5">
+                  {list.map((d) => (
+                    <PartCard key={d.id} def={d} onAdd={onAdd} onDelete={isCustom ? onDeleteCustom : undefined} inUse={usedPartIds?.has(d.id)} />
+                  ))}
+                </div>
               )}
             </div>
           );
         })}
         {filtered.length === 0 && (
-          <div className="px-3 py-8 text-center text-xs text-slate-400">没有匹配的元件</div>
+          <div className="px-3 py-8 text-center text-xs text-slate-500">没有匹配的元件<button type="button" onClick={() => { setQuery(''); setCategory('all'); }} className="mx-auto mt-3 block rounded px-2 py-1 text-teal-700 hover:bg-teal-50">清除筛选</button></div>
         )}
+      </div>
+      <div className="shrink-0 border-t border-slate-200 p-2">
+        <button type="button" onClick={onOpenCustomModal} className="flex h-8 w-full items-center justify-center gap-2 rounded-md text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-900">
+          <ImagePlus className="h-4 w-4" aria-hidden="true" />导入自定义器件
+        </button>
       </div>
     </aside>
   );
@@ -90,35 +99,40 @@ function PartCard({
   def,
   onAdd,
   onDelete,
+  inUse,
 }: {
   def: PartDef;
   onAdd: (id: string) => void;
   onDelete?: (id: string) => void;
+  inUse?: boolean;
 }) {
   return (
-    <div
-      className="group relative flex min-h-12 items-center rounded-md mb-0.5 hover:bg-sky-50 focus-within:bg-sky-50 transition-colors"
-    >
+    <div className="group relative rounded-lg border border-slate-200 bg-white transition-colors hover:border-teal-600 focus-within:border-teal-600">
       <button
         type="button"
+        draggable
+        onDragStart={(event) => {
+          event.dataTransfer.setData('application/x-wiresheet-part', def.id);
+          event.dataTransfer.effectAllowed = 'copy';
+        }}
         onClick={() => onAdd(def.id)}
         title={`添加 ${def.name}`}
         aria-label={`添加 ${def.name}`}
-        className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+        className="flex w-full cursor-grab flex-col rounded-lg text-left focus-visible:outline-none active:cursor-grabbing"
       >
-        <span className="w-12 h-10 flex items-center justify-center bg-slate-100 rounded overflow-hidden shrink-0 p-1" aria-hidden="true">
+        <span className="flex h-[68px] w-full items-center justify-center overflow-hidden rounded-t-lg bg-slate-50 p-2" aria-hidden="true">
           <PartArtwork def={def} width="100%" height="100%" className="max-h-full max-w-full" />
         </span>
-        <span className="min-w-0 flex-1 pr-11 text-xs text-slate-700 leading-tight">{def.name}</span>
+        <span className="line-clamp-2 min-h-[38px] w-full px-2 py-1.5 text-[11px] font-medium leading-[13px] text-slate-700">{def.name}</span>
       </button>
       {(def.productUrl || def.docsUrl) && (
-        <div className="absolute bottom-1 right-1 flex items-center gap-0.5 opacity-70 transition-opacity group-hover:opacity-100">
+        <div className="flex items-center gap-1 border-t border-slate-100 px-1.5 py-0.5">
           {def.productUrl && (
             <a
               href={def.productUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex h-6 w-6 items-center justify-center rounded text-slate-400 hover:bg-white hover:text-sky-600"
+              className="flex h-7 w-7 items-center justify-center rounded text-slate-500 hover:bg-slate-100 hover:text-teal-600"
               onClick={(event) => event.stopPropagation()}
               title={`${def.name} 商店/产品页`}
               aria-label={`${def.name} 商店/产品页`}
@@ -131,7 +145,7 @@ function PartCard({
               href={def.docsUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex h-6 w-6 items-center justify-center rounded text-slate-400 hover:bg-white hover:text-violet-600"
+              className="flex h-7 w-7 items-center justify-center rounded text-slate-500 hover:bg-slate-100 hover:text-teal-600"
               onClick={(event) => event.stopPropagation()}
               title={`${def.name} 供应商文档`}
               aria-label={`${def.name} 供应商文档`}
@@ -143,13 +157,14 @@ function PartCard({
       )}
       {onDelete && (
         <button
-          className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded opacity-60 group-hover:opacity-100 focus-visible:opacity-100 text-slate-400 hover:bg-red-50 hover:text-red-500"
+          disabled={inUse}
+          className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded opacity-60 group-hover:opacity-100 focus-visible:opacity-100 text-slate-400 hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-30"
           onClick={(e) => {
             e.stopPropagation();
             onDelete(def.id);
           }}
-          title="删除此自定义板卡"
-          aria-label={`删除自定义板卡 ${def.name}`}
+          title={inUse ? '此器件正在图纸中使用，移除后可删除' : '删除此自定义板卡'}
+          aria-label={inUse ? `${def.name} 正在使用，无法删除` : `删除自定义板卡 ${def.name}`}
         >
           <X className="h-3.5 w-3.5" aria-hidden="true" />
         </button>

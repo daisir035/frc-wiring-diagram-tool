@@ -9,14 +9,14 @@ interface Props {
   onClose: () => void;
 }
 
-const field = 'w-full rounded border border-slate-200 px-2 text-xs text-slate-700 outline-none focus:border-sky-400';
+const field = 'w-full rounded border border-slate-200 px-2 text-xs text-slate-700 outline-none focus:border-teal-400';
 
 export default function AnnotationPanel({ annotation, onChange, onDelete, onClose }: Props) {
   const title = annotation.kind === 'title';
   return (
     <aside className="absolute inset-y-0 right-0 z-30 flex h-full w-72 shrink-0 flex-col border-l border-slate-200 bg-white shadow-xl lg:static lg:z-auto lg:shadow-none" aria-label="标注属性">
       <div className="flex h-12 items-center gap-2 border-b border-slate-200 px-3">
-        <StickyNote className="h-4 w-4 text-sky-600" aria-hidden="true" />
+        <StickyNote className="h-4 w-4 text-teal-600" aria-hidden="true" />
         <div className="min-w-0 flex-1 text-xs font-semibold text-slate-800">{ANNOTATION_NAMES[annotation.kind]}</div>
         <button type="button" onClick={onClose} title="关闭属性面板"
           className="flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700">

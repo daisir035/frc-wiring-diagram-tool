@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import { BUILTIN_PARTS, WORLD_UNITS_PER_MM, cablePorts, connectWireEnds, isPhysicalSize, partDimensions, partSize, portWorld } from '../src/lib/wiring.ts';
 
 const defs = new Map(BUILTIN_PARTS.map((def) => [def.id, def]));
@@ -79,7 +80,7 @@ test('Limelight connector sides follow the mechanical drawings at every rotation
 test('miniPDH keeps legacy six-channel IDs while using REV artwork and connector sides', () => {
   const def = defs.get('miniPdp');
   assert.match(def.name, /miniPDH/);
-  assert.equal(def.img, 'REV Mini Power Module.png');
+  assert.equal(def.img, 'REV Mini Power Module Diagram.svg');
   assert.equal(def.ports.length, 14);
   assert.equal(cablePorts(def).length, 7);
   assert.ok(def.ports.filter((port) => port.id.startsWith('ch')).every((port) => port.side === 'right' && port.x === 1));
@@ -95,7 +96,7 @@ test('miniPDH keeps legacy six-channel IDs while using REV artwork and connector
 test('PDP artwork retains all 24 selectable breaker slots and paired side outputs', () => {
   const def = defs.get('pdp');
   assert.equal(def.visual, 'image');
-  assert.equal(def.fuseSlotCover, true);
+  assert.equal(def.fuseSlotCover, undefined);
   assert.equal(def.fuseSlots.length, 24);
   assert.equal(new Set(def.fuseSlots.map((slot) => slot.channel)).size, 24);
   near(def.w / def.h, partSize(def).w / partSize(def).h);
@@ -123,9 +124,29 @@ test('motor top views keep the side view ports so switching views keeps the wiri
   }
 });
 
-test('Pigeon 2.0 uses the product photo with CANcoder-style 22 AWG leads', () => {
+test('Pigeon 2.0 redraw retains CANcoder-style 22 AWG leads', () => {
   const pigeon = defs.get('pigeon2');
-  assert.equal(pigeon.img, 'CTRE Pigeon 2.0.png');
+  assert.equal(pigeon.img, 'CTRE Pigeon 2.0 Diagram.svg');
   near(partSize(pigeon).w / partSize(pigeon).h, pigeon.w / pigeon.h);
   assert.deepEqual(pigeon.ports.map((port) => port.id), defs.get('cancoder').ports.map((port) => port.id));
+});
+
+
+test('every built-in image and fuse uses a self-contained vector drawing', () => {
+  const assets = new Set(BUILTIN_PARTS.flatMap((def) => [def.img, ...Object.values(def.fuseImages ?? {})]).filter(Boolean));
+  for (const asset of assets) {
+    assert.match(asset, /\.svg$/, asset);
+    const source = readFileSync(new URL(`../public/parts/${asset}`, import.meta.url), 'utf8');
+    assert.match(source, /<svg[\s>]/, asset);
+    assert.doesNotMatch(source, /<image[\s>]|<script[\s>]|(?:href|xlink:href)=["'](?:https?:|data:)/i, asset);
+  }
+});
+
+test('generic terminal artwork uses its reference millimeter footprint without enlarged pads', () => {
+  for (const id of ['terminalPair', 'terminal2To4']) {
+    const def = defs.get(id);
+    assert.deepEqual({ w: def.w, h: def.h }, partSize(def));
+    assert.equal(partDimensions(def).status, 'reference');
+    assert.equal(new Set(def.ports.map((port) => port.id)).size, def.ports.length);
+  }
 });

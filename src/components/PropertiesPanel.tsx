@@ -2,6 +2,7 @@ import { cylinderBores, MANIFOLD_STATIONS } from '../lib/pneumatics';
 import {
   BookOpen,
   CircuitBoard,
+  CircleDot,
   Hash,
   Lock,
   RotateCw,
@@ -13,8 +14,9 @@ import {
   X,
   Zap,
 } from 'lucide-react';
-import type { FuseRating, PartDef, PlacedPart } from '../lib/wiring';
-import { BUILTIN_PARTS, allowedFuseRatings, isPhysicalSize, partDimensions, partSize } from '../lib/wiring';
+import type { FuseRating, PartDef, PlacedPart, Wire, WireEnd } from '../lib/wiring';
+import { BUILTIN_PARTS, FUSE_COLOR, PORT_TYPE_COLOR, allowedFuseRatings, cablePort, cablePorts, isPhysicalSize, partDimensions, partSize } from '../lib/wiring';
+import ConnectionList from './ConnectionList';
 
 interface Props {
   part: PlacedPart;
@@ -22,6 +24,12 @@ interface Props {
   onPartChange: (changes: Partial<PlacedPart>) => void;
   onFuseChange: (channel: number, rating?: FuseRating) => void;
   onClose: () => void;
+  parts?: PlacedPart[];
+  wires?: Wire[];
+  partDefs?: ReadonlyMap<string, PartDef>;
+  pendingFrom?: WireEnd | null;
+  onPortClick?: (end: WireEnd) => void;
+  onSelectWire?: (id: string) => void;
 }
 
 function FuseRow({
@@ -40,15 +48,12 @@ function FuseRow({
       <span className="w-10 text-xs font-semibold tabular-nums text-slate-600">CH {channel}</span>
       <span
         className="h-3 w-3 rounded-sm border border-black/10"
-        style={{
-          background:
-            rating === 10 ? '#c94b64' : rating === 20 ? '#d8b51f' : rating === 30 ? '#2f9e69' : rating === 40 ? '#df9a22' : '#e2e8f0',
-        }}
+        style={{ background: rating === undefined ? '#e2e8f0' : FUSE_COLOR[rating] }}
       />
       <select
         value={rating ?? ''}
         onChange={(event) => onChange(event.target.value ? Number(event.target.value) as FuseRating : undefined)}
-        className="h-7 min-w-0 flex-1 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-sky-400"
+        className="h-7 min-w-0 flex-1 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-teal-400"
         aria-label={`CH ${channel} 保险丝`}
       >
         <option value="">空槽</option>
@@ -63,7 +68,7 @@ function FuseRow({
 const ROTATIONS: PlacedPart['rot'][] = [0, 90, 180, 270];
 
 const pickerOption = (active: boolean) => `h-8 rounded border px-2 text-[11px] disabled:opacity-40 ${active
-  ? 'border-sky-500 bg-sky-50 font-semibold text-sky-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`;
+  ? 'border-teal-500 bg-teal-50 font-semibold text-teal-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`;
 
 const inches = (mm: number) => `${Math.round(mm / 25.4 * 100) / 100} in`;
 
@@ -71,7 +76,7 @@ function ManifoldPicker({ def, disabled, onSelect }: { def: PartDef; disabled: b
   return (
     <section className="border-b border-slate-100 py-3">
       <div className="mb-2 flex items-center gap-2">
-        <Ruler className="h-4 w-4 text-sky-600" aria-hidden="true" />
+        <Ruler className="h-4 w-4 text-teal-600" aria-hidden="true" />
         <span className="text-xs font-semibold text-slate-700">电磁阀数量</span>
       </div>
       <div className="grid grid-cols-4 gap-1">
@@ -100,7 +105,7 @@ function ViewPicker({ part, def, onChange }: { part: PlacedPart; def: PartDef; o
   return (
     <section className="border-b border-slate-100 py-3">
       <div className="mb-2 flex items-center gap-2">
-        <RotateCw className="h-4 w-4 text-sky-600" aria-hidden="true" />
+        <RotateCw className="h-4 w-4 text-teal-600" aria-hidden="true" />
         <span className="text-xs font-semibold text-slate-700">电机视角</span>
       </div>
       <div className="grid grid-cols-2 gap-1">
@@ -122,7 +127,7 @@ function CylinderPicker({ def, disabled, onSelect }: { def: PartDef; disabled: b
   return (
     <section className="border-b border-slate-100 py-3">
       <div className="mb-2 flex items-center gap-2">
-        <Ruler className="h-4 w-4 text-sky-600" aria-hidden="true" />
+        <Ruler className="h-4 w-4 text-teal-600" aria-hidden="true" />
         <span className="text-xs font-semibold text-slate-700">气缸规格（AndyMark）</span>
       </div>
       <div className="mb-1 text-[10px] text-slate-500">缸径</div>
@@ -150,16 +155,18 @@ function CylinderPicker({ def, disabled, onSelect }: { def: PartDef; disabled: b
         <dt className="text-slate-400">缸体外径</dt><dd>{spec.odMm.toFixed(1)} mm{spec.family === 'smc' ? '' : '（参考）'}</dd>
         <dt className="text-slate-400">动作</dt><dd>{spec.action === 'double' ? '双作用（A/B 两口）' : '弹簧伸出（单口）'}</dd>
       </dl>
-      <a href={def.productUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-[11px] text-sky-700 underline">AndyMark 产品页</a>
+      <a href={def.productUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-[11px] text-teal-700 underline">AndyMark 产品页</a>
     </section>
   );
 }
 
-export default function PropertiesPanel({ part, def, onPartChange, onFuseChange, onClose }: Props) {
+export default function PropertiesPanel({ part, def, onPartChange, onFuseChange, onClose, parts, wires, partDefs, pendingFrom, onPortClick, onSelectWire }: Props) {
   const installed = Object.keys(part.fuses ?? {}).length;
   const channelCount = def.fuseChannels ?? 0;
   const displayName = part.customName?.trim() || def.name;
   const dimensions = partDimensions(def, part);
+  const ports = cablePorts(def);
+  const relatedWires = wires?.filter((wire) => wire.a.uid === part.uid || wire.b.uid === part.uid);
   const resize = (sizeMm?: PlacedPart['sizeMm']) => {
     if (part.locked || (sizeMm && !isPhysicalSize(sizeMm))) return;
     const previous = partSize(def, part);
@@ -167,29 +174,51 @@ export default function PropertiesPanel({ part, def, onPartChange, onFuseChange,
     onPartChange({ sizeMm, x: part.x + (previous.w - next.w) / 2, y: part.y + (previous.h - next.h) / 2 });
   };
   return (
-    <aside className="absolute inset-y-0 right-0 z-30 flex h-full w-72 shrink-0 flex-col border-l border-slate-200 bg-white shadow-xl lg:static lg:z-auto lg:shadow-none">
-      <div className="flex h-12 items-center gap-2 border-b border-slate-200 px-3">
-        <CircuitBoard className="h-4 w-4 text-sky-600" aria-hidden="true" />
+    <aside aria-label="元件属性" className="absolute inset-y-0 right-0 z-30 flex h-full w-72 shrink-0 flex-col border-l border-slate-200 bg-white shadow-xl lg:static lg:z-auto lg:shadow-none">
+      <div className="flex min-h-16 shrink-0 items-center gap-2 border-b border-slate-200 px-4 py-3">
+        <CircuitBoard className="h-4 w-4 text-teal-600" aria-hidden="true" />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-xs font-semibold text-slate-800">{displayName}</div>
-          <div className="text-[10px] text-slate-400">{def.name} · {def.ports.length} 个接线点</div>
+          <div className="break-words text-xs font-semibold leading-relaxed text-slate-800">{displayName}</div>
+          <div className="mt-0.5 text-[10px] text-slate-500">{def.category} · {ports.length} 个接口</div>
         </div>
         <button
           onClick={onClose}
           className="flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700"
           title="关闭属性面板"
+          aria-label="关闭元件属性面板"
         >
           <X className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 pb-4">
+        {onPortClick && <section className="border-b border-slate-100 py-3">
+          <div className="mb-2 flex items-center gap-2"><CircleDot className="h-4 w-4 text-teal-700" aria-hidden="true" /><h3 className="text-xs font-semibold text-slate-700">接线端口</h3></div>
+          <p className="mb-2 text-[11px] leading-relaxed text-slate-500">{pendingFrom ? '点击目标端口完成连接，Esc 取消。' : '点击端口开始接线，再选择目标元件。'}</p>
+          <div className="max-h-60 space-y-0.5 overflow-y-auto">
+            {ports.map((port) => {
+              const isStart = pendingFrom?.uid === part.uid && pendingFrom.portId === port.id;
+              const connected = relatedWires?.some((wire) => [wire.a, wire.b].some((end) => {
+                const raw = def.ports.find((candidate) => candidate.id === end.portId);
+                return end.uid === part.uid && raw && cablePort(def, raw).id === port.id;
+              }));
+              return <button key={port.id} type="button" onClick={() => onPortClick({ uid: part.uid, portId: port.id })} aria-pressed={isStart}
+                aria-label={`${isStart ? '取消起点' : pendingFrom ? '连接到' : '开始接线'} ${displayName} ${port.label}`}
+                className={`flex min-h-9 w-full items-center gap-2 rounded px-2 py-2 text-left text-[11px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 ${isStart ? 'bg-teal-50 text-teal-800' : 'text-slate-600 hover:bg-slate-50'}`}>
+                <span className="h-2 w-2 shrink-0 rounded-full border border-black/10" style={{ background: PORT_TYPE_COLOR[port.type] }} aria-hidden="true" />
+                <span className="min-w-0 flex-1 break-words">{port.label}</span>
+                <span className={`shrink-0 text-[10px] ${isStart ? 'text-teal-700' : 'text-slate-400'}`}>{isStart ? '起点' : connected ? '已连接' : ''}</span>
+              </button>;
+            })}
+          </div>
+        </section>}
+        {relatedWires && onSelectWire && parts && partDefs && <div className="border-b border-slate-100"><ConnectionList wires={relatedWires} parts={parts} partDefs={partDefs} onSelectWire={onSelectWire} title="当前元件连接" /></div>}
         {def.cylinder && <CylinderPicker def={def} disabled={Boolean(part.locked)} onSelect={(partId) => onPartChange({ partId, sizeMm: undefined })} />}
         {def.variantOf && def.view && <ViewPicker part={part} def={def} onChange={onPartChange} />}
         {def.stations && <ManifoldPicker def={def} disabled={Boolean(part.locked)} onSelect={(partId) => onPartChange({ partId, sizeMm: undefined })} />}
         <section className="border-b border-slate-100 py-3">
           <div className="mb-2 flex items-center gap-2">
-            <Ruler className="h-4 w-4 text-sky-600" aria-hidden="true" />
+            <Ruler className="h-4 w-4 text-teal-600" aria-hidden="true" />
             <span className="text-xs font-semibold text-slate-700">外形尺寸（mm）</span>
             <button type="button" title="恢复默认尺寸" aria-label="恢复默认尺寸" disabled={part.locked || !part.sizeMm}
               className="ml-auto flex h-7 w-7 items-center justify-center rounded text-slate-500 hover:bg-slate-100 disabled:opacity-30"
@@ -202,7 +231,7 @@ export default function PropertiesPanel({ part, def, onPartChange, onFuseChange,
                 <input key={`${part.uid}-${axis}-${dimensions[axis]}`} type="number" min={0.1} max={10000} step="0.001"
                   aria-label={axis === 'w' ? '器件宽度（mm）' : '器件高度（mm）'}
                   defaultValue={Number(dimensions[axis].toFixed(3))} disabled={part.locked}
-                  className="mt-1 h-9 w-full rounded border border-slate-200 px-2 text-xs tabular-nums text-slate-700 outline-none focus:border-sky-400 disabled:bg-slate-50"
+                  className="mt-1 h-9 w-full rounded border border-slate-200 px-2 text-xs tabular-nums text-slate-700 outline-none focus:border-teal-400 disabled:bg-slate-50"
                   onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }}
                   onBlur={(event) => {
                     const size = { w: dimensions.w, h: dimensions.h, [axis]: Number(event.currentTarget.value) };
@@ -214,20 +243,21 @@ export default function PropertiesPanel({ part, def, onPartChange, onFuseChange,
           </div>
           <div className="mt-2 flex items-center justify-between text-[10px] text-slate-500">
             <span>{dimensions.status === 'verified' ? '厂家尺寸' : dimensions.status === 'measured' ? '实测尺寸' : '参考尺寸'}</span>
-            {dimensions.source && <a href={dimensions.source} target="_blank" rel="noreferrer" className="text-sky-700 hover:underline">尺寸来源</a>}
+            {dimensions.source && <a href={dimensions.source} target="_blank" rel="noreferrer" className="text-teal-700 hover:underline">尺寸来源</a>}
           </div>
         </section>
         <section className="border-b border-slate-100 py-3">
           <div className="mb-2 flex items-center gap-2">
-            <Tag className="h-4 w-4 text-violet-600" aria-hidden="true" />
+            <Tag className="h-4 w-4 text-teal-600" aria-hidden="true" />
             <span className="text-xs font-semibold text-slate-700">器件命名与编号</span>
           </div>
+          <p className="mb-3 text-[10px] leading-relaxed text-slate-500">标签默认隐藏，可在“视图”中开启。</p>
           <label className="block">
             <span className="mb-1 block text-[10px] font-medium text-slate-500">图纸显示名称</span>
             <input
               value={part.customName ?? ''}
               onChange={(event) => onPartChange({ customName: event.target.value || undefined })}
-              className="h-9 w-full rounded border border-slate-200 px-2 text-xs text-slate-700 outline-none focus:border-sky-400"
+              className="h-9 w-full rounded border border-slate-200 px-2 text-xs text-slate-700 outline-none focus:border-teal-400"
               placeholder={def.name}
             />
           </label>
@@ -239,7 +269,7 @@ export default function PropertiesPanel({ part, def, onPartChange, onFuseChange,
             <input
               value={part.deviceId ?? ''}
               onChange={(event) => onPartChange({ deviceId: event.target.value || undefined })}
-              className="h-9 w-full rounded border border-slate-200 px-2 text-xs text-slate-700 outline-none focus:border-sky-400"
+              className="h-9 w-full rounded border border-slate-200 px-2 text-xs text-slate-700 outline-none focus:border-teal-400"
               placeholder="例如：M1、左前、CAN ID 3"
             />
           </label>
@@ -249,7 +279,7 @@ export default function PropertiesPanel({ part, def, onPartChange, onFuseChange,
               value={part.caption ?? def.caption ?? ''}
               rows={2}
               onChange={(event) => onPartChange({ caption: event.target.value === (def.caption ?? '') ? undefined : event.target.value })}
-              className="w-full resize-y rounded border border-slate-200 px-2 py-1.5 text-xs leading-4 text-slate-700 outline-none focus:border-sky-400"
+              className="w-full resize-y rounded border border-slate-200 px-2 py-1.5 text-xs leading-4 text-slate-700 outline-none focus:border-teal-400"
               placeholder="例如：Viair 90C 示意 / 必须装在机器人上"
             />
           </label>
@@ -258,7 +288,7 @@ export default function PropertiesPanel({ part, def, onPartChange, onFuseChange,
             <div className="grid grid-cols-5 gap-1">
               {([['bottom', '下'], ['right', '右'], ['left', '左'], ['top', '上'], ['none', '隐藏']] as const).map(([value, label]) => (
                 <button key={value} type="button" onClick={() => onPartChange({ labelPos: value === 'bottom' ? undefined : value, labelOffset: undefined })}
-                  className={`h-7 rounded border text-[11px] ${(part.labelPos ?? 'bottom') === value ? 'border-sky-500 bg-sky-50 text-sky-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                  className={`h-7 rounded border text-[11px] ${(part.labelPos ?? 'bottom') === value ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
                   {label}
                 </button>
               ))}
@@ -268,7 +298,7 @@ export default function PropertiesPanel({ part, def, onPartChange, onFuseChange,
 
         <section className="border-b border-slate-100 py-3">
           <div className="mb-2 flex items-center gap-2">
-            <RotateCw className="h-4 w-4 text-sky-600" aria-hidden="true" />
+            <RotateCw className="h-4 w-4 text-teal-600" aria-hidden="true" />
             <span className="text-xs font-semibold text-slate-700">器件视图</span>
           </div>
           <div className="grid grid-cols-4 gap-1.5">
@@ -279,8 +309,8 @@ export default function PropertiesPanel({ part, def, onPartChange, onFuseChange,
                 disabled={part.locked}
                 className={`h-8 rounded border text-xs font-medium ${
                   part.rot === rotation
-                    ? 'border-sky-500 bg-sky-50 text-sky-700'
-                    : 'border-slate-200 text-slate-500 hover:border-sky-300'
+                    ? 'border-teal-500 bg-teal-50 text-teal-700'
+                    : 'border-slate-200 text-slate-500 hover:border-teal-300'
                 } disabled:cursor-not-allowed disabled:opacity-40`}
               >
                 {rotation}°
@@ -292,7 +322,7 @@ export default function PropertiesPanel({ part, def, onPartChange, onFuseChange,
             className={`mt-2 flex h-9 w-full items-center justify-center gap-2 rounded border text-xs font-semibold ${
               part.locked
                 ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
-                : 'border-slate-200 text-slate-600 hover:border-sky-300 hover:bg-sky-50'
+                : 'border-slate-200 text-slate-600 hover:border-teal-300 hover:bg-teal-50'
             }`}
           >
             {part.locked ? <Unlock className="h-4 w-4" aria-hidden="true" /> : <Lock className="h-4 w-4" aria-hidden="true" />}
@@ -310,7 +340,7 @@ export default function PropertiesPanel({ part, def, onPartChange, onFuseChange,
                   href={def.productUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex h-9 items-center justify-center gap-1.5 rounded border border-slate-200 text-xs text-slate-600 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
+                  className="flex h-9 items-center justify-center gap-1.5 rounded border border-slate-200 text-xs text-slate-600 hover:border-teal-300 hover:bg-teal-50 hover:text-teal-700"
                 >
                   <ShoppingBag className="h-3.5 w-3.5" aria-hidden="true" />
                   产品页
@@ -321,7 +351,7 @@ export default function PropertiesPanel({ part, def, onPartChange, onFuseChange,
                   href={def.docsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex h-9 items-center justify-center gap-1.5 rounded border border-slate-200 text-xs text-slate-600 hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700"
+                  className="flex h-9 items-center justify-center gap-1.5 rounded border border-slate-200 text-xs text-slate-600 hover:border-teal-300 hover:bg-teal-50 hover:text-teal-700"
                 >
                   <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
                   供应商文档

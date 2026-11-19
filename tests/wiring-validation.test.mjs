@@ -44,12 +44,12 @@ test('known data interfaces must match while USB connector shapes can differ', (
 
 test('merged connector polarity is resolved only for new connections, never to excuse stored crossed wires', () => {
   const from = end('battery12v', 'negative');
-  const to = end('pdh', 'batt+');
+  const to = end('pdh', 'ch1+');
   assert.equal(connectionIssue(from, to, parts, defs), null);
   assert.match(connectionIssue(from, to, parts, defs, false), /不兼容/);
   const result = connect(from, to);
   assert.equal(result.length, 1);
-  assert.equal(result[0].b.portId, 'batt-');
+  assert.equal(result[0].b.portId, 'ch1-');
   assert.equal(connectionIssue(result[0].a, result[0].b, parts, defs, false), null);
   assert.match(wireEngineeringIssues(wire(from, to), parts, defs).join(' '), /不兼容/);
 });

@@ -95,7 +95,7 @@ test('source format versions 1 and 2 are accepted, while unsupported versions ca
 
 test('malformed customName and every placed-part optional field fail at an actionable path', () => {
   for (const [key, value] of [['customName', 123], ['deviceId', {}], ['locked', 'true'], ['sizeMm', { w: 0, h: 10 }],
-    ['sizeMm', { w: 10001, h: 10 }], ['fuses', []], ['fuses', { 25: 20 }], ['fuses', { 0: 15 }]]) {
+    ['sizeMm', { w: 10001, h: 10 }], ['fuses', []], ['fuses', { 25: 20 }], ['fuses', { 0: 7.5 }]]) {
     const state = workspace();
     activePage(state).parts[0][key] = value;
     rejects(state, new RegExp(`parts\\[0\\]\\.${key}`));
@@ -181,7 +181,7 @@ test('custom port pair metadata must resolve to opposite polarity and be consist
 test('custom dimension, enum, image metadata, fuse data and out-of-bounds port coordinates reject safely', () => {
   for (const [key, value] of [['w', 0], ['h', -1], ['displayWidth', Infinity], ['productUrl', {}], ['docsUrl', []],
     ['img', false], ['imgData', 1], ['visual', 'script'], ['custom', 1], ['fuseChannels', 1.5],
-    ['fuseRatings', [15]], ['fuseImages', { 90: 'image.png' }], ['fuseSlots', [{ channel: 0, x: 0, y: 0, w: 0.1, h: 0.1 }]],
+    ['fuseRatings', [7.5]], ['fuseImages', { 90: 'image.png' }], ['fuseSlots', [{ channel: 0, x: 0, y: 0, w: 0.1, h: 0.1 }]],
     ['fuseRatingRules', [{ fromChannel: 1, ratings: [10] }]]]) {
     const state = workspace();
     state.customParts = [{ ...custom(), [key]: value }];

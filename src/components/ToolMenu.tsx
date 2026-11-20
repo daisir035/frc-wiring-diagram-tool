@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 export interface ToolMenuItem {
   label: string;
@@ -64,7 +65,7 @@ export default function ToolMenu({ label, items, title, icon, showLabel, trigger
         className={trigger ?? `flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-[13px] font-medium transition-colors ${icon && !showLabel ? 'w-8' : 'px-2.5'} ${open ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
         {icon && showLabel ? <>{icon}<span className="min-w-0 truncate">{label}</span></> : icon ?? label}
       </button>
-      {open && (
+      {open && createPortal(
         <div ref={list} role="menu" aria-label={label} style={{ left: open.left, top: open.top, bottom: open.bottom, maxHeight: `calc(100dvh - ${(open.top ?? open.bottom ?? 0) + 8}px)` }}
           onKeyDown={(event) => {
             if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
@@ -88,7 +89,10 @@ export default function ToolMenu({ label, items, title, icon, showLabel, trigger
               </button>
             </div>
           ))}
-        </div>
+        </div>,
+        // Portalled: an ancestor with backdrop-filter/transform would otherwise become the
+        // containing block of this fixed list and push it off-screen.
+        document.body,
       )}
     </>
   );

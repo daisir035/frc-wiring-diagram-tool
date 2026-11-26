@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { PartDef } from '../lib/wiring';
 import { CONTROLLER, controllerChannel, cylinderLayout, manifoldLayout } from '../lib/pneumatics';
+import { DRAWING_FONT } from '../lib/drawingFont';
 
 /*
  * Flat pneumatic artwork after Team 3161's FRC control system diagrams: solid fills, no outlines,
@@ -223,7 +224,7 @@ function VacuumGenerator({ def }: { def: PartDef }) {
   const vac = def.ports.find((p) => p.id === 'vac')!;
   const fit = h * 0.32;
   return (
-    <g fontFamily="'Saira Semi Condensed', 'Barlow Semi Condensed', sans-serif">
+    <g fontFamily={DRAWING_FONT}>
       <rect x={w * 0.12} y={h * 0.08} width={w * 0.72} height={h * 0.6} rx={1.2} fill="#b9bdc4" />
       <rect x={w * 0.12} y={h * 0.08} width={w * 0.72} height={h * 0.14} fill="#d7dadf" />
       <rect x={w * 0.62} y={h * 0.08} width={w * 0.04} height={h * 0.6} fill="#9ca1a9" />
@@ -361,7 +362,7 @@ function ManifoldValve({ def }: { def: PartDef }) {
   const coil = 15;
   const top = 5;
   const bottom = 73;
-  const label = { fontFamily: "'Saira Semi Condensed', 'Barlow Semi Condensed', sans-serif", textAnchor: 'middle', fontWeight: 700 } as const;
+  const label = { fontFamily: DRAWING_FONT, textAnchor: 'middle', fontWeight: 700 } as const;
   return (
     <g>
       <rect x={end - 1} y={railTop} width={w - end * 2 + 2} height={railBottom - railTop} fill="#d3d4d6" />
@@ -474,7 +475,7 @@ function Controller({ def }: { def: PartDef }) {
   const th = pin * 1.7;
   const rows = Array.from({ length: channels }, (_, channel) => ({ channel, ...controllerChannel(channel, channels) }));
   return (
-    <g fontFamily="'Saira Semi Condensed', 'Barlow Semi Condensed', sans-serif">
+    <g fontFamily={DRAWING_FONT}>
       <rect x={0} y={0} width={w} height={h} rx={5} fill={body} />
       <rect x={4} y={24} width={w - 8} height={h - 44} rx={2} fill={panel} />
       {[[7, 7], [w - 7, 7], [7, h - 7], [w - 7, h - 7]].map(([cx, cy]) => (

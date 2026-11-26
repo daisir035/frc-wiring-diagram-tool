@@ -148,10 +148,10 @@ function CylinderPicker({ def, disabled, onSelect }: { def: PartDef; disabled: b
         ))}
       </div>
       <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs text-slate-600">
-        <dt className="text-slate-400">型号</dt><dd className="font-mono">{def.id}</dd>
-        <dt className="text-slate-400">收缩总长</dt><dd>{spec.retractedMm.toFixed(1)} mm{spec.lengthVerified ? '' : '（参考）'}</dd>
-        <dt className="text-slate-400">缸体外径</dt><dd>{spec.odMm.toFixed(1)} mm{spec.family === 'smc' ? '' : '（参考）'}</dd>
-        <dt className="text-slate-400">动作</dt><dd>{spec.action === 'double' ? '双作用（A/B 两口）' : '弹簧伸出（单口）'}</dd>
+        <dt className="text-slate-500">型号</dt><dd className="font-mono">{def.id}</dd>
+        <dt className="text-slate-500">收缩总长</dt><dd>{spec.retractedMm.toFixed(1)} mm{spec.lengthVerified ? '' : '（参考）'}</dd>
+        <dt className="text-slate-500">缸体外径</dt><dd>{spec.odMm.toFixed(1)} mm{spec.family === 'smc' ? '' : '（参考）'}</dd>
+        <dt className="text-slate-500">动作</dt><dd>{spec.action === 'double' ? '双作用（A/B 两口）' : '弹簧伸出（单口）'}</dd>
       </dl>
       <a href={def.productUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs text-accent-700 underline">AndyMark 产品页</a>
     </section>
@@ -181,7 +181,7 @@ export default function PropertiesPanel({ part, def, onPartChange, onFuseChange,
         </div>
         <button
           onClick={onClose}
-          className="flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+          className="flex h-7 w-7 items-center justify-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-700"
           title="关闭属性面板"
           aria-label="关闭器件属性面板"
         >
@@ -204,7 +204,7 @@ export default function PropertiesPanel({ part, def, onPartChange, onFuseChange,
                 className={`flex min-h-9 w-full items-center gap-2 rounded px-2 py-2 text-left text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-600 ${isStart ? 'bg-accent-50 text-accent-800' : 'text-slate-600 hover:bg-slate-50'}`}>
                 <span className="h-2 w-2 shrink-0 rounded-full border border-black/10" style={{ background: PORT_TYPE_COLOR[port.type] }} aria-hidden="true" />
                 <span className="min-w-0 flex-1 break-words">{port.label}</span>
-                <span className={`shrink-0 text-xs ${isStart ? 'text-accent-700' : 'text-slate-400'}`}>{isStart ? '起点' : connected ? '已连接' : ''}</span>
+                <span className={`shrink-0 text-xs ${isStart ? 'text-accent-700' : 'text-slate-500'}`}>{isStart ? '起点' : connected ? '已连接' : ''}</span>
               </button>;
             })}
           </div>
@@ -361,9 +361,9 @@ export default function PropertiesPanel({ part, def, onPartChange, onFuseChange,
             <div className="flex items-center gap-2 pb-2">
               <Zap className="h-4 w-4 text-amber-600" aria-hidden="true" />
               <span className="text-[13px] font-semibold text-slate-700">通道保险丝</span>
-              <span className="ml-auto text-xs tabular-nums text-slate-400">{installed}/{channelCount}</span>
+              <span className="ml-auto text-xs tabular-nums text-slate-500">{installed}/{channelCount}</span>
             </div>
-            <div className="sticky top-0 z-10 bg-white pb-1 pt-1 text-xs font-semibold uppercase text-slate-400">输出通道 0-{channelCount - 1}</div>
+            <div className="sticky top-0 z-10 bg-white pb-1 pt-1 text-xs font-semibold uppercase text-slate-500">输出通道 0-{channelCount - 1}</div>
             {Array.from({ length: channelCount }, (_, channel) => (
               <FuseRow
                 key={channel}

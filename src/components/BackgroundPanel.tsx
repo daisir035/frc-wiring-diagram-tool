@@ -56,7 +56,7 @@ export default function BackgroundPanel({ background, editing, onEditingChange, 
           onChange={(event) => onChange({ ...background, opacity: Number(event.target.value) / 100 })}
           className="mt-2 w-full accent-accent-700" />
       </label>
-      <p className="mt-2 text-xs leading-relaxed text-slate-400">{background.calibratedWidthMm ? '已校准' : '⚠ 线长未校准'}</p>
+      <p className="mt-2 text-xs leading-relaxed text-slate-500">{background.calibratedWidthMm ? '已校准' : '⚠ 线长未校准'}</p>
       <div className="mt-4 flex gap-2 border-t border-slate-100 pt-3 text-[13px]">
         <button onClick={onReplace} className="rounded px-2 py-1.5 text-slate-600 hover:bg-slate-50">更换图片</button>
         <button onClick={onRemove} className="ml-auto rounded px-2 py-1.5 text-red-600 hover:bg-red-50">移除背景</button>

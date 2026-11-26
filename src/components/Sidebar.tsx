@@ -24,7 +24,7 @@ export default function Sidebar({ projectName, projectItems, fileItems, tab, onT
       <div className="flex h-11 shrink-0 items-center gap-1 pl-1 pr-0.5">
         <div className="min-w-0 flex-1">
           {renameField ?? <ToolMenu label={projectName} title={`工程：${projectName}`} items={projectItems}
-            icon={<ChevronDown className="order-last h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />} showLabel
+            icon={<ChevronDown className="order-last h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden="true" />} showLabel
             trigger="flex h-8 max-w-full items-center gap-1 rounded-md px-2 text-[13px] font-semibold text-slate-800 hover:bg-black/5" />}
         </div>
         <button type="button" onClick={onCollapse} title="收起侧栏" aria-label="收起侧栏"

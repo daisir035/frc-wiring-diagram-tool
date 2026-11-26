@@ -4,6 +4,7 @@ import { PRESSURE_SIDES } from '../lib/pneumaticZones';
 import { awgStrokeWidth } from '../lib/wireStyle';
 import { PORT_TYPE_COLOR } from '../lib/wiring';
 import type { PressureSide } from '../lib/pneumaticZones';
+import { DRAWING_FONT } from '../lib/drawingFont';
 
 export interface LegendContent {
   sides: PressureSide[];
@@ -26,7 +27,7 @@ const INK = '#4c4d4f';
 const MUTED = '#6d6e71';
 const DASH = '#a0a0a0';
 const FRAME = '#3a3a3c';
-const FONT = "'Saira Semi Condensed', 'Barlow Semi Condensed', 'Noto Sans SC', sans-serif";
+const FONT = DRAWING_FONT;
 
 function Lines({ x, y, text, size, color = MUTED, weight = 400, gap = 1.3 }: {
   x: number; y: number; text: string; size: number; color?: string; weight?: number; gap?: number;
@@ -40,7 +41,8 @@ function Section({ a }: { a: Annotation }) {
   return (
     <g>
       <rect x={a.x} y={a.y} width={a.w} height={a.h} rx={10} fill="none" stroke={DASH} strokeWidth={1.6} strokeDasharray="7 6" />
-      {a.title && <text x={a.x + 14} y={a.y + 24} fontSize={15} fill="#8b8c8e">{a.title}</text>}
+      {/* Wires often cross a section title; the halo keeps it readable. */}
+      {a.title && <text x={a.x + 14} y={a.y + 24} fontSize={15} fill="#64748b" stroke="#ffffff" strokeWidth={5} strokeLinejoin="round" paintOrder="stroke">{a.title}</text>}
     </g>
   );
 }

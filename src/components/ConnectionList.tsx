@@ -47,7 +47,7 @@ export default function ConnectionList({ wires, parts, partDefs, onSelectWire, s
     <section aria-label={title} className="py-3">
       <div className="mb-2 flex items-center justify-between">
         <h3 className="text-[13px] font-semibold text-slate-700">{title}</h3>
-        <span className="text-xs tabular-nums text-slate-400">{connections.length} 条</span>
+        <span className="text-xs tabular-nums text-slate-500">{connections.length} 条</span>
       </div>
       <div className="max-h-72 space-y-1.5 overflow-y-auto">
         {connections.map((wire) => {

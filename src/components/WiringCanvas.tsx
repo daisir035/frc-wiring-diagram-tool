@@ -51,6 +51,7 @@ import type { BackgroundCorner } from '../lib/backgroundGeometry';
 import CableConductors from './CableConductors';
 import { cablePolarity } from '../lib/cableGeometry';
 import { nearestCablePortAtPoint } from '../lib/canvasHitTesting';
+import { DRAWING_FONT } from '../lib/drawingFont';
 
 interface Props {
   backgroundImage?: CanvasBackground;
@@ -222,6 +223,14 @@ function PortMarker({ x, y, fill, color, state }: { x: number; y: number; fill: 
 /** Shift, Ctrl or Cmd add to the selection instead of replacing it. */
 const additiveKey = (event: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) => event.shiftKey || event.ctrlKey || event.metaKey;
 
+/** True for near-white wire colours that need a dark outline on a light canvas. */
+const isLightWire = (color: string) => {
+  const hex = /^#([0-9a-f]{6})$/i.exec(color)?.[1];
+  if (!hex) return false;
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 225;
+};
+
 export const ZOOM_MIN = 0.1;
 export const ZOOM_MAX = 8;
 
@@ -262,11 +271,11 @@ function PartLabel({ w, h, rot, position, title, caption, locked, offset, onPoin
   const y = position === 'bottom' ? top + vh + 14 : position === 'top' ? top - 6 - blockHeight + titleSize : top + vh / 2 - blockHeight / 2 + titleSize * 0.8;
   return (
     <g transform={offset ? `translate(${offset.x} ${offset.y})` : undefined} style={{ userSelect: 'none', cursor: locked ? 'default' : 'move' }}
-      fontFamily="'Saira Semi Condensed', 'Barlow Semi Condensed', 'Noto Sans SC', sans-serif" onPointerDown={onPointerDown}>
+      fontFamily={DRAWING_FONT} onPointerDown={onPointerDown}>
       <title>拖动标签调整位置</title>
-      <text x={x} y={y} textAnchor={anchor} fontSize={titleSize} fontWeight={700} fill={locked ? '#92400e' : '#4c4d4f'}>{title}</text>
+      <text x={x} y={y} textAnchor={anchor} fontSize={titleSize} fontWeight={700} fill={locked ? '#92400e' : '#3f4042'} stroke="#ffffff" strokeWidth={3.5} strokeLinejoin="round" paintOrder="stroke">{title}</text>
       {lines.map((line, index) => (
-        <text key={index} x={x} y={y + (index + 1) * captionSize * 1.3} textAnchor={anchor} fontSize={captionSize} fill="#6d6e71">{line}</text>
+        <text key={index} x={x} y={y + (index + 1) * captionSize * 1.3} textAnchor={anchor} fontSize={captionSize} fill="#5f6063" stroke="#ffffff" strokeWidth={3.5} strokeLinejoin="round" paintOrder="stroke">{line}</text>
       ))}
     </g>
   );
@@ -966,6 +975,8 @@ export default function WiringCanvas(props: Props) {
 
   /* ---------- 渲染 ---------- */
 
+  const gridStep = 24 * view.k < 10 ? 120 * view.k : 24 * view.k;
+
   return (
     <div
       ref={containerRef}
@@ -973,7 +984,8 @@ export default function WiringCanvas(props: Props) {
       style={{
         backgroundColor: posterMode ? '#ffffff' : '#f8fafb',
         backgroundImage: posterMode || !showGrid ? 'none' : 'radial-gradient(circle, #c3ced3 0.8px, transparent 0.8px)',
-        backgroundSize: `${24 * view.k}px ${24 * view.k}px`,
+        // Far out, show every 5th dot so the grid doesn't turn into a grey wash.
+        backgroundSize: `${gridStep}px ${gridStep}px`,
         backgroundPosition: `${view.x}px ${view.y}px`,
         cursor: panActive ? 'grabbing' : tool === 'pan' ? 'grab' : pendingFrom || pendingInlineWireId ? 'crosshair' : 'default',
       }}
@@ -984,6 +996,7 @@ export default function WiringCanvas(props: Props) {
       <svg
         ref={svgRef}
         className="w-full h-full block"
+        fontFamily={DRAWING_FONT}
         tabIndex={0}
         aria-label="接线图画布"
         onDoubleClickCapture={(event) => {
@@ -1142,11 +1155,12 @@ export default function WiringCanvas(props: Props) {
                       ) : cable ? <CableConductors radius={editorWire.cornerRadius} points={route.visiblePoints[index]} colors={[wire.color, cable[1].color]} twisted={false}
                         width={wireWidth} flat={posterMode} power={commonType === 'pwr+' || commonType === 'pwr-'}
                         polarity={cableVisuals.get(wire.id)?.polarity} {...cableVisuals.get(wire.id)?.segments[index]} /> : <>
-                      {!posterMode && <path
+                      {(!posterMode || isLightWire(wire.color)) && <path
                         d={segment}
                         fill="none"
-                        stroke="#ffffff"
-                        strokeWidth={wireWidth + 1}
+                        // A white wire gets a dark jacket so it reads as white instead of vanishing.
+                        stroke={isLightWire(wire.color) ? '#475569' : '#ffffff'}
+                        strokeWidth={wireWidth + (isLightWire(wire.color) ? 2 : 1)}
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         opacity={0.92}
@@ -1492,7 +1506,7 @@ export default function WiringCanvas(props: Props) {
                   <g
                     transform={`translate(${w / 2} ${h + 24})`}
                     style={{ pointerEvents: 'none', userSelect: 'none' }}
-                    fontFamily="'Saira Semi Condensed', 'Barlow Semi Condensed', 'Noto Sans SC', sans-serif"
+                    fontFamily={DRAWING_FONT}
                   >
                     <rect
                       x={-pdhLabelWidth / 2}

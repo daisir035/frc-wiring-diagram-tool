@@ -98,7 +98,7 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
       >
         <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200">
           <DialogTitle className="font-semibold text-base text-slate-800">导入自定义器件</DialogTitle>
-          <button onClick={onClose} aria-label="关闭自定义器件窗口" className="h-8 w-8 text-slate-400 hover:text-slate-600 text-lg leading-none">✕</button>
+          <button onClick={onClose} aria-label="关闭自定义器件窗口" className="h-8 w-8 text-slate-500 hover:text-slate-600 text-lg leading-none">✕</button>
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
@@ -108,7 +108,7 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
           {!imgData ? (
             <label className="relative block border-2 border-dashed border-slate-300 rounded-xl py-14 text-center cursor-pointer hover:border-accent-400 focus-within:border-accent-500 transition-colors">
               <div className="text-slate-500 text-sm">点击导入器件图片（PNG / JPG / WEBP）</div>
-              <div className="mt-1 text-[13px] text-slate-400">文件不超过 10 MB，压缩后不超过 750 KB</div>
+              <div className="mt-1 text-[13px] text-slate-500">文件不超过 10 MB，压缩后不超过 750 KB</div>
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
@@ -171,7 +171,7 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
                   type="url"
                 />
               </div>
-              <div className="text-[13px] text-slate-400">点击图片添加端口</div>
+              <div className="text-[13px] text-slate-500">点击图片添加端口</div>
               <div className="border border-slate-200 rounded-lg bg-slate-50 overflow-auto max-h-72 flex justify-center">
                 <div className="relative inline-block">
                   <img
@@ -236,11 +236,11 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
                         ))}
                       </select>
                     )}
-                    <span className="text-slate-400">
+                    <span className="text-slate-500">
                       ({(pt.x * 100).toFixed(0)}%, {(pt.y * 100).toFixed(0)}%)
                     </span>
                     <button
-                      className="text-slate-400 hover:text-red-500 ml-auto"
+                      className="text-slate-500 hover:text-red-500 ml-auto"
                       aria-label={`删除端口 ${pt.label}`}
                       onClick={() => setPorts((ps) => pairCustomPorts(ps, pt.id).filter((_, j) => j !== i))}
                     >

@@ -31,7 +31,7 @@ export default function LibraryPanel({ defs, onAdd, onDeleteCustom, usedPartIds 
     <section aria-label="器件库" className="flex h-full w-full flex-col">
       <div className="shrink-0 space-y-2 px-1 pb-2">
         <div className="flex h-9 items-center gap-2 rounded-lg bg-white px-2.5 ring-1 ring-black/5 focus-within:bg-white focus-within:ring-2 focus-within:ring-accent-600/40">
-          <Search className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
+          <Search className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
           <input
             value={query}
             onChange={(event) => { setQuery(event.target.value); setCollapsed(new Set()); }}
@@ -40,8 +40,8 @@ export default function LibraryPanel({ defs, onAdd, onDeleteCustom, usedPartIds 
             className="min-w-0 flex-1 bg-transparent text-[13px] text-slate-700 outline-none placeholder:text-slate-400"
           />
           {query
-            ? <button type="button" onClick={() => setQuery('')} aria-label="清除搜索" className="rounded p-1 text-slate-400 hover:text-slate-700"><X className="h-3 w-3" aria-hidden="true" /></button>
-            : <span className="text-xs tabular-nums text-slate-400">{filtered.length}</span>}
+            ? <button type="button" onClick={() => setQuery('')} aria-label="清除搜索" className="rounded p-1 text-slate-500 hover:text-slate-700"><X className="h-3 w-3" aria-hidden="true" /></button>
+            : <span className="text-xs tabular-nums text-slate-500">{filtered.length}</span>}
         </div>
         <div className="chip-scroll -mx-1 flex gap-1 overflow-x-auto px-1" role="group" aria-label="筛选器件类别">
           {['all', ...PART_CATEGORIES].map((cat) => (
@@ -69,7 +69,7 @@ export default function LibraryPanel({ defs, onAdd, onDeleteCustom, usedPartIds 
               >
                 <ChevronRight className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-90' : ''}`} aria-hidden="true" />
                 <span className="flex-1 text-left">{cat}</span>
-                <span className="font-normal tabular-nums text-slate-400">{list.length}</span>
+                <span className="font-normal tabular-nums text-slate-500">{list.length}</span>
               </button>
               {open && (
                 <div className="grid grid-cols-2 gap-1.5">
@@ -119,19 +119,20 @@ function PartCard({
         </span>
         <span className="line-clamp-2 min-h-[38px] w-full px-2 py-1.5 text-xs font-medium leading-4 text-slate-700">{def.name}</span>
       </button>
+      {/* Shop / docs links sit on the picture's corner and appear on hover or focus (always shown on touch). */}
       {(def.productUrl || def.docsUrl) && (
-        <div className="flex items-center gap-1 px-1.5 pb-1">
+        <div className="absolute right-1 top-1 flex items-center gap-0.5 rounded-md bg-white/95 p-0.5 shadow-sm ring-1 ring-black/5 transition-opacity [@media(hover:hover)]:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
           {def.productUrl && (
             <a
               href={def.productUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex h-7 w-7 items-center justify-center rounded text-slate-500 hover:bg-slate-100 hover:text-accent-600"
+              className="flex h-6 items-center gap-1 rounded px-1.5 text-[11px] text-slate-700 hover:bg-slate-100 hover:text-slate-900"
               onClick={(event) => event.stopPropagation()}
               title={`${def.name} 商店/产品页`}
               aria-label={`${def.name} 商店/产品页`}
             >
-              <ShoppingBag className="h-3.5 w-3.5" aria-hidden="true" />
+              <ShoppingBag className="h-3 w-3" aria-hidden="true" />商店
             </a>
           )}
           {def.docsUrl && (
@@ -139,12 +140,12 @@ function PartCard({
               href={def.docsUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex h-7 w-7 items-center justify-center rounded text-slate-500 hover:bg-slate-100 hover:text-accent-600"
+              className="flex h-6 items-center gap-1 rounded px-1.5 text-[11px] text-slate-700 hover:bg-slate-100 hover:text-slate-900"
               onClick={(event) => event.stopPropagation()}
               title={`${def.name} 供应商文档`}
               aria-label={`${def.name} 供应商文档`}
             >
-              <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
+              <BookOpen className="h-3 w-3" aria-hidden="true" />文档
             </a>
           )}
         </div>
@@ -152,7 +153,7 @@ function PartCard({
       {onDelete && (
         <button
           disabled={inUse}
-          className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded opacity-60 group-hover:opacity-100 focus-visible:opacity-100 text-slate-400 hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-30"
+          className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded opacity-60 group-hover:opacity-100 focus-visible:opacity-100 text-slate-500 hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-30"
           onClick={(e) => {
             e.stopPropagation();
             onDelete(def.id);

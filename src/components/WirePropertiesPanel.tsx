@@ -159,7 +159,7 @@ export default function WirePropertiesPanel({ wire, pressureSide, cableSize, par
         </div>
         <button
           onClick={onClose}
-          className="flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+          className="flex h-7 w-7 items-center justify-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-700"
           title="关闭属性面板"
           aria-label="关闭导线属性面板"
         >
@@ -246,7 +246,7 @@ export default function WirePropertiesPanel({ wire, pressureSide, cableSize, par
           {inlineConnectors.map((connector, index) => <div key={connector.id} className="mt-2 flex items-center justify-between border-b border-slate-100 py-1 text-[13px] text-slate-600">
             <span>{INLINE_CONNECTOR_STYLES[connector.kind ?? 'terminal2x2'].label} {index + 1}</span>
             <button onClick={() => onRemoveInline(connector.id)} title={`删除 ${INLINE_CONNECTOR_STYLES[connector.kind ?? 'terminal2x2'].label} ${index + 1}`}
-              className="flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-red-50 hover:text-red-600">
+              className="flex h-7 w-7 items-center justify-center rounded text-slate-500 hover:bg-red-50 hover:text-red-600">
               <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
           </div>)}
@@ -336,7 +336,7 @@ export default function WirePropertiesPanel({ wire, pressureSide, cableSize, par
             <div className="flex items-center justify-between gap-2">
               <div>
                 <div className="text-xs font-semibold text-slate-700">旧版路径点</div>
-                <div className="text-[11px] text-slate-400">当前 {terminals.length} 个</div>
+                <div className="text-[11px] text-slate-500">当前 {terminals.length} 个</div>
               </div>
               <div className="flex gap-1">
                 <button
@@ -358,7 +358,7 @@ export default function WirePropertiesPanel({ wire, pressureSide, cableSize, par
                       <span className="text-xs font-semibold text-accent-700">中间端子 {index + 1}</span>
                       <button
                         onClick={() => onRemoveWaypoint(waypoint.id)}
-                        className="flex h-6 w-6 items-center justify-center rounded text-slate-400 hover:bg-red-50 hover:text-red-600"
+                        className="flex h-6 w-6 items-center justify-center rounded text-slate-500 hover:bg-red-50 hover:text-red-600"
                         title={`删除中间端子 ${index + 1}`}
                       >
                         <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />

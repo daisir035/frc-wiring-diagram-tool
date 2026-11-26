@@ -19,7 +19,7 @@ export default function AnnotationPanel({ annotation, onChange, onDelete, onClos
         <StickyNote className="h-4 w-4 text-accent-600" aria-hidden="true" />
         <div className="min-w-0 flex-1 text-[13px] font-semibold text-slate-800">{ANNOTATION_NAMES[annotation.kind]}</div>
         <button type="button" onClick={onClose} title="关闭属性面板"
-          className="flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+          className="flex h-7 w-7 items-center justify-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-700">
           <X className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>

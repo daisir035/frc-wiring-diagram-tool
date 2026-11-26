@@ -80,11 +80,11 @@ export default function WireBundlePanel({ pathMode, cornerRadius, onGeometryChan
         <GitMerge className="h-4 w-4 text-accent-600" aria-hidden="true" />
         <div className="min-w-0 flex-1">
           <div className="text-[13px] font-semibold text-slate-800">创建与编辑线束</div>
-          <div className="text-xs text-slate-400">已选择 {wireCount} 根导线</div>
+          <div className="text-xs text-slate-500">已选择 {wireCount} 根导线</div>
         </div>
         <button
           onClick={onClose}
-          className="flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+          className="flex h-7 w-7 items-center justify-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-700"
           title="关闭属性面板"
         >
           <X className="h-4 w-4" aria-hidden="true" />

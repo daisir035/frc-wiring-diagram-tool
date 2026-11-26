@@ -10,6 +10,7 @@ import PropertiesPanel from '../components/PropertiesPanel';
 import WirePropertiesPanel from '../components/WirePropertiesPanel';
 import WireBundlePanel from '../components/WireBundlePanel';
 import ToolMenu from '../components/ToolMenu';
+import { embeddedDrawingFontCss } from '../lib/drawingFont';
 import Sidebar from '../components/Sidebar';
 import ConnectionList from '../components/ConnectionList';
 import type { SidebarTab } from '../components/Sidebar';
@@ -208,7 +209,18 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
     engineeringProjects: typeof action === 'function' ? action(current.engineeringProjects) : action }), record);
   const setActiveEngineeringProjectId = (id: string) => setWorkspace(current => ({ ...current, activeEngineeringProjectId: id }), false);
   const persistence = useWorkspacePersistence(workspace, backend, history.interacting);
-  const [notice, setNotice] = useState(message);
+  const [notice, setNoticeText] = useState(message);
+  /** 'info' confirms something worked and fades; 'warning' explains a refusal or problem and stays until closed. */
+  const [noticeTone, setNoticeTone] = useState<'info' | 'warning'>('warning');
+  const setNotice = (text: string, tone: 'info' | 'warning' = 'warning') => {
+    setNoticeTone(tone);
+    setNoticeText(text);
+  };
+  useEffect(() => {
+    if (!notice || noticeTone !== 'info') return;
+    const timer = window.setTimeout(() => setNoticeText(''), 3500);
+    return () => window.clearTimeout(timer);
+  }, [notice, noticeTone]);
   const activeEngineeringProject = engineeringProjects.find(
     (project) => project.id === activeEngineeringProjectId,
   ) ?? engineeringProjects[0];
@@ -303,6 +315,8 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
   const [engineeringProjectNameDraft, setEngineeringProjectNameDraft] = useState('');
   const svgRef = useRef<SVGSVGElement | null>(null);
   const canvasAreaRef = useRef<HTMLDivElement | null>(null);
+  /** Opened files and examples carry the view of whoever saved them; refit to this screen instead. */
+  const fitAfterOpenRef = useRef(false);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>('library');
   const backgroundInputRef = useRef<HTMLInputElement | null>(null);
   const addCountRef = useRef(0);
@@ -567,7 +581,8 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
       resetInteraction();
       addCountRef.current = 0;
       pasteCountRef.current = 0;
-      setNotice('工程已导入。');
+      setNotice('工程已导入', 'info');
+      fitAfterOpenRef.current = true;
     } catch (error) {
       window.alert(`无法导入：${error instanceof Error ? error.message : '工程文件损坏'}。当前工程未被修改。`);
     }
@@ -716,7 +731,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
   const clearAll = () => {
     if (parts.length === 0 && wires.length === 0 && !backgroundImage && annotations.length === 0) return;
     updateActiveProject((project) => ({ ...project, parts: [], wires: [], annotations: [], backgroundImage: undefined }));
-    setNotice('已清空当前页面，按 Ctrl+Z 可撤销。');
+    setNotice('已清空当前页面，Ctrl+Z 可撤销', 'info');
     setSelectedAnnotationId(null);
     setSelectedParts(new Set());
     setSelectedWires(new Set());
@@ -1103,16 +1118,45 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
       }
     }
     const rect = svgRef.current.getBoundingClientRect();
-    const pad = 50;
-    const kx = (rect.width - pad * 2) / (maxX - minX);
-    const ky = (rect.height - pad * 2) / (maxY - minY);
+    // The undo / view / export controls float over the top edge; keep the drawing below them.
+    const pad = { side: 40, top: 64, bottom: 32 };
+    const kx = (rect.width - pad.side * 2) / (maxX - minX);
+    const ky = (rect.height - pad.top - pad.bottom) / (maxY - minY);
     const k = Math.min(2, Math.max(0.15, Math.min(kx, ky)));
     setView({
       k,
       x: rect.width / 2 - ((minX + maxX) / 2) * k,
-      y: rect.height / 2 - ((minY + maxY) / 2) * k,
+      y: pad.top + (rect.height - pad.top - pad.bottom) / 2 - ((minY + maxY) / 2) * k,
     });
   };
+
+  useEffect(() => {
+    if (!fitAfterOpenRef.current) return;
+    fitAfterOpenRef.current = false;
+    // Wait one frame so the new page's SVG content exists for getBBox.
+    const frame = window.requestAnimationFrame(() => fitView());
+    return () => window.cancelAnimationFrame(frame);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeEngineeringProjectId, activeProjectId]);
+
+  // When the inspector opens or the window resizes, keep the drawing's centre where it was
+  // instead of letting the inspector cover the right-hand side of the drawing.
+  useEffect(() => {
+    const element = canvasAreaRef.current;
+    if (!element || typeof ResizeObserver === 'undefined') return;
+    let last = element.getBoundingClientRect();
+    const observer = new ResizeObserver(() => {
+      const next = element.getBoundingClientRect();
+      const dw = next.width - last.width;
+      const dh = next.height - last.height;
+      last = next;
+      if (Math.abs(dw) < 1 && Math.abs(dh) < 1) return;
+      setView((current) => ({ ...current, x: current.x + dw / 2, y: current.y + dh / 2 }));
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeEngineeringProjectId, activeProjectId]);
 
   /* ---------- 导出 PNG ---------- */
 
@@ -1165,6 +1209,13 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
     const clone = svg.cloneNode(true) as SVGSVGElement;
     clone.querySelectorAll('[data-export-ignore]').forEach((element) => element.remove());
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    // An SVG drawn through <img> cannot reach the page's fonts; embed the drawing font.
+    const fontCss = await embeddedDrawingFontCss();
+    if (fontCss) {
+      const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+      style.textContent = fontCss;
+      clone.insertBefore(style, clone.firstChild);
+    }
     // 内联图片为 dataURL，避免污染 canvas
     const images = Array.from(clone.querySelectorAll('image'));
     let imageFailed = false;
@@ -1559,17 +1610,30 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
                 { label: '导出工程文件', hint: 'Ctrl+S', divider: true, onSelect: saveSourceFile },
               ]} />
           </div>
+          {/* Notices float over the canvas bottom edge so they never resize the drawing. */}
+          {notice && !persistence.error && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center px-3">
+              <div role={noticeTone === 'warning' ? 'alert' : 'status'}
+                className={`pointer-events-auto flex max-w-xl items-center gap-2 rounded-lg px-3 py-1.5 text-[13px] shadow-sm ${
+                  noticeTone === 'info' ? 'bg-slate-900 text-white' : 'border border-black/10 bg-white text-slate-900'}`}>
+                <span>{noticeTone === 'warning' ? '⚠ ' : ''}{notice}</span>
+                {recovery !== undefined && <button className="underline" onClick={() => downloadRecovery(recovery)}>导出原始存档</button>}
+                <button aria-label="关闭提示" onClick={() => setNotice('')}
+                  className={`-mr-1 flex h-5 w-5 items-center justify-center rounded ${noticeTone === 'info' ? 'hover:bg-white/15' : 'hover:bg-slate-100'}`}>×</button>
+              </div>
+            </div>
+          )}
           {!pendingFrom && <SelectionToolbar containerRef={canvasAreaRef} count={selCount} actions={selectionActions}
             extra={selectedWires.size > 0 && selectedParts.size === 0 ? <ToolMenu label="导线颜色" title="导线颜色"
               icon={<span className="h-3.5 w-3.5 rounded-full ring-1 ring-black/15" style={{ background: selectedWire?.color ?? wireColor }} />}
               items={WIRE_COLORS.map(({ c, n }) => ({ label: `${n}色`, swatch: c, onSelect: () => onPickColor(c) }))} /> : undefined} />}
         </div>
 
-      {(notice || persistence.error) && <div className={`flex shrink-0 flex-wrap items-center gap-3 border-t border-slate-200 bg-white px-3 py-1.5 text-[13px] ${persistence.error ? 'text-red-600' : 'text-slate-500'}`} role={persistence.error ? 'alert' : 'status'}>
-        <span className="flex-1">{persistence.error || notice}</span>
-        {persistence.error && <><button className="underline" onClick={saveSourceFile}>导出工程备份</button>{backend && <button className="underline" onClick={persistence.retry}>重试保存</button>}</>}
+      {persistence.error && <div className="flex shrink-0 flex-wrap items-center gap-3 border-t border-slate-200 bg-white px-3 py-1.5 text-[13px] text-red-600" role="alert">
+        <span className="flex-1">{persistence.error}</span>
+        <button className="underline" onClick={saveSourceFile}>导出工程备份</button>
+        {backend && <button className="underline" onClick={persistence.retry}>重试保存</button>}
         {recovery !== undefined && <button className="underline" onClick={() => downloadRecovery(recovery)}>导出原始存档</button>}
-        {notice && !persistence.error && <button aria-label="关闭提示" onClick={() => setNotice('')}>×</button>}
       </div>}
 
       {/* 画布卡片底栏：页签 · 绘制工具 · 状态与缩放 */}
@@ -1600,7 +1664,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
               aria-label="页面名称"
               className="h-5 w-32 rounded border-0 bg-transparent px-1 font-semibold text-accent-800 outline-none"
             />
-            <span className="rounded bg-slate-100 px-1 text-[11px] font-normal text-slate-400">{project.parts.length}</span>
+            <span className="rounded bg-slate-100 px-1 text-[11px] font-normal text-slate-500">{project.parts.length}</span>
           </div>
         ) : (
           <button
@@ -1618,7 +1682,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
             }`}
           >
             <span className="max-w-36 truncate">{project.name}</span>
-            <span className="rounded bg-slate-100 px-1 text-[11px] font-normal text-slate-400">{project.parts.length}</span>
+            <span className="rounded bg-slate-100 px-1 text-[11px] font-normal text-slate-500">{project.parts.length}</span>
           </button>
         ))}
           <button type="button" onClick={addProject} title="在当前工程中新建空白页面" aria-label="新建页面"
@@ -1649,7 +1713,7 @@ function Workspace({ initial, backend, message, recovery }: WorkspaceSession) {
         </div>
         <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
           {pendingInlineWireId && selectedWire?.id === pendingInlineWireId && <span className="truncate whitespace-nowrap text-accent-700">放置{INLINE_CONNECTOR_STYLES[inlineKind].label}</span>}
-          <span className={`hidden shrink-0 whitespace-nowrap xl:inline ${persistence.error ? 'text-red-600' : 'text-slate-400'}`} role="status">{persistence.status}</span>
+          <span className={`hidden shrink-0 whitespace-nowrap xl:inline ${persistence.error ? 'text-red-600' : 'text-slate-500'}`} role="status">{persistence.status}</span>
           <div className="zoom-controls editor-toolbar flex shrink-0 items-center gap-0.5" role="group" aria-label="缩放">
             <div className="hidden items-center gap-0.5 sm:flex">
               <ToolBtn icon onClick={() => zoomBy(1 / 1.25)} disabled={view.k <= ZOOM_MIN} title="缩小 (Ctrl+-)"><Minus aria-hidden="true" /></ToolBtn>

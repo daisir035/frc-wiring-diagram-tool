@@ -85,7 +85,7 @@ export default function ToolMenu({ label, items, title, icon, showLabel, trigger
                 className={`flex h-8 w-full items-center gap-2 rounded-md px-2.5 text-left text-[13px] disabled:cursor-not-allowed disabled:opacity-35 ${item.danger ? 'text-red-600 hover:bg-red-50' : 'text-slate-700 hover:bg-slate-100'}`}>
                 {item.swatch && <span className="h-3 w-3 shrink-0 rounded-full ring-1 ring-black/15" style={{ background: item.swatch }} />}
                 <span className="flex-1">{item.label}</span>
-                {item.hint && <span className="text-xs text-slate-400">{item.hint}</span>}
+                {item.hint && <span className="text-xs text-slate-500">{item.hint}</span>}
               </button>
             </div>
           ))}

@@ -982,7 +982,7 @@ function ctre22AwgDevice(partIds: string[]): string | undefined {
 const ws2812 = imagePart('WS2812B Strip.svg', {
   id: 'ws2812',
   name: 'WS2812B 灯带',
-  category: '其他',
+  category: '视觉与灯光',
   w: 352,
   h: 46,
   displayWidth: 230,
@@ -999,7 +999,7 @@ const ws2812 = imagePart('WS2812B Strip.svg', {
 const c270 = imagePart('C270 Camera.svg', {
   id: 'c270',
   name: 'C270 摄像头',
-  category: '其他',
+  category: '视觉与灯光',
   w: 356,
   h: 156,
   displayWidth: 135,
@@ -1054,7 +1054,7 @@ const terminal2To4 = vector({
 const limelight3 = vector({
   id: 'limelight3',
   name: 'Limelight 3',
-  category: '传感器',
+  category: '视觉与灯光',
   productUrl: 'https://limelightvision.io/products/limelight-3',
   docsUrl: 'https://docs.limelightvision.io/',
   w: 161.22,
@@ -1071,7 +1071,7 @@ const limelight3 = vector({
 const limelight4 = vector({
   id: 'limelight4',
   name: 'Limelight 4',
-  category: '传感器',
+  category: '视觉与灯光',
   productUrl: 'https://limelightvision.io/products/limelight-4',
   docsUrl: 'https://docs.limelightvision.io/',
   w: 160.22,
@@ -1137,7 +1137,8 @@ export const BUILTIN_PARTS: PartDef[] = [
   limelight4,
 ];
 
-export const PART_CATEGORIES = ['控制', '配电', '电机', '气动', '传感器', '其他', '自定义'];
+/** Library and inspector categories, in library order. Groups within each live in partCatalog.ts. */
+export const PART_CATEGORIES = ['控制', '配电', '电机', '传感器', '视觉与灯光', '气动', '自定义'];
 
 export function partImageSrc(def: PartDef): string {
   if (def.imgData) return def.imgData;

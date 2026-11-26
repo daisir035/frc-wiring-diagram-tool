@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { BookOpen, ChevronRight, Search, ShoppingBag, X } from 'lucide-react';
 import type { PartDef } from '../lib/wiring';
 import { PART_CATEGORIES } from '../lib/wiring';
+import { LIBRARY_HINTS, libraryName, librarySections } from '../lib/partCatalog';
 import PartArtwork from './PartArtwork';
 
 interface Props {
@@ -20,12 +21,11 @@ export default function LibraryPanel({ defs, onAdd, onDeleteCustom, usedPartIds 
     if (!next.delete(cat)) next.add(cat);
     return next;
   });
-  const filtered = useMemo(() => {
-    const normalized = query.trim().toLocaleLowerCase();
-    const listed = defs.filter((def) => !def.hideInLibrary && (category === 'all' || def.category === category));
-    if (!normalized) return listed;
-    return listed.filter((def) => `${def.name} ${def.category} ${def.caption ?? ''}`.toLocaleLowerCase().includes(normalized));
-  }, [defs, query, category]);
+  const sections = useMemo(() => librarySections(defs, query, category), [defs, query, category]);
+  // Chip counts follow the search but not the chip itself, so every chip shows what it would list.
+  const counts = useMemo(() => new Map(librarySections(defs, query).map((section) => [section.category, section.count])), [defs, query]);
+  const total = sections.reduce((sum, section) => sum + section.count, 0);
+  const chips = ['all', ...PART_CATEGORIES.filter((cat) => counts.has(cat))];
 
   return (
     <section aria-label="器件库" className="flex h-full w-full flex-col">
@@ -41,23 +41,23 @@ export default function LibraryPanel({ defs, onAdd, onDeleteCustom, usedPartIds 
           />
           {query
             ? <button type="button" onClick={() => setQuery('')} aria-label="清除搜索" className="rounded p-1 text-slate-500 hover:text-slate-700"><X className="h-3 w-3" aria-hidden="true" /></button>
-            : <span className="text-xs tabular-nums text-slate-500">{filtered.length}</span>}
+            : <span className="text-xs tabular-nums text-slate-500">{total}</span>}
         </div>
-        <div className="chip-scroll -mx-1 flex gap-1 overflow-x-auto px-1" role="group" aria-label="筛选器件类别">
-          {['all', ...PART_CATEGORIES].map((cat) => (
+        {/* Chips wrap instead of scrolling, so no category hides past the sidebar edge. */}
+        <div className="flex flex-wrap gap-1" role="group" aria-label="筛选器件类别">
+          {chips.map((cat) => (
             <button key={cat} type="button" aria-pressed={category === cat}
               onClick={() => { setCategory(cat); setCollapsed(new Set()); }}
               className={`h-6 shrink-0 rounded-full px-2.5 text-xs ${category === cat ? 'bg-white font-medium text-slate-900 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:bg-black/5 hover:text-slate-800'}`}>
               {cat === 'all' ? '全部' : cat}
+              {cat !== 'all' && <span className="ml-1 tabular-nums text-slate-500">{counts.get(cat)}</span>}
             </button>
           ))}
         </div>
       </div>
       <div className="h-full min-h-0 flex-1 space-y-2 overflow-y-auto px-1 pb-2">
-        {PART_CATEGORIES.map((cat) => {
-          const list = filtered.filter((d) => d.category === cat);
+        {sections.map(({ category: cat, groups, count }) => {
           const isCustom = cat === '自定义';
-          if (list.length === 0) return null;
           const open = !collapsed.has(cat);
           return (
             <div key={cat}>
@@ -69,19 +69,22 @@ export default function LibraryPanel({ defs, onAdd, onDeleteCustom, usedPartIds 
               >
                 <ChevronRight className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-90' : ''}`} aria-hidden="true" />
                 <span className="flex-1 text-left">{cat}</span>
-                <span className="font-normal tabular-nums text-slate-500">{list.length}</span>
+                <span className="font-normal tabular-nums text-slate-500">{count}</span>
               </button>
-              {open && (
-                <div className="grid grid-cols-2 gap-1.5">
-                  {list.map((d) => (
-                    <PartCard key={d.id} def={d} onAdd={onAdd} onDelete={isCustom ? onDeleteCustom : undefined} inUse={usedPartIds?.has(d.id)} />
-                  ))}
+              {open && groups.map((group) => (
+                <div key={group.label || 'all'} className="mb-1.5">
+                  {group.label && <div className="px-1.5 pb-1 pt-1.5 text-[11px] text-slate-500">{group.label}</div>}
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {group.defs.map((d) => (
+                      <PartCard key={d.id} def={d} onAdd={onAdd} onDelete={isCustom ? onDeleteCustom : undefined} inUse={usedPartIds?.has(d.id)} />
+                    ))}
+                  </div>
                 </div>
-              )}
+              ))}
             </div>
           );
         })}
-        {filtered.length === 0 && (
+        {total === 0 && (
           <div className="px-3 py-8 text-center text-[13px] text-slate-500">没有匹配的器件<button type="button" onClick={() => { setQuery(''); setCategory('all'); }} className="mx-auto mt-3 block rounded px-2 py-1 text-accent-700 hover:bg-accent-50">清除筛选</button></div>
         )}
       </div>
@@ -110,14 +113,15 @@ function PartCard({
           event.dataTransfer.effectAllowed = 'copy';
         }}
         onClick={() => onAdd(def.id)}
-        title={`添加 ${def.name}`}
+        title={`添加 ${def.name}${LIBRARY_HINTS[def.id] ? `\n${LIBRARY_HINTS[def.id]}` : ''}`}
         aria-label={`添加 ${def.name}`}
         className="flex w-full cursor-grab flex-col rounded-lg text-left focus-visible:outline-none active:cursor-grabbing"
       >
         <span className="flex h-[68px] w-full items-center justify-center overflow-hidden rounded-lg bg-white p-2" aria-hidden="true">
           <PartArtwork def={def} width="100%" height="100%" className="max-h-full max-w-full" />
         </span>
-        <span className="line-clamp-2 min-h-[38px] w-full px-2 py-1.5 text-xs font-medium leading-4 text-slate-700">{def.name}</span>
+        {/* Margins, not padding: padding inside a clamped box lets a third line peek through. */}
+        <span className="mx-2 my-1.5 line-clamp-2 min-h-8 text-xs font-medium leading-4 text-slate-700">{libraryName(def)}</span>
       </button>
       {/* Shop / docs links sit on the picture's corner and appear on hover or focus (always shown on touch). */}
       {(def.productUrl || def.docsUrl) && (

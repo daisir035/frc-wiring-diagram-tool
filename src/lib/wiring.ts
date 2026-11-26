@@ -794,6 +794,8 @@ const fuseAuto10 = imagePart('10A Automotive Fuse.svg', {
   id: 'fuseAuto10',
   name: '10A 汽车保险丝',
   category: '配电',
+  // Fuses are set by clicking a PDH / PDP / miniPDH channel; this stays only so older drawings still open.
+  hideInLibrary: true,
   w: 107,
   h: 26,
   displayWidth: 95,

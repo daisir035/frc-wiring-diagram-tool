@@ -49,3 +49,8 @@ test('custom parts and parts the catalog does not name still appear', () => {
   const listed = cards(librarySections([...BUILTIN_PARTS, custom, unlisted]));
   assert.ok(listed.includes('custom-1') && listed.includes('new-sensor'));
 });
+
+test('the inline 10A fuse is not offered; fuses are set on the PDH channels', () => {
+  assert.ok(!cards(librarySections(BUILTIN_PARTS)).includes('fuseAuto10'));
+  assert.ok(defs.has('fuseAuto10'), 'kept so older drawings still open');
+});

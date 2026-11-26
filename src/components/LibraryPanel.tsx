@@ -85,7 +85,7 @@ export default function LibraryPanel({ defs, onAdd, onDeleteCustom, usedPartIds 
           );
         })}
         {total === 0 && (
-          <div className="px-3 py-8 text-center text-[13px] text-slate-500">没有匹配的器件<button type="button" onClick={() => { setQuery(''); setCategory('all'); }} className="mx-auto mt-3 block rounded px-2 py-1 text-accent-700 hover:bg-accent-50">清除筛选</button></div>
+          <div className="px-3 py-8 text-center text-[13px] text-slate-500">{/保险|fuse/i.test(query) ? '保险丝在 PDH / PDP / miniPDH 的通道上点选' : '没有匹配的器件'}<button type="button" onClick={() => { setQuery(''); setCategory('all'); }} className="mx-auto mt-3 block rounded px-2 py-1 text-accent-700 hover:bg-accent-50">清除筛选</button></div>
         )}
       </div>
     </section>

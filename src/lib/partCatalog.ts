@@ -19,7 +19,7 @@ export const LIBRARY_GROUPS: Record<string, LibraryGroup[]> = {
   配电: [
     { label: '电池与总开关', parts: ['battery12v', 'breaker120'] },
     { label: '配电板', parts: ['pdh', 'pdp', 'miniPdp'] },
-    { label: '稳压与保险', parts: ['vrm', 'fuseAuto10'] },
+    { label: '稳压模块', parts: ['vrm'] },
     { label: '接线端子', parts: ['terminalPair', 'terminal2To4'] },
   ],
   电机: [

@@ -189,10 +189,17 @@ const fivePort = (x: number, exhaust: number, work: number) => [
   port('a', 'A · 工作口', x - work, 1), port('b', 'B · 工作口', x + work, 1),
 ];
 
+/** Half the spacing of an 18 AWG power pair (CableConductors: 2.036 × 0.5 + 1). */
+export const COMPRESSOR_LEAD_GAP = 2.018;
+/** 18 AWG conductor stroke (awgStrokeWidth(18)). */
+export const COMPRESSOR_LEAD_WIDTH = 2.036;
+
 export const PNEUMATIC_PARTS: PartDef[] = [
   vectorPart('compressor', '空压机', { w: 150, h: 105 }, 'Viair 90C 示意 · 必须装在机器人上', [
     port('air', '压缩空气出口（硬接头）', 146 / 150, 17 / 105, 'air', 'right'),
-    port('power+', '电源 +', 1, 59.75 / 105, 'pwr+', 'right'), port('power-', '电源 −', 1, 65.25 / 105, 'pwr-', 'right')]),
+    // Lead stubs sit where an 18 AWG power pair's conductors land (centre 62.5, ±2.02), so the pair meets them head-on.
+    port('power+', '电源 +', 1, (62.5 - COMPRESSOR_LEAD_GAP) / 105, 'pwr+', 'right'),
+    port('power-', '电源 −', 1, (62.5 + COMPRESSOR_LEAD_GAP) / 105, 'pwr-', 'right')]),
   vectorPart('tank', '储气罐', { w: 56, h: 190 }, 'AVT-PP-35 示意', [port('in', '口 1', 0.5, 0), port('out', '口 2', 0.5, 1)]),
   vectorPart('regulator', '调压阀', { w: 70, h: 64 }, 'R07-100-RNEA 调压阀 + 18-013-212 压力表', [
     port('in', '进气口', 0, 0.6), port('out', '出气口', 1, 0.6)]),

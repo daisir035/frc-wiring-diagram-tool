@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { PartDef } from '../lib/wiring';
-import { CONTROLLER, controllerChannel, cylinderLayout, manifoldLayout } from '../lib/pneumatics';
+import { COMPRESSOR_LEAD_GAP, COMPRESSOR_LEAD_WIDTH, CONTROLLER, controllerChannel, cylinderLayout, manifoldLayout } from '../lib/pneumatics';
 import { DRAWING_FONT } from '../lib/drawingFont';
 
 /*
@@ -33,6 +33,13 @@ const ART = {
 };
 
 type Side = 'left' | 'right' | 'top' | 'bottom';
+
+/** Standard FRC tube: 1/4 in OD. Every push fitting is sized from it, not from the part it sits on. */
+const TUBE_OD = 6.35;
+/** PushFitting size whose collet (0.84 × size) is 15% wider than the tube, so a tube always meets a slightly larger fitting. */
+const FITTING = (TUBE_OD * 1.15) / 0.84;
+/** Coil leads drawn on the manifold match the 22 AWG pair that lands on them (awgStrokeWidth(22)). */
+const COIL_LEAD_WIDTH = 1.516;
 
 /** Straight push-to-connect fitting: hex nut against the body, collet toward the tube. */
 function PushFitting({ x, y, side, size = 7 }: { x: number; y: number; side: Side; size?: number }) {
@@ -124,8 +131,11 @@ function Compressor({ w, h }: { w: number; h: number }) {
       <rect x={138} y={11} width={6} height={12} rx={1} fill={ART.fitting} />
       <rect x={144} y={12.5} width={2} height={9} fill={ART.black} />
       {/* power lead stubs */}
-      <rect x={121} y={58} width={29} height={3.5} rx={1.5} fill={ART.red} />
-      <rect x={121} y={63.5} width={29} height={3.5} rx={1.5} fill={ART.black} />
+      {/* Same thickness and spacing as the 18 AWG pair that plugs onto them. */}
+      {[[-COMPRESSOR_LEAD_GAP, ART.red], [COMPRESSOR_LEAD_GAP, ART.black]].map(([dy, fill]) => (
+        <rect key={String(fill)} x={121} y={62.5 + Number(dy) - COMPRESSOR_LEAD_WIDTH / 2} width={29}
+          height={COMPRESSOR_LEAD_WIDTH} rx={COMPRESSOR_LEAD_WIDTH / 2} fill={String(fill)} />
+      ))}
     </g>
   );
 }
@@ -134,10 +144,13 @@ function Tank({ w, h }: { w: number; h: number }) {
   const shoulder = w * 0.32;
   return (
     <g>
-      <rect x={w * 0.35} y={0} width={w * 0.3} height={7} fill={ART.black} />
-      <rect x={w * 0.35} y={h - 7} width={w * 0.3} height={7} fill={ART.black} />
+      {/* Threaded bosses carry a push fitting, so the tube meets a fitting instead of the wide neck. */}
+      <rect x={w * 0.39} y={3} width={w * 0.22} height={6} fill={ART.black} />
+      <rect x={w * 0.39} y={h - 9} width={w * 0.22} height={6} fill={ART.black} />
       <path d={`M ${w * 0.18} 5 H ${w * 0.82} L ${w} ${5 + shoulder} V ${h - 5 - shoulder * 0.5} L ${w * 0.86} ${h - 5} H ${w * 0.14} L 0 ${h - 5 - shoulder * 0.5} V ${5 + shoulder} Z`} fill="#121212" />
       <rect x={0} y={5 + shoulder + 4} width={w} height={3} fill="#2a2a2b" />
+      <PushFitting x={w / 2} y={0} side="top" size={FITTING} />
+      <PushFitting x={w / 2} y={h} side="bottom" size={FITTING} />
     </g>
   );
 }
@@ -149,8 +162,8 @@ function Regulator({ w, h }: { w: number; h: number }) {
   return (
     <g>
       <rect x={w * 0.08} y={cy - h * 0.09} width={w * 0.84} height={h * 0.18} fill={ART.fittingDark} />
-      <PushFitting x={0} y={cy} side="left" size={h * 0.2} />
-      <PushFitting x={w} y={cy} side="right" size={h * 0.2} />
+      <PushFitting x={0} y={cy} side="left" size={FITTING} />
+      <PushFitting x={w} y={cy} side="right" size={FITTING} />
       <path d={`M ${cx - r * 0.55} ${cy - r * 0.6} L ${cx - r * 0.45} ${h * 0.02} H ${cx + r * 0.45} L ${cx + r * 0.55} ${cy - r * 0.6} Z`} fill={ART.black} />
       <Gauge cx={cx} cy={cy} r={r} />
     </g>
@@ -171,8 +184,8 @@ function PressureSwitch({ w, h }: { w: number; h: number }) {
   return (
     <g>
       <rect x={0} y={h * 0.04} width={w} height={h * 0.18} fill={ART.brassDark} />
-      <PushFitting x={0} y={h * 0.13} side="left" size={h * 0.13} />
-      <PushFitting x={w} y={h * 0.13} side="right" size={h * 0.13} />
+      <PushFitting x={0} y={h * 0.13} side="left" size={FITTING} />
+      <PushFitting x={w} y={h * 0.13} side="right" size={FITTING} />
       <Hex x={w * 0.2} y={0} w={w * 0.6} h={h * 0.3} />
       <rect x={w * 0.3} y={h * 0.3} width={w * 0.4} height={h * 0.06} fill={ART.brassDark} />
       <Hex x={w * 0.24} y={h * 0.36} w={w * 0.52} h={h * 0.22} />
@@ -190,8 +203,8 @@ function AnalogPressureSensor({ def }: { def: PartDef }) {
   return (
     <g>
       <rect x={0} y={h * 0.04} width={w} height={h * 0.18} fill={ART.brassDark} />
-      <PushFitting x={0} y={h * 0.13} side="left" size={h * 0.13} />
-      <PushFitting x={w} y={h * 0.13} side="right" size={h * 0.13} />
+      <PushFitting x={0} y={h * 0.13} side="left" size={FITTING} />
+      <PushFitting x={w} y={h * 0.13} side="right" size={FITTING} />
       <Hex x={w * 0.2} y={0} w={w * 0.6} h={h * 0.3} />
       <rect x={w * 0.3} y={h * 0.3} width={w * 0.4} height={h * 0.05} fill={ART.brassDark} />
       <Hex x={w * 0.26} y={h * 0.35} w={w * 0.48} h={h * 0.12} fill={ART.fittingDark} />
@@ -222,7 +235,7 @@ function Plug({ w, h }: { w: number; h: number }) {
 function VacuumGenerator({ def }: { def: PartDef }) {
   const { w, h } = def;
   const vac = def.ports.find((p) => p.id === 'vac')!;
-  const fit = h * 0.32;
+  const fit = FITTING;
   return (
     <g fontFamily={DRAWING_FONT}>
       <rect x={w * 0.12} y={h * 0.08} width={w * 0.72} height={h * 0.6} rx={1.2} fill="#b9bdc4" />
@@ -261,7 +274,7 @@ function SuctionCup({ w, h }: { w: number; h: number }) {
   const cx = w / 2;
   return (
     <g>
-      <PushFitting x={cx} y={0} side="top" size={h * 0.24} />
+      <PushFitting x={cx} y={0} side="top" size={FITTING} />
       <Hex x={cx - w * 0.14} y={h * 0.27} w={w * 0.28} h={h * 0.13} />
       <rect x={cx - w * 0.1} y={h * 0.4} width={w * 0.2} height={h * 0.08} fill={ART.brassDark} />
       <path d={`M ${cx - w * 0.16} ${h * 0.48} H ${cx + w * 0.16} L ${cx + w * 0.3} ${h * 0.6} L ${cx + w * 0.18} ${h * 0.68} H ${cx - w * 0.18} L ${cx - w * 0.3} ${h * 0.6} Z`} fill={ART.charcoal} />
@@ -336,7 +349,7 @@ function SingleSolenoid({ def }: { def: PartDef }) {
       <ValveBody x={0} y={h * 0.18} w={body} h={h * 0.64} />
       <Coil x={body} y={h * 0.16} w={w - body} h={h * 0.64} />
       <ExhaustStubs def={def} />
-      {def.ports.filter((p) => p.type === 'air').map((p) => <PushFitting key={p.id} x={p.x * w} y={p.y * h} side={p.side!} size={h * 0.16} />)}
+      {def.ports.filter((p) => p.type === 'air').map((p) => <PushFitting key={p.id} x={p.x * w} y={p.y * h} side={p.side!} size={FITTING} />)}
     </g>
   );
 }
@@ -350,7 +363,7 @@ function DoubleSolenoid({ def }: { def: PartDef }) {
       <Coil x={0} y={h * 0.16} w={coil} h={h * 0.64} flip />
       <Coil x={w - coil} y={h * 0.16} w={coil} h={h * 0.64} />
       <ExhaustStubs def={def} />
-      {def.ports.filter((p) => p.type === 'air').map((p) => <PushFitting key={p.id} x={p.x * w} y={p.y * h} side={p.side!} size={h * 0.16} />)}
+      {def.ports.filter((p) => p.type === 'air').map((p) => <PushFitting key={p.id} x={p.x * w} y={p.y * h} side={p.side!} size={FITTING} />)}
     </g>
   );
 }
@@ -392,17 +405,17 @@ function ManifoldValve({ def }: { def: PartDef }) {
             <text {...label} x={cx} y={(top + bottom) / 2 + 3.5} fontSize={10} fill={ART.charcoal}>{i + 1}</text>
             <text {...label} x={cx - 3.4} y={top + coil - 3} fontSize={4.2} fill={ART.face}>A</text>
             <text {...label} x={cx - 3.4} y={bottom - 3} fontSize={4.2} fill={ART.face}>B</text>
-            {[-5.1, -1.7].map((dx, k) => <line key={dx} x1={cx + dx} y1={0} x2={cx + dx} y2={top + 4} stroke={k ? '#231f20' : ART.red} strokeWidth={1} />)}
+            {[-5.1, -1.7].map((dx, k) => <line key={dx} x1={cx + dx} y1={0} x2={cx + dx} y2={top + 4} stroke={k ? '#231f20' : ART.red} strokeWidth={COIL_LEAD_WIDTH} />)}
             {/* coil B leads jog toward the valve edge around the station number */}
             {[[1.7, 5], [5.1, 7.4]].map(([dx, jog], k) => (
-              <path key={dx} d={`M ${cx + dx} 0 V 27 L ${cx + jog} 30 V 47 L ${cx + dx} 50 V ${bottom - 5}`} fill="none" stroke={k ? '#231f20' : ART.red} strokeWidth={1} strokeLinejoin="round" />
+              <path key={dx} d={`M ${cx + dx} 0 V 27 L ${cx + jog} 30 V 47 L ${cx + dx} 50 V ${bottom - 5}`} fill="none" stroke={k ? '#231f20' : ART.red} strokeWidth={COIL_LEAD_WIDTH} strokeLinejoin="round" />
             ))}
             <text {...label} x={cx - 5} y={railBottom - 3} fontSize={4.2} fill={ART.black}>A</text>
             <text {...label} x={cx + 5} y={railBottom - 3} fontSize={4.2} fill={ART.black}>B</text>
           </g>
         );
       })}
-      {def.ports.filter((p) => p.type === 'air').map((p) => <PushFitting key={p.id} x={p.x * w} y={p.y * h} side={p.side!} size={p.id === 'p' ? 8 : 6} />)}
+      {def.ports.filter((p) => p.type === 'air').map((p) => <PushFitting key={p.id} x={p.x * w} y={p.y * h} side={p.side!} size={FITTING} />)}
     </g>
   );
 }

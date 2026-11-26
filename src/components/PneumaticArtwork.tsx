@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import type { PartDef } from '../lib/wiring';
-import { COMPRESSOR_LEAD_GAP, COMPRESSOR_LEAD_WIDTH, CONTROLLER, controllerChannel, cylinderLayout, manifoldLayout } from '../lib/pneumatics';
+import { COMPRESSOR_LEAD_WIDTH, CONTROLLER, controllerChannel, cylinderLayout, manifoldLayout } from '../lib/pneumatics';
 import { DRAWING_FONT } from '../lib/drawingFont';
+import { pairConductorSpacing } from '../lib/wireStyle';
 
 /*
  * Flat pneumatic artwork after Team 3161's FRC control system diagrams: solid fills, no outlines,
@@ -100,7 +101,9 @@ function Hex({ x, y, w, h, fill = ART.brass }: { x: number; y: number; w: number
   );
 }
 
-function Compressor({ w, h }: { w: number; h: number }) {
+function Compressor({ w, h, lead = COMPRESSOR_LEAD_WIDTH }: { w: number; h: number; lead?: number }) {
+  // The stubs take the width and spacing of the pair plugged onto them, whatever its gauge.
+  const gap = pairConductorSpacing(lead, true);
   const s = h / 105;
   return (
     <g transform={`scale(${w / 150} ${s})`}>
@@ -131,10 +134,10 @@ function Compressor({ w, h }: { w: number; h: number }) {
       <rect x={138} y={11} width={6} height={12} rx={1} fill={ART.fitting} />
       <rect x={144} y={12.5} width={2} height={9} fill={ART.black} />
       {/* power lead stubs */}
-      {/* Same thickness and spacing as the 18 AWG pair that plugs onto them. */}
-      {[[-COMPRESSOR_LEAD_GAP, ART.red], [COMPRESSOR_LEAD_GAP, ART.black]].map(([dy, fill]) => (
-        <rect key={String(fill)} x={121} y={62.5 + Number(dy) - COMPRESSOR_LEAD_WIDTH / 2} width={29}
-          height={COMPRESSOR_LEAD_WIDTH} rx={COMPRESSOR_LEAD_WIDTH / 2} fill={String(fill)} />
+      {/* Square ends: the wire's own cap continues the stub with no seam at the port. */}
+      {[[-gap, ART.red], [gap, '#231f20']].map(([dy, fill]) => (
+        <rect key={String(fill)} x={121} y={62.5 + Number(dy) - lead / 2} width={29}
+          height={lead} fill={String(fill)} />
       ))}
     </g>
   );
@@ -369,7 +372,7 @@ function DoubleSolenoid({ def }: { def: PartDef }) {
 }
 
 /** Top view: each valve lies across the base with a coil at both ends; the leads gather at the top edge. Threaded EA / EB take a muffler. */
-function ManifoldValve({ def }: { def: PartDef }) {
+function ManifoldValve({ def, leadWidths = {} }: { def: PartDef; leadWidths?: Record<string, number> }) {
   const { w, h, end, pitch, railTop, railBottom, supplyY, exhaustY, stationX } = manifoldLayout(def.stations!);
   const half = pitch * 0.44;
   const coil = 15;
@@ -395,6 +398,12 @@ function ManifoldValve({ def }: { def: PartDef }) {
       ))}
       {Array.from({ length: def.stations! }, (_, i) => {
         const cx = stationX(i);
+        // Each coil's two leads take the width and spacing of the pair wired to it (22 AWG if none).
+        const suffix = i === 0 ? '' : String(i + 1);
+        const widthA = leadWidths[`coilA${suffix}+`] ?? leadWidths[`coilA${suffix}-`] ?? COIL_LEAD_WIDTH;
+        const widthB = leadWidths[`coilB${suffix}+`] ?? leadWidths[`coilB${suffix}-`] ?? COIL_LEAD_WIDTH;
+        const gapA = pairConductorSpacing(widthA, true);
+        const gapB = pairConductorSpacing(widthB, true);
         return (
           <g key={i}>
             <rect x={cx - half} y={top} width={half * 2} height={bottom - top} rx={1} fill={ART.beige} />
@@ -405,10 +414,10 @@ function ManifoldValve({ def }: { def: PartDef }) {
             <text {...label} x={cx} y={(top + bottom) / 2 + 3.5} fontSize={10} fill={ART.charcoal}>{i + 1}</text>
             <text {...label} x={cx - 3.4} y={top + coil - 3} fontSize={4.2} fill={ART.face}>A</text>
             <text {...label} x={cx - 3.4} y={bottom - 3} fontSize={4.2} fill={ART.face}>B</text>
-            {[-5.1, -1.7].map((dx, k) => <line key={dx} x1={cx + dx} y1={0} x2={cx + dx} y2={top + 4} stroke={k ? '#231f20' : ART.red} strokeWidth={COIL_LEAD_WIDTH} />)}
+            {[-3.4 - gapA, -3.4 + gapA].map((dx, k) => <line key={k} x1={cx + dx} y1={0} x2={cx + dx} y2={top + 4} stroke={k ? '#231f20' : ART.red} strokeWidth={widthA} />)}
             {/* coil B leads jog toward the valve edge around the station number */}
-            {[[1.7, 5], [5.1, 7.4]].map(([dx, jog], k) => (
-              <path key={dx} d={`M ${cx + dx} 0 V 27 L ${cx + jog} 30 V 47 L ${cx + dx} 50 V ${bottom - 5}`} fill="none" stroke={k ? '#231f20' : ART.red} strokeWidth={COIL_LEAD_WIDTH} strokeLinejoin="round" />
+            {[[3.4 - gapB, 3.3], [3.4 + gapB, 2.3]].map(([dx, jog], k) => (
+              <path key={k} d={`M ${cx + dx} 0 V 27 L ${cx + dx + jog} 30 V 47 L ${cx + dx} 50 V ${bottom - 5}`} fill="none" stroke={k ? '#231f20' : ART.red} strokeWidth={widthB} strokeLinejoin="round" />
             ))}
             <text {...label} x={cx - 5} y={railBottom - 3} fontSize={4.2} fill={ART.black}>A</text>
             <text {...label} x={cx + 5} y={railBottom - 3} fontSize={4.2} fill={ART.black}>B</text>
@@ -553,11 +562,11 @@ function Controller({ def }: { def: PartDef }) {
   );
 }
 
-export default function PneumaticArtwork({ def }: { def: PartDef }) {
+export default function PneumaticArtwork({ def, leadWidths = {} }: { def: PartDef; leadWidths?: Record<string, number> }) {
   if (def.cylinder) return <CylinderArtwork def={def} />;
   const { w, h: height } = def;
   switch (def.art) {
-    case 'compressor': return <Compressor w={w} h={height} />;
+    case 'compressor': return <Compressor w={w} h={height} lead={leadWidths['power+'] ?? leadWidths['power-']} />;
     case 'tank': return <Tank w={w} h={height} />;
     case 'regulator': return <Regulator w={w} h={height} />;
     case 'gauge': return <StandaloneGauge w={w} h={height} />;
@@ -571,7 +580,7 @@ export default function PneumaticArtwork({ def }: { def: PartDef }) {
     case 'vent': return <Vent w={w} h={height} />;
     case 'single-solenoid': return <SingleSolenoid def={def} />;
     case 'double-solenoid': return <DoubleSolenoid def={def} />;
-    case 'manifold-solenoid': return <ManifoldValve def={def} />;
+    case 'manifold-solenoid': return <ManifoldValve def={def} leadWidths={leadWidths} />;
     case 'tee': return <Tee def={def} />;
     case 'ph':
     case 'pcm': return <Controller def={def} />;

@@ -541,6 +541,20 @@ export default function WiringCanvas(props: Props) {
   }, [view, onViewChange]);
 
   const partByUid = useMemo(() => new Map(parts.map((part) => [part.uid, part])), [parts]);
+  /** Stroke width of the wire landing on each port, so parts that draw lead stubs can match it. */
+  const leadWidths = useMemo(() => {
+    const byPart = new Map<string, Record<string, number>>();
+    for (const wire of wires) {
+      if (wire.tubeOdMm !== undefined) continue;
+      const width = awgStrokeWidth(wire.awg);
+      for (const end of [wire.a, wire.b]) {
+        const entry = byPart.get(end.uid) ?? {};
+        entry[end.portId] = width;
+        byPart.set(end.uid, entry);
+      }
+    }
+    return byPart;
+  }, [wires]);
   const getPort = useCallback((end: WireEnd) => {
     const part = partByUid.get(end.uid);
     const def = part && partDefs.get(part.partId);
@@ -1161,7 +1175,8 @@ export default function WiringCanvas(props: Props) {
                         // A white wire gets a dark jacket so it reads as white instead of vanishing.
                         stroke={isLightWire(wire.color) ? '#475569' : '#ffffff'}
                         strokeWidth={wireWidth + (isLightWire(wire.color) ? 2 : 1)}
-                        strokeLinecap="round"
+                        // Flat ends so the casing doesn't notch into a lead stub drawn by the part.
+                        strokeLinecap="butt"
                         strokeLinejoin="round"
                         opacity={0.92}
                       />}
@@ -1396,6 +1411,7 @@ export default function WiringCanvas(props: Props) {
                       height={h}
                       stretchToFit
                       fuses={part.fuses}
+                      leadWidths={leadWidths.get(part.uid)}
                       canActivateFuse={() => !spaceRef.current && !keyboardShortcutsDisabled}
                       onFuseClick={
                         def.fuseChannels

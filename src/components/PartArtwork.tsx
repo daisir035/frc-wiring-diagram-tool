@@ -11,6 +11,8 @@ interface Props {
   onFuseClick?: (channel: number) => void;
   canActivateFuse?: () => boolean;
   stretchToFit?: boolean;
+  /** Stroke width of the wire on each connected port; parts that draw their own leads match it. */
+  leadWidths?: Record<string, number>;
   className?: string;
   style?: CSSProperties;
 }
@@ -608,8 +610,8 @@ function LeverTerminal({ def }: { def: PartDef }) {
   );
 }
 
-function renderVector(def: PartDef) {
-  if (def.cylinder || def.art) return <PneumaticArtwork def={def} />;
+function renderVector(def: PartDef, leadWidths?: Record<string, number>) {
+  if (def.cylinder || def.art) return <PneumaticArtwork def={def} leadWidths={leadWidths} />;
   if (def.view === 'top' && def.category === '电机') return <CanMotorTop def={def} />;
   switch (def.id) {
     case 'roborio': return <RoboRIO def={def} />;
@@ -645,7 +647,7 @@ function renderVector(def: PartDef) {
   }
 }
 
-export default function PartArtwork({ def, width, height, fuses, onFuseClick, canActivateFuse, stretchToFit = false, className, style }: Props) {
+export default function PartArtwork({ def, width, height, fuses, onFuseClick, canActivateFuse, stretchToFit = false, leadWidths, className, style }: Props) {
   // Lay out the battery directly in its measured rectangle so its lettering is never stretched.
   const drawingDef = def.id === 'battery12v' && stretchToFit && typeof width === 'number' && typeof height === 'number'
     && width > 0 && height > 0 ? { ...def, w: width, h: height } : def;
@@ -662,7 +664,7 @@ export default function PartArtwork({ def, width, height, fuses, onFuseClick, ca
     >
       {def.visual === 'vector' ? (
         <>
-          {renderVector(drawingDef)}
+          {renderVector(drawingDef, leadWidths)}
           <ImageFuseSlots def={def} fuses={fuses} onFuseClick={onFuseClick} canActivateFuse={canActivateFuse} />
         </>
       ) : (

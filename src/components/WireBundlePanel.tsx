@@ -33,7 +33,7 @@ function RoutingSwatch({ style }: { style: WireRoutingStyle }) {
   }
   return (
     <span className="relative h-4 w-10">
-      <span className="absolute inset-x-0 top-1/2 border-t-2 border-sky-500 -translate-y-1/2" />
+      <span className="absolute inset-x-0 top-1/2 border-t-2 border-slate-900 -translate-y-1/2" />
     </span>
   );
 }
@@ -49,8 +49,8 @@ export function WireRoutingStylePicker({ value, onChange }: PickerProps) {
           title={option.description}
           className={`flex w-full items-center gap-2.5 rounded-md border px-2.5 py-2 text-left transition-colors ${
             value === option.value
-              ? 'border-sky-400 bg-sky-50'
-              : 'border-slate-200 bg-white hover:border-sky-300 hover:bg-slate-50'
+              ? 'border-slate-500 bg-slate-100'
+              : 'border-slate-200 bg-white hover:border-slate-400 hover:bg-slate-50'
           }`}
         >
           <RoutingSwatch style={option.value} />
@@ -77,14 +77,14 @@ export default function WireBundlePanel({ pathMode, cornerRadius, onGeometryChan
   return (
     <aside className="absolute inset-y-0 right-0 z-30 flex h-full w-72 shrink-0 flex-col border-l border-slate-200 bg-white shadow-xl lg:static lg:z-auto lg:shadow-none">
       <div className="flex h-12 items-center gap-2 border-b border-slate-200 px-3">
-        <GitMerge className="h-4 w-4 text-sky-600" aria-hidden="true" />
+        <GitMerge className="h-4 w-4 text-slate-900" aria-hidden="true" />
         <div className="min-w-0 flex-1">
           <div className="text-xs font-semibold text-slate-800">创建与编辑线束</div>
-          <div className="text-[10px] text-slate-400">已选择 {wireCount} 根导线</div>
+          <div className="text-[11px] text-slate-500">已选择 {wireCount} 根导线</div>
         </div>
         <button
           onClick={onClose}
-          className="flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+          className="flex h-7 w-7 items-center justify-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-700"
           title="关闭属性面板"
         >
           <X className="h-4 w-4" aria-hidden="true" />
@@ -97,25 +97,25 @@ export default function WireBundlePanel({ pathMode, cornerRadius, onGeometryChan
           <span className="text-xs font-semibold text-slate-700">线路保护方式</span>
         </div>
         <div className="mb-3">
-          <div className="mb-1 text-[10px] text-slate-500">主干路径</div>
+          <div className="mb-1 text-[11px] text-slate-500">主干路径</div>
           <div className="grid grid-cols-3 gap-1 rounded-md bg-slate-100 p-1" role="radiogroup" aria-label="线束路径模式">
             {([['orthogonal', '正交'], ['free', '折线'], ['smooth', '曲线']] as const).map(([value, label]) => (
               <button key={value} type="button" role="radio" aria-checked={(pathMode ?? 'orthogonal') === value}
                 onClick={() => onGeometryChange({ pathMode: value })}
-                className={`h-7 rounded text-[11px] font-medium ${(pathMode ?? 'orthogonal') === value ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
+                className={`h-7 rounded text-xs font-medium ${(pathMode ?? 'orthogonal') === value ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
                 {label}
               </button>
             ))}
           </div>
           {pathMode !== 'smooth' && (
-            <label className="mt-2 flex items-center gap-2 text-[11px] text-slate-600">
+            <label className="mt-2 flex items-center gap-2 text-xs text-slate-600">
               <span className="w-16 shrink-0">拐角圆弧</span>
               <input aria-label="线束圆角" type="range" min={0} max={60} step={1} value={Math.min(60, cornerRadius ?? 8)} className="min-w-0 flex-1 accent-violet-600"
                 onChange={(e) => onGeometryChange({ cornerRadius: Number(e.target.value) })} />
               <span className="w-12 text-right tabular-nums">{cornerRadius ?? 8} mm</span>
             </label>
           )}
-          <p className="mt-2 text-[10px] leading-4 text-slate-400">双击主干加固定点；折线/曲线模式可直接拖动主干弯出固定点。</p>
+          <p className="mt-2 text-[11px] leading-4 text-slate-500">双击主干加固定点；折线/曲线模式可直接拖动主干弯出固定点。</p>
         </div>
         <WireRoutingStylePicker value={value} onChange={onChange} />
       </div>

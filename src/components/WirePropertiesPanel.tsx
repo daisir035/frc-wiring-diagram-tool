@@ -94,11 +94,11 @@ function TerminalSelect({
 }) {
   return (
     <label className="relative block">
-      <span className="mb-1 block truncate text-[10px] font-medium text-slate-500" title={label}>{label}</span>
+      <span className="mb-1 block truncate text-[11px] font-medium text-slate-500" title={label}>{label}</span>
       <select
         value={value}
         onChange={(event) => onChange(event.target.value as WireTerminalType)}
-        className="h-8 w-full rounded border border-slate-200 bg-white py-1 pl-2 pr-16 text-xs text-slate-700 outline-none focus:border-sky-400"
+        className="h-8 w-full rounded border border-slate-200 bg-white py-1 pl-2 pr-16 text-xs text-slate-700 outline-none focus:border-slate-500"
       >
         {WIRE_TERMINAL_OPTIONS.map((option) => (
           <option key={option.value} value={option.value}>{option.label}</option>
@@ -150,14 +150,14 @@ export default function WirePropertiesPanel({ wire, pressureSide, cableSize, par
   return (
     <aside className="absolute inset-y-0 right-0 z-30 flex h-full w-72 shrink-0 flex-col border-l border-slate-200 bg-white shadow-xl lg:static lg:z-auto lg:shadow-none">
       <div className="flex h-12 items-center gap-2 border-b border-slate-200 px-3">
-        <Cable className="h-4 w-4 text-sky-600" aria-hidden="true" />
+        <Cable className="h-4 w-4 text-slate-900" aria-hidden="true" />
         <div className="min-w-0 flex-1">
           <div className="text-xs font-semibold text-slate-800">{pneumatic ? '气管属性' : cableSize > 1 ? a.port?.type === 'canH' ? 'CAN 双芯线缆' : '电源双芯线缆' : '导线属性'}</div>
-          <div className="truncate text-[10px] text-slate-400">{a.label} → {b.label}</div>
+          <div className="truncate text-[11px] text-slate-500">{a.label} → {b.label}</div>
         </div>
         <button
           onClick={onClose}
-          className="flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+          className="flex h-7 w-7 items-center justify-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-700"
           title="关闭属性面板"
         >
           <X className="h-4 w-4" aria-hidden="true" />
@@ -175,13 +175,13 @@ export default function WirePropertiesPanel({ wire, pressureSide, cableSize, par
               <button key={mode.value} type="button" role="radio" aria-checked={(wire.pathMode ?? 'orthogonal') === mode.value}
                 title={mode.hint}
                 onClick={() => onChange({ pathMode: mode.value })}
-                className={`h-7 rounded text-[11px] font-medium ${(wire.pathMode ?? 'orthogonal') === mode.value ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
+                className={`h-7 rounded text-xs font-medium ${(wire.pathMode ?? 'orthogonal') === mode.value ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
                 {mode.label}
               </button>
             ))}
           </div>
           {wire.pathMode !== 'smooth' && (
-            <label className="mt-2 flex items-center gap-2 text-[11px] text-slate-600">
+            <label className="mt-2 flex items-center gap-2 text-xs text-slate-600">
               <span className="w-16 shrink-0">拐角圆弧</span>
               <input aria-label="圆角半径" type="range" min={0} max={60} step={1} value={Math.min(60, wire.cornerRadius ?? 8)} className="min-w-0 flex-1 accent-emerald-600"
                 onChange={(e) => onChange({ cornerRadius: Number(e.target.value) })} />
@@ -189,13 +189,13 @@ export default function WirePropertiesPanel({ wire, pressureSide, cableSize, par
             </label>
           )}
           <div className="mt-2 flex items-center justify-between gap-2">
-            <span className="text-[10px] leading-4 text-slate-400">{wire.pathMode === 'orthogonal' || !wire.pathMode ? '正交模式拖动吸附 4 mm 网格。' : '折线/曲线：直接拖动线身即可弯出新的固定点。'}双击线路在该处加点。</span>
-            <button type="button" className="h-7 shrink-0 rounded border border-slate-200 px-2 text-[11px] text-slate-600 hover:bg-slate-50" onClick={onAddGuide}>加固定点</button>
+            <span className="text-[11px] leading-4 text-slate-500">{wire.pathMode === 'orthogonal' || !wire.pathMode ? '正交模式拖动吸附 4 mm 网格。' : '折线/曲线：直接拖动线身即可弯出新的固定点。'}双击线路在该处加点。</span>
+            <button type="button" className="h-7 shrink-0 rounded border border-slate-200 px-2 text-xs text-slate-600 hover:bg-slate-50" onClick={onAddGuide}>加固定点</button>
           </div>
           {guides.length > 0 && (
             <div className="mt-2 space-y-1">
               {guides.map((point, index) => (
-                <div key={point.id} className="flex h-7 items-center gap-2 rounded border border-slate-100 bg-slate-50 px-2 text-[11px] text-slate-600">
+                <div key={point.id} className="flex h-7 items-center gap-2 rounded border border-slate-100 bg-slate-50 px-2 text-xs text-slate-600">
                   <span className="flex-1">固定点 {index + 1}{point.locked ? ' · 已锁定' : ''}</span>
                   <button type="button" className="rounded p-1 text-slate-500 hover:bg-white hover:text-slate-800" title={point.locked ? '解锁' : '锁定：移动器件时保持位置'} onClick={() => onToggleWaypointLock(point.id)}>
                     {point.locked ? <Lock className="h-3.5 w-3.5" aria-hidden="true" /> : <Unlock className="h-3.5 w-3.5" aria-hidden="true" />}
@@ -212,11 +212,11 @@ export default function WirePropertiesPanel({ wire, pressureSide, cableSize, par
         <section className="border-b border-slate-100 py-3">
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className="text-xs font-semibold text-slate-700">线内接点</span>
-            <span className="text-[10px] tabular-nums text-slate-500">{inlineConnectors.length} 个</span>
+            <span className="text-[11px] tabular-nums text-slate-500">{inlineConnectors.length} 个</span>
           </div>
-          <label className="mb-2 block text-[10px] text-slate-500">接点类型
+          <label className="mb-2 block text-[11px] text-slate-500">接点类型
             <select aria-label="接点类型" value={inlineKind} onChange={(event) => onInlineKindChange(event.target.value as InlineConnectorKind)}
-              className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-xs text-slate-700 outline-none focus:border-sky-500">
+              className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-xs text-slate-700 outline-none focus:border-slate-700">
               <option value="terminal2x2">2 转 2 端子</option>
               <option value="solder">焊接点</option>
             </select>
@@ -224,7 +224,7 @@ export default function WirePropertiesPanel({ wire, pressureSide, cableSize, par
           <div className="flex items-center gap-2">
             <button onClick={onAddInline} disabled={!inlineSupported} aria-pressed={inlinePlacement}
               title={inlineSupported ? '在线缆上选择插入位置' : inlineKind === 'solder' ? '仅支持电源线或 CAN 线' : '仅支持完整的电源双芯线或 CAN 双芯线'}
-              className={`flex h-8 flex-1 items-center justify-center gap-1.5 rounded border px-2 text-xs disabled:opacity-40 ${inlinePlacement ? 'border-sky-500 bg-sky-100 text-sky-800' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>
+              className={`flex h-8 flex-1 items-center justify-center gap-1.5 rounded border px-2 text-xs disabled:opacity-40 ${inlinePlacement ? 'border-slate-900 bg-slate-200 text-slate-900' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>
               {inlinePlacement ? <X className="h-3.5 w-3.5" aria-hidden="true" /> : <MapPinPlus className="h-3.5 w-3.5" aria-hidden="true" />}
               {inlinePlacement ? '取消放置' : inlineKind === 'solder' ? '添加焊接点' : '添加 2 转 2'}
             </button>
@@ -236,7 +236,7 @@ export default function WirePropertiesPanel({ wire, pressureSide, cableSize, par
           {inlineConnectors.map((connector, index) => <div key={connector.id} className="mt-2 flex items-center justify-between border-b border-slate-100 py-1 text-xs text-slate-600">
             <span>{INLINE_CONNECTOR_STYLES[connector.kind ?? 'terminal2x2'].label} {index + 1}</span>
             <button onClick={() => onRemoveInline(connector.id)} title={`删除 ${INLINE_CONNECTOR_STYLES[connector.kind ?? 'terminal2x2'].label} ${index + 1}`}
-              className="flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-red-50 hover:text-red-600">
+              className="flex h-7 w-7 items-center justify-center rounded text-slate-500 hover:bg-red-50 hover:text-red-600">
               <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
           </div>)}
@@ -250,12 +250,12 @@ export default function WirePropertiesPanel({ wire, pressureSide, cableSize, par
           <div className="mb-2 grid grid-cols-3 gap-1">
             {TUBE_SIZES.map((size) => (
               <button key={size.od} type="button" onClick={() => onChange({ tubeOdMm: size.od })}
-                className={`h-8 rounded border text-[11px] ${(wire.tubeOdMm ?? 6.35) === size.od ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                className={`h-8 rounded border text-xs ${(wire.tubeOdMm ?? 6.35) === size.od ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
                 {size.label}
               </button>
             ))}
           </div>
-          <label className="flex items-center gap-2 text-[11px] text-slate-600">
+          <label className="flex items-center gap-2 text-xs text-slate-600">
             <span className="w-16 shrink-0">压力侧</span>
             <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: PRESSURE_SIDES[pressureSide ?? 'working'].color }} aria-hidden="true" />
             <select aria-label="压力侧" className="h-8 min-w-0 flex-1 rounded border border-slate-200 bg-white px-2 text-xs" value={wire.pressureSide ?? 'auto'}
@@ -266,7 +266,7 @@ export default function WirePropertiesPanel({ wire, pressureSide, cableSize, par
               ))}
             </select>
           </label>
-          <p className="mt-2 text-[10px] leading-4 text-slate-400">自动模式从空压机沿气路追踪，每经过一个调压阀降一级并换色；真空发生器的真空口一侧为真空侧。气管不使用 AWG。每个接头只接一根管，分支用三通；承压等级以气管规格为准。</p>
+          <p className="mt-2 text-[11px] leading-4 text-slate-500">自动模式从空压机沿气路追踪，每经过一个调压阀降一级并换色；真空发生器的真空口一侧为真空侧。气管不使用 AWG。每个接头只接一根管，分支用三通；承压等级以气管规格为准。</p>
         </section> : <>
         <section className="border-b border-slate-100 py-3">
           <div className="mb-2 flex items-center gap-2">
@@ -282,21 +282,21 @@ export default function WirePropertiesPanel({ wire, pressureSide, cableSize, par
               )}
               <div className="min-w-0">
                 <div className="text-xs font-semibold text-slate-700">{rule.label}</div>
-                <div className="mt-1 text-[10px] leading-4 text-slate-500">{rule.note}</div>
+                <div className="mt-1 text-[11px] leading-4 text-slate-500">{rule.note}</div>
               </div>
             </div>
           </div>
 
           {gaugeApplies ? (
             <label className="mt-3 block">
-              <span className="mb-1 flex items-center text-[10px] font-medium text-slate-500">
+              <span className="mb-1 flex items-center text-[11px] font-medium text-slate-500">
                 选择线规
-                {rule.recommended && <span className="ml-auto text-sky-600">推荐 {rule.recommended} AWG</span>}
+                {rule.recommended && <span className="ml-auto text-slate-900">推荐 {rule.recommended} AWG</span>}
               </span>
               <select
                 value={wire.awg ?? ''}
                 onChange={(event) => onChange({ awg: Number(event.target.value) as WireGauge })}
-                className={`h-9 w-full rounded border bg-white px-2 text-xs outline-none ${compliant ? 'border-slate-200 focus:border-sky-400' : 'border-red-300 text-red-700 focus:border-red-500'}`}
+                className={`h-9 w-full rounded border bg-white px-2 text-xs outline-none ${compliant ? 'border-slate-200 focus:border-slate-500' : 'border-red-300 text-red-700 focus:border-red-500'}`}
                 aria-label="导线线规"
               >
                 {!wire.awg && <option value="">请选择</option>}
@@ -306,12 +306,12 @@ export default function WirePropertiesPanel({ wire, pressureSide, cableSize, par
                   </option>
                 ))}
               </select>
-              {!compliant && <span className="mt-1 block text-[10px] text-red-600">当前线规不在此回路允许范围内</span>}
+              {!compliant && <span className="mt-1 block text-[11px] text-red-600">当前线规不在此回路允许范围内</span>}
             </label>
           ) : (
-            <div className="mt-3 rounded bg-violet-50 px-2.5 py-2 text-[10px] leading-4 text-violet-700">该连接属于成品数据线，不显示单芯 AWG。</div>
+            <div className="mt-3 rounded bg-violet-50 px-2.5 py-2 text-[11px] leading-4 text-violet-700">该连接属于成品数据线，不显示单芯 AWG。</div>
           )}
-          <div className="mt-2 text-[9px] leading-4 text-slate-400">参考 Team 3255 Wiring Cheat Sheet 与 2026 FRC 手册 R622；仍需核对器件端子可接受线径。</div>
+          <div className="mt-2 text-[11px] leading-4 text-slate-500">参考 Team 3255 Wiring Cheat Sheet 与 2026 FRC 手册 R622；仍需核对器件端子可接受线径。</div>
         </section>
 
         </>}
@@ -322,21 +322,21 @@ export default function WirePropertiesPanel({ wire, pressureSide, cableSize, par
           </div>
           <WireRoutingStylePicker value={wire.routingStyle ?? 'standard'} onChange={onRoutingStyleChange} />
           {bundleSize > 1 ? (
-            <div className="mt-2 rounded bg-violet-50 px-2.5 py-2 text-[10px] leading-4 text-violet-700">当前导线与另外 {bundleSize - 1} 根导线处于同一线束，调整样式或路径会同步应用到整组。</div>
+            <div className="mt-2 rounded bg-violet-50 px-2.5 py-2 text-[11px] leading-4 text-violet-700">当前导线与另外 {bundleSize - 1} 根导线处于同一线束，调整样式或路径会同步应用到整组。</div>
           ) : (
-            <div className="mt-2 text-[9px] leading-4 text-slate-400">打开顶部“线束多选”或按住 Shift 多选导线，可以将多根线合并到同一拖链或束线管中。</div>
+            <div className="mt-2 text-[11px] leading-4 text-slate-500">打开顶部“线束多选”或按住 Shift 多选导线，可以将多根线合并到同一拖链或束线管中。</div>
           )}
           {terminals.length > 0 && <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2.5">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <div className="text-[10px] font-semibold text-slate-700">旧版路径点</div>
-                <div className="text-[9px] text-slate-400">当前 {terminals.length} 个</div>
+                <div className="text-[11px] font-semibold text-slate-700">旧版路径点</div>
+                <div className="text-[11px] text-slate-500">当前 {terminals.length} 个</div>
               </div>
               <div className="flex gap-1">
                 <button
                   onClick={onClearWaypoints}
                   disabled={!terminals.length}
-                  className="flex h-7 items-center gap-1 rounded border border-slate-200 bg-white px-2 text-[10px] text-slate-600 hover:bg-slate-100 disabled:opacity-35"
+                  className="flex h-7 items-center gap-1 rounded border border-slate-200 bg-white px-2 text-[11px] text-slate-600 hover:bg-slate-100 disabled:opacity-35"
                   title="删除当前导线的全部中间端子"
                 >
                   <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
@@ -349,10 +349,10 @@ export default function WirePropertiesPanel({ wire, pressureSide, cableSize, par
                 {terminals.map((waypoint, index) => (
                   <div key={waypoint.id} className="rounded border border-violet-100 bg-white p-2">
                     <div className="mb-1 flex items-center justify-between gap-2">
-                      <span className="text-[10px] font-semibold text-violet-700">中间端子 {index + 1}</span>
+                      <span className="text-[11px] font-semibold text-violet-700">中间端子 {index + 1}</span>
                       <button
                         onClick={() => onRemoveWaypoint(waypoint.id)}
-                        className="flex h-6 w-6 items-center justify-center rounded text-slate-400 hover:bg-red-50 hover:text-red-600"
+                        className="flex h-6 w-6 items-center justify-center rounded text-slate-500 hover:bg-red-50 hover:text-red-600"
                         title={`删除中间端子 ${index + 1}`}
                       >
                         <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
@@ -377,11 +377,11 @@ export default function WirePropertiesPanel({ wire, pressureSide, cableSize, par
             <span className="text-xs font-semibold text-slate-700">导线与端子</span>
           </div>
           <label className="block">
-            <span className="mb-1 block text-[10px] font-medium text-slate-500">制作方式</span>
+            <span className="mb-1 block text-[11px] font-medium text-slate-500">制作方式</span>
             <select
               value={assembly}
               onChange={(event) => changeAssembly(event.target.value as WireAssembly)}
-              className="h-9 w-full rounded border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-sky-400"
+              className="h-9 w-full rounded border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-slate-500"
             >
               <option value="field">现场导线</option>
               <option value="jumper">成品跳线（显示端子）</option>
@@ -392,7 +392,7 @@ export default function WirePropertiesPanel({ wire, pressureSide, cableSize, par
             <div className="mt-3 space-y-3 rounded-md border border-violet-100 bg-violet-50/60 p-2.5">
               <TerminalSelect label={`A 端 · ${a.label}`} value={terminalA} onChange={(value) => onChange({ terminalA: value })} />
               <TerminalSelect label={`B 端 · ${b.label}`} value={terminalB} onChange={(value) => onChange({ terminalB: value })} />
-              <div className="text-[9px] leading-4 text-violet-600">端子图标会跟随器件旋转，并显示在实际接线点外侧。</div>
+              <div className="text-[11px] leading-4 text-violet-600">端子图标会跟随器件旋转，并显示在实际接线点外侧。</div>
             </div>
           )}
         </section>

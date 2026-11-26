@@ -8,7 +8,8 @@ export default function CableConductors({ points, colors, twisted, startAxis, en
   points: RoutePoint[]; colors: [string, string]; twisted: boolean; radius?: number; width?: number; flat?: boolean;
 } & CableEndAlignment) {
   // Adjacent conductors with a hairline gap, like a bonded pair.
-  const spacing = flat ? width * 0.68 : 2.6;
+  // Twisted pairs stay twisted in print, so they need room to cross.
+  const spacing = flat ? (twisted ? Math.max(2.6, width * 0.9) : width * 0.68) : 2.6;
   const geometry = useMemo(() => cableConductorPaths(points, twisted, { startAxis, endAxis, polarity }, radius, spacing),
     [points, twisted, startAxis, endAxis, polarity, radius, spacing]);
   return (

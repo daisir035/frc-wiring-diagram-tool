@@ -9,30 +9,30 @@ interface Props {
   onClose: () => void;
 }
 
-const field = 'w-full rounded border border-slate-200 px-2 text-xs text-slate-700 outline-none focus:border-sky-400';
+const field = 'w-full rounded border border-slate-200 px-2 text-xs text-slate-700 outline-none focus:border-slate-500';
 
 export default function AnnotationPanel({ annotation, onChange, onDelete, onClose }: Props) {
   const title = annotation.kind === 'title';
   return (
     <aside className="absolute inset-y-0 right-0 z-30 flex h-full w-72 shrink-0 flex-col border-l border-slate-200 bg-white shadow-xl lg:static lg:z-auto lg:shadow-none" aria-label="标注属性">
       <div className="flex h-12 items-center gap-2 border-b border-slate-200 px-3">
-        <StickyNote className="h-4 w-4 text-sky-600" aria-hidden="true" />
+        <StickyNote className="h-4 w-4 text-slate-900" aria-hidden="true" />
         <div className="min-w-0 flex-1 text-xs font-semibold text-slate-800">{ANNOTATION_NAMES[annotation.kind]}</div>
         <button type="button" onClick={onClose} title="关闭属性面板"
-          className="flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+          className="flex h-7 w-7 items-center justify-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-700">
           <X className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
       <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
         <label className="block">
-          <span className="mb-1 block text-[10px] font-medium text-slate-500">{title ? '图纸标题（可换行）' : '标题'}</span>
+          <span className="mb-1 block text-[11px] font-medium text-slate-500">{title ? '图纸标题（可换行）' : '标题'}</span>
           {title
             ? <textarea rows={2} value={annotation.title ?? ''} onChange={(e) => onChange({ title: e.target.value })} className={`${field} py-1.5`} />
             : <input value={annotation.title ?? ''} onChange={(e) => onChange({ title: e.target.value })} className={`${field} h-9`} />}
         </label>
         {annotation.kind !== 'section' && (
           <label className="block">
-            <span className="mb-1 block text-[10px] font-medium text-slate-500">{title ? '队伍 / 副标题' : '正文（可换行）'}</span>
+            <span className="mb-1 block text-[11px] font-medium text-slate-500">{title ? '队伍 / 副标题' : '正文（可换行）'}</span>
             {title
               ? <input value={annotation.body ?? ''} onChange={(e) => onChange({ body: e.target.value })} className={`${field} h-9`} />
               : <textarea rows={5} value={annotation.body ?? ''} onChange={(e) => onChange({ body: e.target.value })} className={`${field} py-1.5 leading-4`} />}
@@ -44,14 +44,14 @@ export default function AnnotationPanel({ annotation, onChange, onDelete, onClos
             显示虚线边框
           </label>
         )}
-        <p className="text-[10px] leading-4 text-slate-400">
+        <p className="text-[11px] leading-4 text-slate-500">
           {title
             ? '图例自动列出本页用到的气管压力侧和导线线规。拖动右下角调整大小。'
             : annotation.kind === 'section'
               ? '拖动虚线边框或左上角标题移动；拖动右下角调整大小。框内器件照常点选。'
               : '拖动移动，拖动右下角调整大小。'}
         </p>
-        <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500">
+        <div className="grid grid-cols-2 gap-2 text-xs text-slate-500">
           <span>位置 {Math.round(annotation.x)}, {Math.round(annotation.y)}</span>
           <span>大小 {Math.round(annotation.w)} × {Math.round(annotation.h)} mm</span>
         </div>

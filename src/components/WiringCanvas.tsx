@@ -48,6 +48,7 @@ import InlineConnectorMarker from './InlineConnectorMarker';
 import CableConductors from './CableConductors';
 import { cablePolarity } from '../lib/cableGeometry';
 import { nearestCablePortAtPoint } from '../lib/canvasHitTesting';
+import { DRAWING_FONT } from '../lib/drawingFont';
 
 interface Props {
   backgroundImage?: CanvasBackground;
@@ -282,7 +283,7 @@ function PortMarker({ x, y, fill, color, state }: { x: number; y: number; fill: 
   if (state === 'open' || state === 'open-near') {
     return <circle cx={x} cy={y} r={state === 'open' ? 2.3 : 3} fill="#ffffff" stroke={color} strokeWidth={1.3} pointerEvents="none" />;
   }
-  const halo = state === 'source' ? '#0ea5e9' : color;
+  const halo = state === 'source' ? UI_INK : color;
   return (
     <g pointerEvents="none">
       <circle cx={x} cy={y} r={6.5} fill={halo} fillOpacity={0.18} stroke={halo} strokeOpacity={state === 'source' ? 0.7 : 0.35} strokeWidth={1} />
@@ -293,6 +294,20 @@ function PortMarker({ x, y, fill, color, state }: { x: number; y: number; fill: 
 
 /** Shift, Ctrl or Cmd add to the selection instead of replacing it. */
 const additiveKey = (event: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) => event.shiftKey || event.ctrlKey || event.metaKey;
+
+/** Interface ink: selection and tool states use this and shape, never a hue (hues are wire types). */
+export const UI_INK = '#0f172a';
+
+/** True for near-white wire colours that need a dark outline on a light canvas. */
+const isLightWire = (color: string) => {
+  const hex = /^#([0-9a-f]{6})$/i.exec(color)?.[1];
+  if (!hex) return false;
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 225;
+};
+
+/** Background dot spacing in drawing units. */
+const GRID_WORLD = 26;
 
 export const ZOOM_MIN = 0.1;
 export const ZOOM_MAX = 8;
@@ -334,11 +349,11 @@ function PartLabel({ w, h, rot, position, title, caption, locked, offset, onPoin
   const y = position === 'bottom' ? top + vh + 14 : position === 'top' ? top - 6 - blockHeight + titleSize : top + vh / 2 - blockHeight / 2 + titleSize * 0.8;
   return (
     <g transform={offset ? `translate(${offset.x} ${offset.y})` : undefined} style={{ userSelect: 'none', cursor: locked ? 'default' : 'move' }}
-      fontFamily="'Saira Semi Condensed', 'Barlow Semi Condensed', 'Noto Sans SC', sans-serif" onPointerDown={onPointerDown}>
+      fontFamily={DRAWING_FONT} onPointerDown={onPointerDown}>
       <title>拖动标签调整位置</title>
-      <text x={x} y={y} textAnchor={anchor} fontSize={titleSize} fontWeight={700} fill={locked ? '#92400e' : '#4c4d4f'}>{title}</text>
+      <text x={x} y={y} textAnchor={anchor} fontSize={titleSize} fontWeight={700} fill={locked ? '#92400e' : '#3f4042'} stroke="#ffffff" strokeWidth={3.5} strokeLinejoin="round" paintOrder="stroke">{title}</text>
       {lines.map((line, index) => (
-        <text key={index} x={x} y={y + (index + 1) * captionSize * 1.3} textAnchor={anchor} fontSize={captionSize} fill="#6d6e71">{line}</text>
+        <text key={index} x={x} y={y + (index + 1) * captionSize * 1.3} textAnchor={anchor} fontSize={captionSize} fill="#5f6063" stroke="#ffffff" strokeWidth={3.5} strokeLinejoin="round" paintOrder="stroke">{line}</text>
       ))}
     </g>
   );
@@ -980,6 +995,8 @@ export default function WiringCanvas(props: Props) {
 
   /* ---------- 渲染 ---------- */
 
+  const gridStep = GRID_WORLD * view.k < 10 ? GRID_WORLD * 5 * view.k : GRID_WORLD * view.k;
+
   return (
     <div
       ref={containerRef}
@@ -987,7 +1004,9 @@ export default function WiringCanvas(props: Props) {
       style={{
         background: posterMode ? '#ffffff' : '#f1f5f9',
         backgroundImage: posterMode ? 'none' : 'radial-gradient(circle, #cbd5e1 1.2px, transparent 1.2px)',
-        backgroundSize: '26px 26px',
+        // The grid lives in world space: it pans and zooms with the drawing (every 5th dot when zoomed far out).
+        backgroundSize: `${gridStep}px ${gridStep}px`,
+        backgroundPosition: `${view.x}px ${view.y}px`,
         cursor: pendingFrom || pendingInlineWireId ? 'crosshair' : 'default',
       }}
       onContextMenu={(e) => e.preventDefault()}
@@ -997,6 +1016,7 @@ export default function WiringCanvas(props: Props) {
       <svg
         ref={svgRef}
         className="w-full h-full block"
+        fontFamily={DRAWING_FONT}
         tabIndex={0}
         aria-label="接线图画布"
         onPointerDownCapture={(event) => {
@@ -1059,7 +1079,10 @@ export default function WiringCanvas(props: Props) {
             return (
               <g key={'routing:' + visual.key} data-bundle-id={visual.key} style={{ pointerEvents: 'none' }}>
                 {visual.wireIds.some((id) => selectedWires.has(id)) && (
-                  <path d={visual.path} fill="none" stroke="#38bdf8" strokeWidth={jacketWidth + 8} opacity={0.42} strokeLinejoin="round" />
+                  <>
+                    <path d={visual.path} fill="none" stroke={UI_INK} strokeWidth={jacketWidth + 10} opacity={0.9} strokeLinejoin="round" />
+                    <path d={visual.path} fill="none" stroke="#ffffff" strokeWidth={jacketWidth + 5} strokeLinejoin="round" />
+                  </>
                 )}
                 <g>
                   {visual.style === 'drag-chain' ? (
@@ -1132,20 +1155,25 @@ export default function WiringCanvas(props: Props) {
             return (
               <g key={wire.id} data-wire-id={wire.id} data-cable-members={cable?.map((wire) => wire.id).join(',')}>
                 {sel && visiblePaths.map((segment, index) => (
-                  <path key={'selection-' + index} d={segment} fill="none" stroke="#38bdf8" strokeWidth={tube ? tubeWidth + 6 : 10} opacity={0.42} strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />
+                  <g key={'selection-' + index} pointerEvents="none">
+                    {/* Selection is ink + white, never a hue: every hue already means a signal type. */}
+                    <path d={segment} fill="none" stroke={UI_INK} strokeWidth={tube ? tubeWidth + 9 : 13} opacity={0.9} strokeLinecap="round" strokeLinejoin="round" />
+                    <path d={segment} fill="none" stroke="#ffffff" strokeWidth={tube ? tubeWidth + 4.5 : 8.5} strokeLinecap="round" strokeLinejoin="round" />
+                  </g>
                 ))}
                 {visiblePaths.map((segment, index) => (
                   <g key={'wire-segment-' + index} style={{ pointerEvents: 'none' }}>
                     {tube ? (
                       <path d={segment} fill="none" stroke={PRESSURE_SIDES[pressureSides.get(wire.id) ?? 'working'].color} strokeWidth={tubeWidth} strokeLinejoin="round" />
-                    ) : cable ? <CableConductors radius={editorWire.cornerRadius} points={route.visiblePoints[index]} colors={[wire.color, cable[1].color]} twisted={!posterMode && commonType === 'canH'}
+                    ) : cable ? <CableConductors radius={editorWire.cornerRadius} points={route.visiblePoints[index]} colors={[wire.color, cable[1].color]} twisted={commonType === 'canH'}
                       width={posterMode ? awgStrokeWidth(wire.awg) : 2.8} flat={posterMode}
                       polarity={cableVisuals.get(wire.id)?.polarity} {...cableVisuals.get(wire.id)?.segments[index]} /> : <>
-                    {!posterMode && <path
+                    {(!posterMode || isLightWire(wire.color)) && <path
                       d={segment}
                       fill="none"
-                      stroke="#ffffff"
-                      strokeWidth={7}
+                      // A white wire gets a dark jacket so it reads as white instead of vanishing.
+                      stroke={isLightWire(wire.color) ? '#475569' : '#ffffff'}
+                      strokeWidth={posterMode ? awgStrokeWidth(wire.awg) + 1.8 : isLightWire(wire.color) ? 5.6 : 7}
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       opacity={0.92}
@@ -1271,8 +1299,8 @@ export default function WiringCanvas(props: Props) {
                     }}
                   >
                     <circle r={Math.max(8, 12 / view.k)} fill="transparent" />
-                    <circle r={8} fill="#ffffff" stroke="#0284c7" strokeWidth={2} />
-                    <path d="M -3 0 H 3 M 0 -3 V 3" stroke="#0284c7" strokeWidth={1.5} strokeLinecap="round" pointerEvents="none" />
+                    <circle r={8} fill="#ffffff" stroke={UI_INK} strokeWidth={2} />
+                    <path d="M -3 0 H 3 M 0 -3 V 3" stroke={UI_INK} strokeWidth={1.5} strokeLinecap="round" pointerEvents="none" />
                     <title>拖动调整路径，双击恢复自动布线</title>
                   </g>
                 )}
@@ -1319,13 +1347,13 @@ export default function WiringCanvas(props: Props) {
                   <path
                     d={wirePath(p1, p2)}
                     fill="none"
-                    stroke={target ? '#0ea5e9' : '#64748b'}
+                    stroke={target ? UI_INK : '#64748b'}
                     strokeWidth={target ? 2.4 : 1.8}
                     strokeDasharray={target ? undefined : '6 5'}
                     strokeLinecap="round"
                     opacity={target ? 1 : 0.8}
                   />
-                  {end && <circle cx={end.x} cy={end.y} r={6.5} fill="#0ea5e9" fillOpacity={0.15} stroke="#0ea5e9" strokeWidth={1.4} />}
+                  {end && <circle cx={end.x} cy={end.y} r={7} fill="#ffffff" fillOpacity={0.6} stroke={UI_INK} strokeWidth={1.8} />}
                 </g>
               );
             })()}
@@ -1339,7 +1367,7 @@ export default function WiringCanvas(props: Props) {
             const displayLabel = [part.customName?.trim() || def.name, part.deviceId?.trim()].filter(Boolean).join(' · ');
             const showLabel = part.labelPos !== 'none' && (!def.hideLabel || Boolean(part.customName?.trim() || part.deviceId?.trim()));
             const pdhChannels = motorPdhChannels.get(part.uid) ?? [];
-            const pdhLabel = pdhChannels.length > 0 ? `PDH CH ${pdhChannels.join(' / ')}` : '';
+            const pdhLabel = pdhChannels.length > 0 ? `${pdhChannels.length > 1 ? '⚠ ' : ''}PDH CH ${pdhChannels.join(' / ')}` : '';
             const pdhLabelWidth = Math.max(64, pdhLabel.length * 6 + 16);
             return (
               <g key={part.uid} transform={`translate(${part.x} ${part.y})`}
@@ -1355,7 +1383,7 @@ export default function WiringCanvas(props: Props) {
                       height={h + 10}
                       rx={8}
                       fill="none"
-                      stroke={part.locked ? '#f59e0b' : '#38bdf8'}
+                      stroke={part.locked ? '#b45309' : UI_INK}
                       strokeWidth={2.5}
                       strokeDasharray="7 5"
                     />
@@ -1454,7 +1482,7 @@ export default function WiringCanvas(props: Props) {
                   <g
                     transform={`translate(${w / 2} ${h + 24})`}
                     style={{ pointerEvents: 'none', userSelect: 'none' }}
-                    fontFamily="'Saira Semi Condensed', 'Barlow Semi Condensed', 'Noto Sans SC', sans-serif"
+                    fontFamily={DRAWING_FONT}
                   >
                     <rect
                       x={-pdhLabelWidth / 2}
@@ -1462,15 +1490,15 @@ export default function WiringCanvas(props: Props) {
                       width={pdhLabelWidth}
                       height={18}
                       rx={4}
-                      fill={pdhChannels.length > 1 ? '#fef2f2' : '#e0f2fe'}
-                      stroke={pdhChannels.length > 1 ? '#ef4444' : '#0ea5e9'}
+                      fill={pdhChannels.length > 1 ? '#fef2f2' : '#ffffff'}
+                      stroke={pdhChannels.length > 1 ? '#b91c1c' : '#334155'}
                       strokeWidth={1.2}
                     />
                     <text
                       y={12.5}
                       textAnchor="middle"
                       fontSize={10}
-                      fill={pdhChannels.length > 1 ? '#b91c1c' : '#0369a1'}
+                      fill={pdhChannels.length > 1 ? '#b91c1c' : '#1e293b'}
                       fontWeight={700}
                       letterSpacing={0}
                     >
@@ -1488,7 +1516,7 @@ export default function WiringCanvas(props: Props) {
             {pendingFrom && [...compatiblePorts].map((key) => {
               const [uid, portId] = [key.slice(0, key.indexOf(':')), key.slice(key.indexOf(':') + 1)];
               const point = getPort({ uid, portId });
-              return point && <circle key={key} cx={point.x} cy={point.y} r={5.5} fill="none" stroke="#0ea5e9" strokeWidth={1} opacity={0.55} />;
+              return point && <circle key={key} cx={point.x} cy={point.y} r={5.5} fill="none" stroke={UI_INK} strokeWidth={1.2} opacity={0.6} />;
             })}
             {hoveredPort && (() => {
               const point = getPort(hoveredPort);
@@ -1546,8 +1574,8 @@ export default function WiringCanvas(props: Props) {
                   onPointerDown={(event) => onBundleEndpointPointerDown(event, bundle, endpoint)}
                 >
                   <circle r={Math.max(12, 12 / view.k)} fill="transparent" />
-                  <circle r={Math.max(5, (selected ? 7 : 5) / view.k)} fill="#ffffff" stroke={selected ? '#0284c7' : '#64748b'} strokeWidth={1.5 / view.k} pointerEvents="none" />
-                  <circle r={2 / view.k} fill={selected ? '#0284c7' : '#64748b'} pointerEvents="none" />
+                  <circle r={Math.max(5, (selected ? 7 : 5) / view.k)} fill="#ffffff" stroke={selected ? UI_INK : '#64748b'} strokeWidth={1.5 / view.k} pointerEvents="none" />
+                  <circle r={2 / view.k} fill={selected ? UI_INK : '#64748b'} pointerEvents="none" />
                   <title>{`${bundle.style === 'drag-chain' ? '拖链' : '束线管'}${endpoint === 'entry' ? '入口' : '出口'}`}</title>
                 </g>
             );
@@ -1610,8 +1638,8 @@ export default function WiringCanvas(props: Props) {
               y={marquee.y}
               width={marquee.w}
               height={marquee.h}
-              fill="rgba(56,189,248,0.12)"
-              stroke="#38bdf8"
+              fill="rgba(15,23,42,0.05)"
+              stroke={UI_INK}
               strokeWidth={1.2}
               strokeDasharray="5 4"
             />

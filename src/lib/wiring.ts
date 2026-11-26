@@ -261,7 +261,7 @@ export const WIRE_COLORS = [
   { c: '#2563eb', n: '蓝' },
   { c: '#f97316', n: '橙' },
   { c: '#8b5cf6', n: '紫' },
-  { c: '#9ca3af', n: '白' },
+  { c: '#f8fafc', n: '白' },
 ];
 
 export const FUSE_RATINGS: FuseRating[] = [10, 20, 30, 40];

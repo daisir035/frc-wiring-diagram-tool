@@ -3,6 +3,7 @@ import type { Annotation } from '../lib/annotations';
 import { PRESSURE_SIDES } from '../lib/pneumaticZones';
 import { awgStrokeWidth } from '../lib/wireStyle';
 import type { PressureSide } from '../lib/pneumaticZones';
+import { DRAWING_FONT } from '../lib/drawingFont';
 
 export interface LegendContent {
   sides: PressureSide[];
@@ -25,7 +26,7 @@ const INK = '#4c4d4f';
 const MUTED = '#6d6e71';
 const DASH = '#a0a0a0';
 const FRAME = '#3a3a3c';
-const FONT = "'Saira Semi Condensed', 'Barlow Semi Condensed', 'Noto Sans SC', sans-serif";
+const FONT = DRAWING_FONT;
 
 function Lines({ x, y, text, size, color = MUTED, weight = 400, gap = 1.3 }: {
   x: number; y: number; text: string; size: number; color?: string; weight?: number; gap?: number;
@@ -39,7 +40,8 @@ function Section({ a }: { a: Annotation }) {
   return (
     <g>
       <rect x={a.x} y={a.y} width={a.w} height={a.h} rx={10} fill="none" stroke={DASH} strokeWidth={1.6} strokeDasharray="7 6" />
-      {a.title && <text x={a.x + 14} y={a.y + 24} fontSize={15} fill="#8b8c8e">{a.title}</text>}
+      {/* Wires often cross a section title; the halo keeps it readable. */}
+      {a.title && <text x={a.x + 14} y={a.y + 24} fontSize={15} fill="#64748b" stroke="#ffffff" strokeWidth={5} strokeLinejoin="round" paintOrder="stroke">{a.title}</text>}
     </g>
   );
 }
@@ -177,8 +179,8 @@ export default function AnnotationLayer({ annotations, selectedId, legend, k, on
             )}
             {selected && (
               <g data-export-ignore="true">
-                <rect x={a.x - 4} y={a.y - 4} width={a.w + 8} height={a.h + 8} rx={12} fill="none" stroke="#0ea5e9" strokeWidth={1.5 / k * 1.2} strokeDasharray="5 4" pointerEvents="none" />
-                <rect x={a.x + a.w - handle / 2} y={a.y + a.h - handle / 2} width={handle} height={handle} rx={2} fill="#ffffff" stroke="#0ea5e9" strokeWidth={1.5}
+                <rect x={a.x - 4} y={a.y - 4} width={a.w + 8} height={a.h + 8} rx={12} fill="none" stroke="#0f172a" strokeWidth={1.5 / k * 1.2} strokeDasharray="5 4" pointerEvents="none" />
+                <rect x={a.x + a.w - handle / 2} y={a.y + a.h - handle / 2} width={handle} height={handle} rx={2} fill="#ffffff" stroke="#0f172a" strokeWidth={1.5}
                   style={{ cursor: 'nwse-resize' }} onPointerDown={(e) => onPointerDown(e, a.id, 'resize')} />
               </g>
             )}

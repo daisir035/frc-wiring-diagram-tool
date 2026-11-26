@@ -98,17 +98,17 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
       >
         <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200">
           <DialogTitle className="font-semibold text-base text-slate-800">导入自定义器件</DialogTitle>
-          <button onClick={onClose} aria-label="关闭自定义器件窗口" className="h-8 w-8 text-slate-400 hover:text-slate-600 text-lg leading-none">✕</button>
+          <button onClick={onClose} aria-label="关闭自定义器件窗口" className="h-8 w-8 text-slate-500 hover:text-slate-600 text-lg leading-none">✕</button>
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
           <DialogDescription className="text-xs text-slate-500">导入图片后可标记端口，再保存到自定义元件库。图片自动缩小至 2048 像素以内并压缩。</DialogDescription>
           {imageError && <div role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-700">{imageError}</div>}
-          {loadingImage && <div role="status" className="text-sm text-sky-700">正在处理图片…</div>}
+          {loadingImage && <div role="status" className="text-sm text-slate-900">正在处理图片…</div>}
           {!imgData ? (
-            <label className="relative block border-2 border-dashed border-slate-300 rounded-xl py-14 text-center cursor-pointer hover:border-sky-400 focus-within:border-sky-500 transition-colors">
+            <label className="relative block border-2 border-dashed border-slate-300 rounded-xl py-14 text-center cursor-pointer hover:border-slate-500 focus-within:border-slate-700 transition-colors">
               <div className="text-slate-500 text-sm">点击导入器件图片（PNG / JPG / WEBP）</div>
-              <div className="mt-1 text-xs text-slate-400">文件不超过 10 MB，压缩后不超过 750 KB</div>
+              <div className="mt-1 text-xs text-slate-500">文件不超过 10 MB，压缩后不超过 750 KB</div>
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
@@ -140,8 +140,8 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
                       key={t}
                       onClick={() => setNextType(t)}
                       aria-pressed={nextType === t}
-                      className={`px-2 py-0.5 rounded-full border text-[11px] ${
-                        nextType === t ? 'border-sky-500 bg-sky-50 text-sky-700' : 'border-slate-200 text-slate-500'
+                      className={`px-2 py-0.5 rounded-full border text-xs ${
+                        nextType === t ? 'border-slate-900 bg-slate-100 text-slate-900' : 'border-slate-200 text-slate-500'
                       }`}
                     >
                       <span
@@ -171,7 +171,7 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
                   type="url"
                 />
               </div>
-              <div className="text-xs text-slate-400">在图片上点击即可放置端口；端口不是必填，下方列表可改名、改类型或删除。</div>
+              <div className="text-xs text-slate-500">在图片上点击即可放置端口；端口不是必填，下方列表可改名、改类型或删除。</div>
               <div className="border border-slate-200 rounded-lg bg-slate-50 overflow-auto max-h-72 flex justify-center">
                 <div className="relative inline-block">
                   <img
@@ -236,11 +236,11 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
                         ))}
                       </select>
                     )}
-                    <span className="text-slate-400">
+                    <span className="text-slate-500">
                       ({(pt.x * 100).toFixed(0)}%, {(pt.y * 100).toFixed(0)}%)
                     </span>
                     <button
-                      className="text-slate-400 hover:text-red-500 ml-auto"
+                      className="text-slate-500 hover:text-red-500 ml-auto"
                       aria-label={`删除端口 ${pt.label}`}
                       onClick={() => setPorts((ps) => pairCustomPorts(ps, pt.id).filter((_, j) => j !== i))}
                     >
@@ -261,7 +261,7 @@ export default function CustomBoardModal({ onClose, onSave }: Props) {
           <button
             onClick={save}
             disabled={!imgData || loadingImage}
-            className="px-4 py-1.5 text-sm rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-4 py-1.5 text-sm rounded-lg bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             保存到元件库
           </button>

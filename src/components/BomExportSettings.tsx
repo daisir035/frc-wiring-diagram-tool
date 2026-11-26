@@ -19,7 +19,7 @@ interface Props {
 export default function BomExportSettings({ options, background, pageName, busy, hasContent, onChange, onCalibrate, onExport, onClose }: Props) {
   const [width, setWidth] = useState(background?.calibratedWidthMm ? String(background.calibratedWidthMm) : '');
   const numericWidth = Number(width);
-  const inputClass = 'mt-1 h-9 w-full min-w-0 rounded border border-slate-300 bg-white px-2 text-sm text-slate-800 outline-none focus:border-sky-500';
+  const inputClass = 'mt-1 h-9 w-full min-w-0 rounded border border-slate-300 bg-white px-2 text-sm text-slate-800 outline-none focus:border-slate-700';
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto bg-white sm:max-w-md" aria-describedby={undefined}>
@@ -30,7 +30,7 @@ export default function BomExportSettings({ options, background, pageName, busy,
             {[['project', '当前工程全部页面'], ['page', '当前页面']].map(([value, label]) => (
               <label key={value} className="flex items-center gap-2">
                 <input type="radio" name="bom-scope" checked={options.scope === value}
-                  onChange={() => onChange({ ...options, scope: value as BomOptions['scope'] })} className="accent-sky-600" />{label}
+                  onChange={() => onChange({ ...options, scope: value as BomOptions['scope'] })} className="accent-slate-900" />{label}
               </label>
             ))}
           </div>
@@ -62,7 +62,7 @@ export default function BomExportSettings({ options, background, pageName, busy,
         </section>
         <div className="flex justify-end">
           <button type="button" disabled={busy || !hasContent} onClick={() => { onExport(); onClose(); }}
-            className="flex h-10 items-center gap-2 rounded bg-sky-700 px-4 text-sm font-medium text-white hover:bg-sky-800 disabled:opacity-40">
+            className="flex h-10 items-center gap-2 rounded bg-slate-800 px-4 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40">
             <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />导出 Excel BOM
           </button>
         </div>

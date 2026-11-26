@@ -785,8 +785,9 @@ const breaker120 = imagePart('120A Fuse.svg', {
   h: 521,
   displayWidth: 100,
   ports: [
-    p('batt', 'BAT（电池）', 0.28, 0, 'pwr+', 'top'),
-    p('aux', 'AUX（配电输入）', 0.72, 1, 'pwr+', 'bottom'),
+    // On the two brass studs in the 169.75 × 259.75 artwork, so the lead lines up with its stud.
+    p('batt', 'BAT（电池）', 126.36 / 169.75, 31.04 / 259.75, 'pwr+', 'top'),
+    p('aux', 'AUX（配电输入）', 41.16 / 169.75, 228.71 / 259.75, 'pwr+', 'bottom'),
   ],
 });
 

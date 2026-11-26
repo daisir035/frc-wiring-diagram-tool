@@ -548,6 +548,9 @@ function Camera({ def }: { def: PartDef }) {
   );
 }
 
+/** Battery lug height in drawing units: wider than the thickest lead (6 AWG ≈ 4.8). */
+const BATTERY_LUG = 7;
+
 function Battery({ def }: { def: PartDef }) {
   const { w, h } = def;
   const labelHeight = Math.min(h, w * 0.6);
@@ -565,12 +568,20 @@ function Battery({ def }: { def: PartDef }) {
         <text x={w * 0.45} y={h * 0.78} fontSize={labelHeight * 0.095} fontWeight={600} letterSpacing={0.2}>12V 18Ah</text>
       </g>
       {def.ports.map((port) => (
-        <text key={port.id} x={w - 9} y={port.y * h} textAnchor="end" dominantBaseline="middle"
+        <text key={port.id} x={w - 14} y={port.y * h} textAnchor="end" dominantBaseline="middle"
           fill={padColor(port.type)} fontFamily="Arial, sans-serif" fontSize={labelHeight * 0.104} fontWeight={600} letterSpacing={0}>
           {port.type === 'pwr+' ? '+' : '−'}
         </text>
       ))}
-      <VectorPortPads def={def} />
+      {/* Terminal lugs sized for the 6 AWG main leads (4.8 wide), so the wire meets a lug at least as thick. */}
+      {def.ports.map((port) => (
+        <g key={`lug-${port.id}`} data-battery-lug={port.id}>
+          <circle cx={port.x * w - 3} cy={port.y * h} r={1.4} fill="#f8fafc" opacity={0.85} />
+          {/* Centred on the port, like every other port pad; it reads as a tab standing off the case. */}
+          <rect x={port.x * w - 5.5} y={port.y * h - BATTERY_LUG / 2} width={11} height={BATTERY_LUG} rx={1.2}
+            fill={padColor(port.type)} stroke="#f8fafc" strokeWidth={0.8} />
+        </g>
+      ))}
     </>
   );
 }

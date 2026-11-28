@@ -647,17 +647,28 @@ function pdhChannelPorts(): PortDef[] {
 }
 
 function pdhFuseSlots(): NonNullable<PartDef['fuseSlots']> {
+  // Socket centers measured in the PDH SVG viewBox (463.36 × 920.75).
+  // The two columns are staggered, with a wider gap after the fifth row.
   const slots: NonNullable<PartDef['fuseSlots']> = [];
-  spread(0.068, 0.668, 10).forEach((y, row) => {
-    slots.push({ channel: 10 + row, x: 0.264, y, w: 0.182, h: 0.0445 });
-    slots.push({ channel: 9 - row, x: 0.558, y, w: 0.182, h: 0.0445 });
+  const add = (channel: number, cx: number, cy: number, width: number) => {
+    const height = width / 2.08; // Match the fuse SVG aspect ratio.
+    slots.push({
+      channel,
+      x: (cx - width / 2) / 463.36,
+      y: (cy - height / 2) / 920.75,
+      w: width / 463.36,
+      h: height / 920.75,
+    });
+  };
+  const left = [70.6, 131.75, 191.88, 253.03, 313.22, 386.15, 446.92, 508.37, 568.26, 629.71];
+  const right = [86.52, 147.21, 207.55, 268.55, 329.32, 402.25, 463.21, 524.36, 584.48, 644.87];
+  left.forEach((y, row) => {
+    add(10 + row, 171.82, y + 6.215, 72);
+    add(9 - row, 293.47, right[row] + 6.215, 72);
   });
-  [
-    { channel: 20, x: 0.252, y: 0.747 },
-    { channel: 21, x: 0.208, y: 0.784 },
-    { channel: 22, x: 0.252, y: 0.821 },
-    { channel: 23, x: 0.208, y: 0.858 },
-  ].forEach((slot) => slots.push({ ...slot, w: 0.118, h: 0.029 }));
+  [700.64, 729.05, 757.59, 786].forEach((y, row) => {
+    add(20 + row, row % 2 ? 120.90 : 142.91, y + 10.865, 54);
+  });
   return slots;
 }
 
